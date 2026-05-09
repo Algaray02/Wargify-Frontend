@@ -186,7 +186,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   children: const [
                     TextSpan(text: "Don't have account? "),
                     TextSpan(
-                      text: "Hubungi pak gawol",
+                      text: "Hubungi Ketua RT",
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ],
