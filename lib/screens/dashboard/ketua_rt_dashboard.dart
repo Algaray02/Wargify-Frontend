@@ -4,6 +4,7 @@ import '../../core/constants/colors.dart';
 import '../../services/auth/auth_service.dart';
 import '../../models/user_model.dart';
 import '../auth/login_screen.dart';
+import '../scan/qr_scanner_screen.dart';
 
 class KetuaRtDashboard extends StatefulWidget {
   final UserModel user;
@@ -42,7 +43,6 @@ class _KetuaRtDashboardState extends State<KetuaRtDashboard> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      // Fixed Header can be an AppBar for convenience or a Column child
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(80),
         child: SafeArea(
@@ -366,7 +366,12 @@ class _KetuaRtDashboardState extends State<KetuaRtDashboard> {
         width: 65,
         margin: const EdgeInsets.only(top: 30),
         child: FloatingActionButton(
-          onPressed: () {},
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const QrScannerScreen()),
+            );
+          },
           backgroundColor: AppColors.primary,
           elevation: 4,
           shape: const CircleBorder(),
