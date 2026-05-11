@@ -6,6 +6,9 @@ import '../../models/user_model.dart';
 import '../auth/login_screen.dart';
 import '../scan/qr_scanner_screen.dart';
 import '../kegiatan/kegiatan_screen.dart';
+import '../sos/sos_trigger_screen.dart';
+import '../sos/sos_dashboard_screen.dart';
+import '../gallery/gallery_screen.dart';
 
 class KetuaRtDashboard extends StatefulWidget {
   final UserModel user;
@@ -125,7 +128,7 @@ class _KetuaRtDashboardState extends State<KetuaRtDashboard> {
         children: [
           _buildHomeContent(),
           const KegiatanScreen(),
-          const Center(child: Text('Gallery Content')),
+          const GalleryScreen(),
           const Center(child: Text('Ronda Content')),
         ],
       ),
@@ -264,7 +267,12 @@ class _KetuaRtDashboardState extends State<KetuaRtDashboard> {
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
-                            onPressed: () {},
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => const SosDashboardScreen()),
+                              );
+                            },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.danger,
                               foregroundColor: Colors.white,
@@ -290,48 +298,56 @@ class _KetuaRtDashboardState extends State<KetuaRtDashboard> {
             ),
             const SizedBox(height: 16),
             // Emergency Button
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-              decoration: BoxDecoration(
-                color: AppColors.danger,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
+            InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SosTriggerScreen()),
+                );
+              },
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                decoration: BoxDecoration(
+                  color: AppColors.danger,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.report_problem_rounded, color: Colors.white),
                     ),
-                    child: const Icon(Icons.report_problem_rounded, color: Colors.white),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Tombol Darurat',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Tombol Darurat',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
                           ),
-                        ),
-                        Text(
-                          'Gunakan jika ada situasi genting',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            color: Colors.white.withOpacity(0.8),
+                          Text(
+                            'Gunakan jika ada situasi genting',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              color: Colors.white.withOpacity(0.8),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  const Icon(Icons.chevron_right_rounded, color: Colors.white),
-                ],
+                    const Icon(Icons.chevron_right_rounded, color: Colors.white),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 20),
