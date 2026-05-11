@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'core/constants/colors.dart';
 import 'screens/auth/login_screen.dart';
-import 'screens/dashboard/dashboard_screen.dart';
+import 'screens/dashboard/dashboard_wrapper.dart';
 import 'services/auth/auth_service.dart';
 
 void main() async {
@@ -11,7 +11,7 @@ void main() async {
   final authService = AuthService();
   final bool loggedIn = await authService.isLoggedIn();
   
-  runApp(MyApp(initialPage: loggedIn ? const DashboardScreen() : const LoginScreen()));
+  runApp(MyApp(initialPage: loggedIn ? const DashboardWrapper() : const LoginScreen()));
 }
 
 class MyApp extends StatelessWidget {
