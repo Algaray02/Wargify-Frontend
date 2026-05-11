@@ -5,6 +5,7 @@ import '../../services/auth/auth_service.dart';
 import '../../models/user_model.dart';
 import '../auth/login_screen.dart';
 import '../scan/qr_scanner_screen.dart';
+import '../kegiatan/kegiatan_screen.dart';
 
 class KetuaRtDashboard extends StatefulWidget {
   final UserModel user;
@@ -119,11 +120,59 @@ class _KetuaRtDashboardState extends State<KetuaRtDashboard> {
           ),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      body: IndexedStack(
+        index: _currentIndex,
+        children: [
+          _buildHomeContent(),
+          const KegiatanScreen(),
+          const Center(child: Text('Gallery Content')),
+          const Center(child: Text('Ronda Content')),
+        ],
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButton: Container(
+        height: 65,
+        width: 65,
+        margin: const EdgeInsets.only(top: 30),
+        child: FloatingActionButton(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const QrScannerScreen()),
+            );
+          },
+          backgroundColor: AppColors.primary,
+          elevation: 4,
+          shape: const CircleBorder(),
+          child: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 30),
+        ),
+      ),
+      bottomNavigationBar: BottomAppBar(
+        color: const Color(0xFFF8FBFE),
+        elevation: 10,
+        child: SizedBox(
+          height: 60,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildNavItem(Icons.home_rounded, 'HOME', 0),
+              _buildNavItem(Icons.people_alt_rounded, 'KEGIATAN', 1),
+              const SizedBox(width: 40), // Space for FAB
+              _buildNavItem(Icons.collections_bookmark_rounded, 'GALLERY', 2),
+              _buildNavItem(Icons.report_gmailerrorred_rounded, 'RONDA', 3),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHomeContent() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
             const SizedBox(height: 20),
             // Greeting
             Text(
@@ -359,44 +408,8 @@ class _KetuaRtDashboardState extends State<KetuaRtDashboard> {
             const SizedBox(height: 100), // Bottom padding for FAB
           ],
         ),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      floatingActionButton: Container(
-        height: 65,
-        width: 65,
-        margin: const EdgeInsets.only(top: 30),
-        child: FloatingActionButton(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const QrScannerScreen()),
-            );
-          },
-          backgroundColor: AppColors.primary,
-          elevation: 4,
-          shape: const CircleBorder(),
-          child: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 30),
-        ),
-      ),
-      bottomNavigationBar: BottomAppBar(
-        color: const Color(0xFFF8FBFE),
-        elevation: 10,
-        child: SizedBox(
-          height: 60,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildNavItem(Icons.home_rounded, 'HOME', 0),
-              _buildNavItem(Icons.people_alt_rounded, 'PERTEMUAN', 1),
-              const SizedBox(width: 40), // Space for FAB
-              _buildNavItem(Icons.collections_bookmark_rounded, 'GALLERY', 2),
-              _buildNavItem(Icons.report_gmailerrorred_rounded, 'RONDA', 3),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+      );
+    }
 
   Widget _buildManagementCard({required String title, required String subtitle, required IconData icon}) {
     return Container(
