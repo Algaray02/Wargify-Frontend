@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/colors.dart';
 import '../../services/auth/auth_service.dart';
 import '../../widgets/common/primary_button.dart';
-import '../warga/home/home_screen.dart';
+import '../dashboard/dashboard_wrapper.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -37,7 +37,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (mounted) {
         Navigator.of(context).pushReplacement(
+<<<<<<< HEAD
           MaterialPageRoute(builder: (context) => const WargaHomeScreen()),
+=======
+          MaterialPageRoute(builder: (context) => const DashboardWrapper()),
+>>>>>>> 35f4dbdc3b1297708338a8a30e84e20d2dcff4c5
         );
       }
     } catch (e) {
