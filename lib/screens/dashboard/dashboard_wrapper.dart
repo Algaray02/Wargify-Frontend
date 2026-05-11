@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import '../../models/user_model.dart';
 import '../../services/auth/auth_service.dart';
 import '../auth/login_screen.dart';
-import 'warga/warga_dashboard.dart';
-import 'rt/rt_dashboard.dart';
-import 'bendahara/bendahara_dashboard.dart';
+import '../warga/warga_main_screen.dart';
+import '../rt/rt_main_screen.dart';
+import '../bendahara/bendahara_main_screen.dart';
 
 class DashboardWrapper extends StatelessWidget {
   const DashboardWrapper({super.key});
@@ -33,11 +33,11 @@ class DashboardWrapper extends StatelessWidget {
         final role = user.role.toLowerCase();
         
         if (role == 'warga') {
-          return const WargaDashboard();
+          return const WargaMainScreen();
         } else if (role == 'ketua_rt' || role == 'rt') {
-          return const RTDashboard();
+          return const RTMainScreen();
         } else if (role == 'bendahara') {
-          return const BendaharaDashboard();
+          return const BendaharaMainScreen();
         } else {
           // Default jika role tidak dikenali
           return Scaffold(
