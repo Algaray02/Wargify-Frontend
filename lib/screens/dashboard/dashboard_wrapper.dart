@@ -37,8 +37,7 @@ class DashboardWrapper extends StatelessWidget {
         } else if (role == 'ketua_rt' || role == 'rt') {
           return RTMainScreen(user: user);
         } else if (role == 'bendahara') {
-
-          return const BendaharaMainScreen();
+          return BendaharaMainScreen(user: user);
         } else {
           // Default jika role tidak dikenali
           return Scaffold(
