@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/colors.dart';
 import '../../../models/user_model.dart';
-import '../../sos/sos_trigger_screen.dart';
-import '../../sos/sos_dashboard_screen.dart';
+import 'sos/sos_trigger_screen.dart';
+import 'sos/sos_dashboard_screen.dart';
 
 class RTHomePage extends StatelessWidget {
   final UserModel user;

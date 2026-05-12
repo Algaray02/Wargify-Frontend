@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../core/constants/colors.dart';
+import '../../../../core/constants/colors.dart';
 
 class SosDashboardScreen extends StatelessWidget {
   const SosDashboardScreen({super.key});

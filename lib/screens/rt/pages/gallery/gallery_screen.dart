@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../core/constants/colors.dart';
+import '../../../../core/constants/colors.dart';
 import 'add_gallery_screen.dart';
 import 'edit_gallery_screen.dart';
 

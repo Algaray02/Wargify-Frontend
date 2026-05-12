@@ -3,10 +3,10 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/colors.dart';
 import '../../../services/auth/auth_service.dart';
 import '../../../models/user_model.dart';
-import '../../auth/login_screen.dart';
-import '../scan/qr_scanner_screen.dart';
-import '../kegiatan/kegiatan_screen.dart';
-import '../gallery/gallery_screen.dart';
+import '../auth/login_screen.dart';
+import 'pages/scan/qr_scanner_screen.dart';
+import 'pages/kegiatan/kegiatan_screen.dart';
+import 'pages/gallery/gallery_screen.dart';
 import 'pages/rt_home_page.dart';
 
 class RTMainScreen extends StatefulWidget {

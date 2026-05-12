@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import '../../core/constants/colors.dart';
+import '../../../../core/constants/colors.dart';
 
 class QrScannerScreen extends StatefulWidget {
   const QrScannerScreen({super.key});

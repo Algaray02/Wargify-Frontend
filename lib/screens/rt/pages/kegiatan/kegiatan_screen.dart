@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import '../../core/constants/colors.dart';
+import '../../../../core/constants/colors.dart';
 import 'add_kegiatan_screen.dart';
 
 class KegiatanScreen extends StatelessWidget {
