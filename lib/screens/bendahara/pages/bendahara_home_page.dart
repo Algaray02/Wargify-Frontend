@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/colors.dart';
 import '../../../../models/user_model.dart';
 import 'scan/show_contribution_qr_screen.dart';
+import 'contribution/add_contribution_screen.dart';
 
 class BendaharaHomePage extends StatelessWidget {
   final UserModel user;
@@ -102,7 +103,12 @@ class BendaharaHomePage extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton.icon(
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const AddContributionScreen()),
+                    );
+                  },
                   icon: const Icon(Icons.add_circle_outline, size: 18),
                   label: const Text('Tambah Iuran'),
                   style: ElevatedButton.styleFrom(

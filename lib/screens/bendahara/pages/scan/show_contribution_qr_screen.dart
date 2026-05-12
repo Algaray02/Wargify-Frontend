@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/colors.dart';
 import 'attendance_scanner_screen.dart';
+import 'widgets/manual_payment_sheet.dart';
 
 class ShowContributionQrScreen extends StatelessWidget {
   const ShowContributionQrScreen({super.key});
@@ -122,7 +123,14 @@ class ShowContributionQrScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               OutlinedButton.icon(
-                onPressed: () {},
+                onPressed: () {
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (context) => const ManualPaymentSheet(),
+                  );
+                },
                 icon: const Icon(Icons.checklist_rtl_rounded, size: 20),
                 label: const Text('Centang Manual'),
                 style: OutlinedButton.styleFrom(
