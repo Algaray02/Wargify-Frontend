@@ -9,6 +9,7 @@ import 'pages/activity/activity_screen.dart';
 import 'pages/residents/residents_screen.dart';
 import 'pages/audit/audit_screen.dart';
 import 'pages/scan/attendance_scanner_screen.dart';
+import '../profile/profile_screen.dart';
 
 class BendaharaMainScreen extends StatefulWidget {
   final UserModel user;
@@ -61,7 +62,12 @@ class _BendaharaMainScreenState extends State<BendaharaMainScreen> {
                   children: [
                     PopupMenuButton<String>(
                       onSelected: (value) {
-                        if (value == 'logout') {
+                        if (value == 'profile') {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => ProfileScreen(user: widget.user)),
+                          );
+                        } else if (value == 'logout') {
                           _handleLogout();
                         }
                       },

@@ -9,6 +9,7 @@ import 'pages/kegiatan/kegiatan_screen.dart';
 import 'pages/gallery/gallery_screen.dart';
 import 'pages/rt_home_page.dart';
 import 'pages/ronda/ronda_screen.dart';
+import '../profile/profile_screen.dart';
 
 class RTMainScreen extends StatefulWidget {
   final UserModel user;
@@ -64,8 +65,9 @@ class _RTMainScreenState extends State<RTMainScreen> {
                         if (value == 'logout') {
                           _handleLogout();
                         } else if (value == 'profile') {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Halaman profil segera hadir')),
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => ProfileScreen(user: widget.user)),
                           );
                         }
                       },
@@ -87,7 +89,7 @@ class _RTMainScreenState extends State<RTMainScreen> {
                             children: [
                               const Icon(Icons.logout, size: 20, color: Colors.red),
                               const SizedBox(width: 8),
-                              Text('Logout', style: GoogleFonts.plusJakartaSans(color: Colors.red)),
+                              Text('Keluar', style: GoogleFonts.plusJakartaSans(color: Colors.red)),
                             ],
                           ),
                         ),

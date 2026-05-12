@@ -217,24 +217,24 @@ class BendaharaHomePage extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           
-          // Action Buttons
-          _buildActionCard(
-            title: 'Tombol Darurat',
-            subtitle: 'Gunakan jika ada situasi genting',
-            icon: Icons.error_outline_rounded,
-            color: const Color(0xFFB71C1C),
-            onTap: () {},
-          ),
-          const SizedBox(height: 12),
-          _buildActionCard(
-            title: 'Lapor Fasilitas',
-            subtitle: 'Laporkan fasilitas rusak',
-            icon: Icons.campaign_outlined,
-            color: const Color(0xFF0288D1),
-            isLight: true,
-            onTap: () {},
-          ),
-          const SizedBox(height: 32),
+          // // Action Buttons
+          // _buildActionCard(
+          //   title: 'Tombol Darurat',
+          //   subtitle: 'Gunakan jika ada situasi genting',
+          //   icon: Icons.error_outline_rounded,
+          //   color: const Color(0xFFB71C1C),
+          //   onTap: () {},
+          // ),
+          // const SizedBox(height: 12),
+          // _buildActionCard(
+          //   title: 'Lapor Fasilitas',
+          //   subtitle: 'Laporkan fasilitas rusak',
+          //   icon: Icons.campaign_outlined,
+          //   color: const Color(0xFF0288D1),
+          //   isLight: true,
+          //   onTap: () {},
+          // ),
+          // const SizedBox(height: 32),
           
           // Kelola Keuangan Section
           Text(
