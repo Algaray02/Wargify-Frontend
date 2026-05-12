@@ -8,6 +8,7 @@ import 'pages/scan/qr_scanner_screen.dart';
 import 'pages/kegiatan/kegiatan_screen.dart';
 import 'pages/gallery/gallery_screen.dart';
 import 'pages/rt_home_page.dart';
+import 'pages/ronda/ronda_screen.dart';
 
 class RTMainScreen extends StatefulWidget {
   final UserModel user;
@@ -30,7 +31,7 @@ class _RTMainScreenState extends State<RTMainScreen> {
       RTHomePage(user: widget.user),
       const KegiatanScreen(),
       const GalleryScreen(),
-      const Center(child: Text('Ronda Content')),
+      const RondaScreen(),
     ];
   }
 

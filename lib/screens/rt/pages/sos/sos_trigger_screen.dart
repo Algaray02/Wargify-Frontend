@@ -12,6 +12,7 @@ class SosTriggerScreen extends StatefulWidget {
 class _SosTriggerScreenState extends State<SosTriggerScreen> {
   double _progress = 0.0;
   bool _isHolding = false;
+  String _sosMessage = "Darurat! Butuh pertolongan segera di lokasi saya.";
 
   void _onLongPressStart(LongPressStartDetails details) {
     setState(() {
@@ -25,6 +26,118 @@ class _SosTriggerScreenState extends State<SosTriggerScreen> {
       _isHolding = false;
       _progress = 0.0;
     });
+  }
+
+  void _showEditMessageDialog() {
+    final TextEditingController messageController = TextEditingController(text: _sosMessage);
+    
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Icon Badge
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.danger.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.emergency_share_rounded, color: AppColors.danger, size: 32),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Ketik Detail Darurat',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF0D1B2A),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Informasi ini akan langsung dikirimkan ke petugas medis dan keamanan terdekat.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // Input Field
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF0F5F9),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: TextField(
+                    controller: messageController,
+                    maxLines: 4,
+                    style: GoogleFonts.plusJakartaSans(fontSize: 14, color: const Color(0xFF0D1B2A)),
+                    decoration: InputDecoration(
+                      hintText: 'Tulis keterangan singkat (misal: Ada ular, Kebakaran, dll)...',
+                      hintStyle: GoogleFonts.plusJakartaSans(color: Colors.grey[500], fontSize: 13),
+                      contentPadding: const EdgeInsets.all(16),
+                      border: InputBorder.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 32),
+                // Action Buttons
+                SizedBox(
+                  width: double.infinity,
+                  height: 55,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      if (messageController.text.isNotEmpty) {
+                        setState(() {
+                          _sosMessage = messageController.text;
+                        });
+                        Navigator.pop(context);
+                      }
+                    },
+                    icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                    label: Text(
+                      'KIRIM',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.danger,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                      elevation: 0,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    'BATAL',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey[600],
+                      letterSpacing: 1.1,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -76,15 +189,77 @@ class _SosTriggerScreenState extends State<SosTriggerScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      Text(
-                        'Menekan tombol di bawah akan memberi peringatan kepada warga sekitar kalau ada situasi gawat di lokasi anda',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14,
-                          color: Colors.grey[600],
-                        ),
+        Text(
+          'Menekan tombol di bawah akan memberi peringatan kepada warga sekitar kalau ada situasi gawat di lokasi anda',
+          textAlign: TextAlign.center,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 14,
+            color: Colors.grey[600],
+          ),
+        ),
+        const SizedBox(height: 32),
+        // SOS Message Display & Edit
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.primary.withOpacity(0.1)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'PESAN DARURAT',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                      letterSpacing: 1.1,
+                    ),
+                  ),
+                  InkWell(
+                    onTap: _showEditMessageDialog,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      const SizedBox(height: 40),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.edit_note_rounded, size: 16, color: AppColors.primary),
+                          const SizedBox(width: 4),
+                          Text(
+                            'EDIT',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _sosMessage,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF0D1B2A),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 32),
                       // SOS Button
                       GestureDetector(
                         onLongPressStart: _onLongPressStart,
