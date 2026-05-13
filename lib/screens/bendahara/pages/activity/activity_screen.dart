@@ -2,11 +2,369 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/colors.dart';
 
-class ActivityScreen extends StatelessWidget {
+class ActivityScreen extends StatefulWidget {
   const ActivityScreen({super.key});
 
   @override
+  State<ActivityScreen> createState() => _ActivityScreenState();
+}
+
+class _ActivityScreenState extends State<ActivityScreen> {
+  String _selectedStatus = 'Semua';
+  
+  // Date State
+  int _day = DateTime.now().day;
+  int _month = DateTime.now().month;
+  int _year = DateTime.now().year;
+  bool _isDateFiltered = false;
+
+  final List<String> _months = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ];
+
+  // Mock data untuk simulasi filter
+  final List<Map<String, dynamic>> _allActivities = [
+    {'title': 'Agus Setiawan', 'category': 'Iuran bulanan: Maret', 'date': '24 Oct, 09:42', 'amount': 'Rp 150.000', 'isLunas': true, 'isExpense': false},
+    {'title': 'Perbaikan lampu', 'category': 'Maintenance', 'date': '23 Oct, 14:15', 'amount': '-Rp 2.4jt', 'isLunas': false, 'isExpense': true},
+    {'title': 'Budi Pratama', 'category': 'Iuran bulanan: Maret', 'date': '23 Oct, 11:02', 'amount': 'Rp 75.000', 'isLunas': true, 'isExpense': false},
+    {'title': 'Siti Aminah', 'category': 'Iuran bulanan: Maret', 'date': '22 Oct, 16:30', 'amount': 'Rp 500.000', 'isLunas': true, 'isExpense': false},
+    {'title': 'Potong pohon', 'category': 'Operasional', 'date': '21 Oct, 10:20', 'amount': '-Rp 425k', 'isLunas': false, 'isExpense': true},
+  ];
+
+  void _showStatusFilter() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Filter Status',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF0D1B2A),
+                ),
+              ),
+              const SizedBox(height: 20),
+              _buildStatusItem('Semua'),
+              _buildStatusItem('Lunas'),
+              _buildStatusItem('Belum Lunas'),
+              _buildStatusItem('Keluar'),
+              const SizedBox(height: 20),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStatusItem(String label) {
+    bool isSelected = _selectedStatus == label;
+    return InkWell(
+      onTap: () {
+        setState(() => _selectedStatus = label);
+        Navigator.pop(context);
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 16,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                color: isSelected ? AppColors.primary : const Color(0xFF0D1B2A),
+              ),
+            ),
+            if (isSelected)
+              Icon(Icons.check_circle_rounded, color: AppColors.primary),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDateFilter() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              padding: const EdgeInsets.all(24),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Pilih Tanggal',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF0D1B2A),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  
+                  // Selection Cards
+                  Row(
+                    children: [
+                      // Day
+                      Expanded(
+                        flex: 2,
+                        child: _buildPickerCard(
+                          label: 'Tanggal',
+                          value: _day.toString().padLeft(2, '0'),
+                          onTap: () => _showWheelPicker(
+                            context, 
+                            title: 'Pilih Tanggal',
+                            items: List.generate(31, (i) => (i + 1).toString().padLeft(2, '0')),
+                            initialIndex: _day - 1,
+                            onChanged: (val) => setModalState(() => _day = val + 1),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Month
+                      Expanded(
+                        flex: 3,
+                        child: _buildPickerCard(
+                          label: 'Bulan',
+                          value: _months[_month - 1],
+                          onTap: () => _showWheelPicker(
+                            context,
+                            title: 'Pilih Bulan',
+                            items: _months,
+                            initialIndex: _month - 1,
+                            onChanged: (val) => setModalState(() => _month = val + 1),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Year
+                      Expanded(
+                        flex: 2,
+                        child: _buildPickerCard(
+                          label: 'Tahun',
+                          value: _year.toString(),
+                          onTap: () => _showWheelPicker(
+                            context,
+                            title: 'Pilih Tahun',
+                            items: List.generate(11, (i) => (2020 + i).toString()),
+                            initialIndex: _year - 2020,
+                            onChanged: (val) => setModalState(() => _year = 2020 + val),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 32),
+                  
+                  // Action Buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            setState(() {
+                              _isDateFiltered = false;
+                              _day = DateTime.now().day;
+                              _month = DateTime.now().month;
+                              _year = DateTime.now().year;
+                            });
+                            Navigator.pop(context);
+                          },
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            side: const BorderSide(color: Color(0xFFE5EEF5)),
+                          ),
+                          child: Text(
+                            'Reset',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        flex: 2,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            setState(() => _isDateFiltered = true);
+                            Navigator.pop(context);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            elevation: 0,
+                          ),
+                          child: Text(
+                            'Terapkan Filter',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                ],
+              ),
+            );
+          }
+        );
+      },
+    );
+  }
+
+  Widget _buildPickerCard({required String label, required String value, required VoidCallback onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFD),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE5EEF5)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[500],
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    value,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF0D1B2A),
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Colors.grey),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showWheelPicker(BuildContext context, {
+    required String title,
+    required List<String> items,
+    required int initialIndex,
+    required Function(int) onChanged,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return Container(
+          height: 300,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              Text(
+                title,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Expanded(
+                child: ListWheelScrollView.useDelegate(
+                  itemExtent: 40,
+                  physics: const FixedExtentScrollPhysics(),
+                  onSelectedItemChanged: onChanged,
+                  controller: FixedExtentScrollController(initialItem: initialIndex),
+                  childDelegate: ListWheelChildBuilderDelegate(
+                    childCount: items.length,
+                    builder: (context, index) {
+                      return Center(
+                        child: Text(
+                          items[index],
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF0D1B2A),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  minimumSize: const Size(double.infinity, 50),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('Pilih', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    String dateDisplay = _isDateFiltered ? '$_day ${_months[_month-1].substring(0,3)} $_year' : 'Date';
+
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
@@ -89,11 +447,21 @@ class ActivityScreen extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: _buildFilterButton(Icons.tune_rounded, 'Status'),
+                      child: _buildFilterButton(
+                        Icons.tune_rounded, 
+                        _selectedStatus == 'Semua' ? 'Status' : _selectedStatus,
+                        onTap: _showStatusFilter,
+                        isActive: _selectedStatus != 'Semua',
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: _buildFilterButton(Icons.calendar_month_outlined, 'Date'),
+                      child: _buildFilterButton(
+                        Icons.calendar_month_outlined, 
+                        dateDisplay,
+                        onTap: _showDateFilter,
+                        isActive: _isDateFiltered,
+                      ),
                     ),
                   ],
                 ),
@@ -160,15 +528,22 @@ class ActivityScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                _buildLedgerItem('Agus Setiawan', 'Iuran bulanan: Maret', '24 Oct, 09:42', 'Rp 150.000', true),
-                _buildDivider(),
-                _buildLedgerItem('Perbaikan lampu', 'Maintenance', '23 Oct, 14:15', '-Rp 2.4M', false, isExpense: true),
-                _buildDivider(),
-                _buildLedgerItem('Budi Pratama', 'Iuran bulanan: Maret', '23 Oct, 11:02', 'Rp 75.000', true),
-                _buildDivider(),
-                _buildLedgerItem('Siti Aminah', 'Iuran bulanan: Maret', '22 Oct, 16:30', 'Rp 500.000', true),
-                _buildDivider(),
-                _buildLedgerItem('Potong pohon', 'Operasional', '21 Oct, 10:20', '-Rp 425k', false, isExpense: true),
+                ...List.generate(_allActivities.length, (index) {
+                  final item = _allActivities[index];
+                  return Column(
+                    children: [
+                      _buildLedgerItem(
+                        item['title'], 
+                        item['category'], 
+                        item['date'], 
+                        item['amount'], 
+                        item['isLunas'], 
+                        isExpense: item['isExpense']
+                      ),
+                      if (index < _allActivities.length - 1) _buildDivider(),
+                    ],
+                  );
+                }),
                 
                 // Pagination Footer
                 Container(
@@ -181,7 +556,7 @@ class ActivityScreen extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        '16 of 128',
+                        '5 of 128',
                         style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.grey[600]),
                       ),
                       Row(
@@ -197,7 +572,7 @@ class ActivityScreen extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 100),
+          const SizedBox(height: 24),
         ],
       ),
     );
@@ -236,24 +611,32 @@ class ActivityScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildFilterButton(IconData icon, String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5EEF5)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 18, color: Colors.grey[600]),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF0D1B2A)),
-          ),
-        ],
+  Widget _buildFilterButton(IconData icon, String label, {VoidCallback? onTap, bool isActive = false}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: isActive ? AppColors.primary.withOpacity(0.05) : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: isActive ? AppColors.primary : const Color(0xFFE5EEF5)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 18, color: isActive ? AppColors.primary : Colors.grey[600]),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14, 
+                fontWeight: FontWeight.w600, 
+                color: isActive ? AppColors.primary : const Color(0xFF0D1B2A)
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -304,11 +687,11 @@ class ActivityScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: isLunas ? const Color(0xFFE8F5E9) : const Color(0xFFFFEBEE),
+                  color: isLunas ? const Color(0xFFE8F5E9) : (isExpense ? const Color(0xFFFFEBEE) : const Color(0xFFFFEBEE)),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  isLunas ? 'Lunas' : 'Keluar',
+                  isLunas ? 'Lunas' : (isExpense ? 'Keluar' : 'Belum Bayar'),
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 9,
                     fontWeight: FontWeight.bold,

@@ -126,9 +126,11 @@ class _BendaharaMainScreenState extends State<BendaharaMainScreen> {
           ),
         ),
       ),
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _pages,
+      body: SafeArea(
+        child: IndexedStack(
+          index: _currentIndex,
+          children: _pages,
+        ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       floatingActionButton: Container(

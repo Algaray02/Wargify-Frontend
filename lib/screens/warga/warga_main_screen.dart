@@ -41,7 +41,7 @@ class _WargaMainScreenState extends State<WargaMainScreen> {
           ),
         ],
       ),
-      body: _pages[_selectedIndex],
+      body: SafeArea(child: _pages[_selectedIndex]),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: (index) => setState(() => _selectedIndex = index),
