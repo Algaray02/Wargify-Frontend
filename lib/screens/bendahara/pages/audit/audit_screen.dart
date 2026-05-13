@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/colors.dart';
+import 'report_preview_screen.dart';
 
 class AuditScreen extends StatelessWidget {
   const AuditScreen({super.key});
@@ -27,7 +28,12 @@ class AuditScreen extends StatelessWidget {
                   ),
                 ),
                 ElevatedButton.icon(
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const ReportPreviewScreen()),
+                    );
+                  },
                   icon: const Icon(Icons.picture_as_pdf_rounded, size: 16),
                   label: const Text('Cetak PDF'),
                   style: ElevatedButton.styleFrom(

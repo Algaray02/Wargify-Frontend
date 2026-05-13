@@ -4,6 +4,8 @@ import '../../../../core/constants/colors.dart';
 import '../../../../models/user_model.dart';
 import 'scan/show_contribution_qr_screen.dart';
 import 'contribution/add_contribution_screen.dart';
+import 'financial/add_income_screen.dart';
+import 'financial/add_expense_screen.dart';
 
 class BendaharaHomePage extends StatelessWidget {
   final UserModel user;
@@ -249,22 +251,38 @@ class BendaharaHomePage extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: _buildFinancialButton(
-                  label: 'Pemasukan',
-                  subtitle: 'Tambah saldo baru',
-                  icon: Icons.trending_up_rounded,
-                  color: const Color(0xFFE8EAF6),
-                  iconColor: const Color(0xFF3F51B5),
+                child: InkWell(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const AddIncomeScreen()),
+                    );
+                  },
+                  child: _buildFinancialButton(
+                    label: 'Pemasukan',
+                    subtitle: 'Tambah saldo baru',
+                    icon: Icons.trending_up_rounded,
+                    color: const Color(0xFFE8EAF6),
+                    iconColor: const Color(0xFF3F51B5),
+                  ),
                 ),
               ),
               const SizedBox(width: 16),
               Expanded(
-                child: _buildFinancialButton(
-                  label: 'Pengeluaran',
-                  subtitle: 'Catat biaya rutin',
-                  icon: Icons.trending_down_rounded,
-                  color: const Color(0xFFFFEBEE),
-                  iconColor: const Color(0xFFD32F2F),
+                child: InkWell(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const AddExpenseScreen()),
+                    );
+                  },
+                  child: _buildFinancialButton(
+                    label: 'Pengeluaran',
+                    subtitle: 'Catat biaya rutin',
+                    icon: Icons.trending_down_rounded,
+                    color: const Color(0xFFFFEBEE),
+                    iconColor: const Color(0xFFD32F2F),
+                  ),
                 ),
               ),
             ],

@@ -97,150 +97,230 @@ class _ActivityScreenState extends State<ActivityScreen> {
   void _showDateFilter() {
     showModalBottomSheet(
       context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Filter Waktu',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF0D1B2A),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _buildDatePresetItem('Minggu Ini', Icons.calendar_view_week_rounded),
+                _buildDatePresetItem('Bulan Ini', Icons.calendar_view_month_rounded),
+                _buildDatePresetItem('Tahun Ini', Icons.calendar_today_rounded),
+                _buildDatePresetItem('Custom Tanggal', Icons.edit_calendar_rounded, isCustom: true),
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDatePresetItem(String label, IconData icon, {bool isCustom = false}) {
+    return InkWell(
+      onTap: () {
+        Navigator.pop(context);
+        if (isCustom) {
+          _showCustomDatePicker();
+        } else {
+          setState(() {
+            _isDateFiltered = true;
+          });
+        }
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFD),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, size: 20, color: AppColors.primary),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                label,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF0D1B2A),
+                ),
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: Colors.grey),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showCustomDatePicker() {
+    showModalBottomSheet(
+      context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            return Container(
-              padding: const EdgeInsets.all(24),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Pilih Tanggal',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: const Color(0xFF0D1B2A),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.close, color: Colors.grey),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  
-                  // Selection Cards
-                  Row(
-                    children: [
-                      // Day
-                      Expanded(
-                        flex: 2,
-                        child: _buildPickerCard(
-                          label: 'Tanggal',
-                          value: _day.toString().padLeft(2, '0'),
-                          onTap: () => _showWheelPicker(
-                            context, 
-                            title: 'Pilih Tanggal',
-                            items: List.generate(31, (i) => (i + 1).toString().padLeft(2, '0')),
-                            initialIndex: _day - 1,
-                            onChanged: (val) => setModalState(() => _day = val + 1),
+            return SafeArea(
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Custom Tanggal',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF0D1B2A),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Month
-                      Expanded(
-                        flex: 3,
-                        child: _buildPickerCard(
-                          label: 'Bulan',
-                          value: _months[_month - 1],
-                          onTap: () => _showWheelPicker(
-                            context,
-                            title: 'Pilih Bulan',
-                            items: _months,
-                            initialIndex: _month - 1,
-                            onChanged: (val) => setModalState(() => _month = val + 1),
-                          ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.close, color: Colors.grey),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Year
-                      Expanded(
-                        flex: 2,
-                        child: _buildPickerCard(
-                          label: 'Tahun',
-                          value: _year.toString(),
-                          onTap: () => _showWheelPicker(
-                            context,
-                            title: 'Pilih Tahun',
-                            items: List.generate(11, (i) => (2020 + i).toString()),
-                            initialIndex: _year - 2020,
-                            onChanged: (val) => setModalState(() => _year = 2020 + val),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  
-                  const SizedBox(height: 32),
-                  
-                  // Action Buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () {
-                            setState(() {
-                              _isDateFiltered = false;
-                              _day = DateTime.now().day;
-                              _month = DateTime.now().month;
-                              _year = DateTime.now().year;
-                            });
-                            Navigator.pop(context);
-                          },
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            side: const BorderSide(color: Color(0xFFE5EEF5)),
-                          ),
-                          child: Text(
-                            'Reset',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey[600],
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    // Selection Cards
+                    Row(
+                      children: [
+                        // Day
+                        Expanded(
+                          flex: 2,
+                          child: _buildPickerCard(
+                            label: 'Tanggal',
+                            value: _day.toString().padLeft(2, '0'),
+                            onTap: () => _showWheelPicker(
+                              context, 
+                              title: 'Pilih Tanggal',
+                              items: List.generate(31, (i) => (i + 1).toString().padLeft(2, '0')),
+                              initialIndex: _day - 1,
+                              onChanged: (val) => setModalState(() => _day = val + 1),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        flex: 2,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            setState(() => _isDateFiltered = true);
-                            Navigator.pop(context);
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            elevation: 0,
-                          ),
-                          child: Text(
-                            'Terapkan Filter',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                        const SizedBox(width: 12),
+                        // Month
+                        Expanded(
+                          flex: 3,
+                          child: _buildPickerCard(
+                            label: 'Bulan',
+                            value: _months[_month - 1],
+                            onTap: () => _showWheelPicker(
+                              context,
+                              title: 'Pilih Bulan',
+                              items: _months,
+                              initialIndex: _month - 1,
+                              onChanged: (val) => setModalState(() => _month = val + 1),
                             ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                ],
+                        const SizedBox(width: 12),
+                        // Year
+                        Expanded(
+                          flex: 2,
+                          child: _buildPickerCard(
+                            label: 'Tahun',
+                            value: _year.toString(),
+                            onTap: () => _showWheelPicker(
+                              context,
+                              title: 'Pilih Tahun',
+                              items: List.generate(11, (i) => (2020 + i).toString()),
+                              initialIndex: _year - 2020,
+                              onChanged: (val) => setModalState(() => _year = 2020 + val),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 32),
+                    
+                    // Action Buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () {
+                              setState(() {
+                                _isDateFiltered = false;
+                                _day = DateTime.now().day;
+                                _month = DateTime.now().month;
+                                _year = DateTime.now().year;
+                              });
+                              Navigator.pop(context);
+                            },
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              side: const BorderSide(color: Color(0xFFE5EEF5)),
+                            ),
+                            child: Text(
+                              'Reset',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton(
+                            onPressed: () {
+                              setState(() => _isDateFiltered = true);
+                              Navigator.pop(context);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              elevation: 0,
+                            ),
+                            child: Text(
+                              'Terapkan Filter',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
               ),
             );
           }
