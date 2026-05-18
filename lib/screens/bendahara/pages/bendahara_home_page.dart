@@ -49,7 +49,7 @@ class BendaharaHomePage extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
                   color: const Color(0xFF0D47A1).withOpacity(0.3),
@@ -118,7 +118,7 @@ class BendaharaHomePage extends StatelessWidget {
                     foregroundColor: const Color(0xFF0D47A1),
                     elevation: 0,
                     minimumSize: const Size(double.infinity, 50),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     textStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -132,7 +132,7 @@ class BendaharaHomePage extends StatelessWidget {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(20),
               border: Border.all(color: const Color(0xFFE5EEF5)),
             ),
             child: Column(
@@ -294,7 +294,7 @@ class BendaharaHomePage extends StatelessWidget {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(20),
               border: Border.all(color: const Color(0xFFE5EEF5)),
             ),
             child: Column(
@@ -391,7 +391,7 @@ class BendaharaHomePage extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0xFFE5EEF5)),
       ),
       child: Column(
@@ -399,7 +399,7 @@ class BendaharaHomePage extends StatelessWidget {
         children: [
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(12)),
             child: Icon(icon, color: iconColor, size: 24),
           ),
           const SizedBox(height: 16),
@@ -416,7 +416,7 @@ class BendaharaHomePage extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0xFFF5F9FD),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         children: [

@@ -9,13 +9,11 @@ import 'package:wargify/screens/warga/iuran/iuran_screen.dart';
 import 'package:wargify/screens/warga/gallery/gallery_screen.dart';
 import 'package:wargify/screens/warga/ronda/ronda_screen.dart';
 import 'package:wargify/screens/warga/qr/qr_scanner_screen.dart';
-import 'package:wargify/models/user_model.dart';
 import 'package:wargify/services/auth/auth_service.dart';
-import 'package:wargify/screens/profile/profile_screen.dart';
+import 'package:wargify/models/user_model.dart';
 
 class WargaHomeScreen extends StatefulWidget {
-  final UserModel? user;
-  const WargaHomeScreen({super.key, this.user});
+  const WargaHomeScreen({super.key});
 
   @override
   State<WargaHomeScreen> createState() => _WargaHomeScreenState();
@@ -23,32 +21,37 @@ class WargaHomeScreen extends StatefulWidget {
 
 class _WargaHomeScreenState extends State<WargaHomeScreen> {
   int _currentNavIndex = 0;
-  UserModel? _user;
-  final AuthService _authService = AuthService();
+  final _authService = AuthService();
+  UserModel? _currentUser;
+  bool _isLoadingProfile = true;
 
   @override
   void initState() {
     super.initState();
-    _user = widget.user;
-    if (_user == null) {
-      _loadUser();
+    _fetchProfile();
+  }
+
+  Future<void> _fetchProfile() async {
+    try {
+      final user = await _authService.getProfile();
+      if (mounted) {
+        setState(() {
+          _currentUser = user;
+          _isLoadingProfile = false;
+        });
+      }
+    } catch (e) {
+      // Fallback ke cache jika offline
+      final cachedUser = await _authService.getCurrentUser();
+      if (mounted) {
+        setState(() {
+          _currentUser = cachedUser;
+          _isLoadingProfile = false;
+        });
+      }
     }
   }
 
-  Future<void> _loadUser() async {
-    final u = await _authService.getCurrentUser();
-    if (mounted) {
-      setState(() {
-        _user = u;
-      });
-    }
-  }
-
-  // --- Dynamic Getters ---
-  UserModel? get currentUser => widget.user ?? _user;
-
-  String get _namaWarga => currentUser?.fullName ?? 'Budi Santoso';
-  String get _roleWarga => currentUser != null ? currentUser!.role.toUpperCase().replaceAll('_', ' ') : 'Kepala Keluarga';
   final String _rtRw = 'RT 004 / RW 012';
   final bool _isVerified = true;
 
@@ -147,17 +150,7 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: WargaHeader(
-        onProfileTap: () {
-          final u = currentUser;
-          if (u != null) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ProfileScreen(user: u),
-              ),
-            );
-          }
-        },
+        user: _currentUser,
         onNotificationTap: () {
           // TODO: navigate to notifications
         },
@@ -206,7 +199,7 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
 
             // --- Role Label ---
             Text(
-              _roleWarga.toUpperCase(),
+              (_currentUser?.role ?? 'WARGA').toUpperCase(),
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
@@ -228,7 +221,7 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
                 children: [
                   TextSpan(text: '${_getGreeting()} '),
                   TextSpan(
-                    text: _namaWarga,
+                    text: _currentUser?.fullName ?? 'Memuat...',
                     style: const TextStyle(color: AppColors.primary),
                   ),
                 ],
@@ -307,7 +300,7 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: AppColors.white,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.05),
@@ -393,7 +386,7 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
                           backgroundColor: AppColors.primary,
                           foregroundColor: AppColors.white,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                           padding: const EdgeInsets.symmetric(
                             horizontal: 18,
@@ -510,7 +503,7 @@ class _KegiatanCard extends StatelessWidget {
         width: 200,
         decoration: BoxDecoration(
           color: AppColors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.06),
@@ -593,7 +586,7 @@ class _UpcomingEventCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -616,7 +609,7 @@ class _UpcomingEventCard extends StatelessWidget {
                     height: 36,
                     decoration: BoxDecoration(
                       color: AppColors.secondary,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(icon, color: AppColors.primary, size: 20),
                   ),
@@ -679,7 +672,7 @@ class _UpcomingEventCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 decoration: BoxDecoration(
                   color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Column(
                   children: [
@@ -766,7 +759,7 @@ class _UpcomingEventCard extends StatelessWidget {
                 backgroundColor: AppColors.primary,
                 foregroundColor: AppColors.white,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 elevation: 0,
               ),

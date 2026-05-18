@@ -78,4 +78,31 @@ class AuthService {
     }
     return null;
   }
+
+  Future<UserModel> getProfile() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      final response = await _dio.get(
+        ApiEndpoints.me,
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+
+      if (response.statusCode == 200 && response.data['success'] == true) {
+        final userData = UserModel.fromJson(response.data['data']);
+        // Simpan data user terbaru ke SharedPreferences
+        await prefs.setString('user_data', jsonEncode(userData.toJson()));
+        return userData;
+      } else {
+        throw Exception(response.data['message'] ?? 'Gagal mengambil data profil');
+      }
+    } on DioException catch (e) {
+      if (e.response != null) {
+        throw Exception(e.response?.data['message'] ?? 'Server error (${e.response?.statusCode})');
+      } else {
+        throw Exception('Koneksi gagal atau tidak ada internet');
+      }
+    }
+  }
 }

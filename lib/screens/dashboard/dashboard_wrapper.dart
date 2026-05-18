@@ -33,7 +33,7 @@ class DashboardWrapper extends StatelessWidget {
         final role = user.role.toLowerCase();
         
         if (role == 'warga') {
-          return WargaHomeScreen(user: user);
+          return const WargaHomeScreen();
         } else if (role == 'ketua_rt' || role == 'rt') {
           return RTMainScreen(user: user);
         } else if (role == 'bendahara') {
