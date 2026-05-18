@@ -45,8 +45,10 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
   }
 
   // --- Dynamic Getters ---
-  String get _namaWarga => _user?.fullName ?? 'Budi Santoso';
-  String get _roleWarga => _user != null ? _user!.role.toUpperCase().replaceAll('_', ' ') : 'Kepala Keluarga';
+  UserModel? get currentUser => widget.user ?? _user;
+
+  String get _namaWarga => currentUser?.fullName ?? 'Budi Santoso';
+  String get _roleWarga => currentUser != null ? currentUser!.role.toUpperCase().replaceAll('_', ' ') : 'Kepala Keluarga';
   final String _rtRw = 'RT 004 / RW 012';
   final bool _isVerified = true;
 
@@ -146,11 +148,12 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
       backgroundColor: AppColors.background,
       appBar: WargaHeader(
         onProfileTap: () {
-          if (_user != null) {
+          final u = currentUser;
+          if (u != null) {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => ProfileScreen(user: _user!),
+                builder: (context) => ProfileScreen(user: u),
               ),
             );
           }
