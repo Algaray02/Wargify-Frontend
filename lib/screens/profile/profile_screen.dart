@@ -401,7 +401,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             color: AppColors.secondary,
             shape: BoxShape.circle,
           ),
-          child: const Icon(icon, color: AppColors.primary, size: 18),
+          child: Icon(icon, color: AppColors.primary, size: 18),
         ),
         const SizedBox(width: 12),
         Expanded(
