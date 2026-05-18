@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/user_model.dart';
 import '../../services/auth/auth_service.dart';
 import '../auth/login_screen.dart';
-import '../warga/warga_main_screen.dart';
+import '../warga/home/home_screen.dart';
 import '../rt/rt_main_screen.dart';
 import '../bendahara/bendahara_main_screen.dart';
 
@@ -33,7 +33,7 @@ class DashboardWrapper extends StatelessWidget {
         final role = user.role.toLowerCase();
         
         if (role == 'warga') {
-          return const WargaMainScreen();
+          return const WargaHomeScreen();
         } else if (role == 'ketua_rt' || role == 'rt') {
           return RTMainScreen(user: user);
         } else if (role == 'bendahara') {
