@@ -4,8 +4,13 @@ import 'package:wargify/core/constants/colors.dart';
 
 class WargaHeader extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onNotificationTap;
+  final VoidCallback? onProfileTap;
 
-  const WargaHeader({super.key, this.onNotificationTap});
+  const WargaHeader({
+    super.key,
+    this.onNotificationTap,
+    this.onProfileTap,
+  });
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
@@ -19,14 +24,17 @@ class WargaHeader extends StatelessWidget implements PreferredSizeWidget {
       leadingWidth: 56,
       leading: Padding(
         padding: const EdgeInsets.only(left: 16),
-        child: Container(
-          width: 40,
-          height: 40,
-          decoration: const BoxDecoration(
-            shape: BoxShape.circle,
-            color: AppColors.primary,
+        child: GestureDetector(
+          onTap: onProfileTap,
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.primary,
+            ),
+            child: const Icon(Icons.person, color: AppColors.white, size: 22),
           ),
-          child: const Icon(Icons.person, color: AppColors.white, size: 22),
         ),
       ),
       title: Text(

@@ -9,9 +9,13 @@ import 'package:wargify/screens/warga/iuran/iuran_screen.dart';
 import 'package:wargify/screens/warga/gallery/gallery_screen.dart';
 import 'package:wargify/screens/warga/ronda/ronda_screen.dart';
 import 'package:wargify/screens/warga/qr/qr_scanner_screen.dart';
+import 'package:wargify/models/user_model.dart';
+import 'package:wargify/services/auth/auth_service.dart';
+import 'package:wargify/screens/profile/profile_screen.dart';
 
 class WargaHomeScreen extends StatefulWidget {
-  const WargaHomeScreen({super.key});
+  final UserModel? user;
+  const WargaHomeScreen({super.key, this.user});
 
   @override
   State<WargaHomeScreen> createState() => _WargaHomeScreenState();
@@ -19,10 +23,30 @@ class WargaHomeScreen extends StatefulWidget {
 
 class _WargaHomeScreenState extends State<WargaHomeScreen> {
   int _currentNavIndex = 0;
+  UserModel? _user;
+  final AuthService _authService = AuthService();
 
-  // --- Dummy Data ---
-  final String _namaWarga = 'Budi Santoso';
-  final String _roleWarga = 'Kepala Keluarga';
+  @override
+  void initState() {
+    super.initState();
+    _user = widget.user;
+    if (_user == null) {
+      _loadUser();
+    }
+  }
+
+  Future<void> _loadUser() async {
+    final u = await _authService.getCurrentUser();
+    if (mounted) {
+      setState(() {
+        _user = u;
+      });
+    }
+  }
+
+  // --- Dynamic Getters ---
+  String get _namaWarga => _user?.fullName ?? 'Budi Santoso';
+  String get _roleWarga => _user != null ? _user!.role.toUpperCase().replaceAll('_', ' ') : 'Kepala Keluarga';
   final String _rtRw = 'RT 004 / RW 012';
   final bool _isVerified = true;
 
@@ -121,6 +145,16 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: WargaHeader(
+        onProfileTap: () {
+          if (_user != null) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ProfileScreen(user: _user!),
+              ),
+            );
+          }
+        },
         onNotificationTap: () {
           // TODO: navigate to notifications
         },
@@ -270,7 +304,7 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: AppColors.white,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.05),
@@ -356,7 +390,7 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
                           backgroundColor: AppColors.primary,
                           foregroundColor: AppColors.white,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                           padding: const EdgeInsets.symmetric(
                             horizontal: 18,
@@ -473,7 +507,7 @@ class _KegiatanCard extends StatelessWidget {
         width: 200,
         decoration: BoxDecoration(
           color: AppColors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.06),
@@ -556,7 +590,7 @@ class _UpcomingEventCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -579,7 +613,7 @@ class _UpcomingEventCard extends StatelessWidget {
                     height: 36,
                     decoration: BoxDecoration(
                       color: AppColors.secondary,
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(icon, color: AppColors.primary, size: 20),
                   ),
@@ -642,7 +676,7 @@ class _UpcomingEventCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 decoration: BoxDecoration(
                   color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Column(
                   children: [
@@ -729,7 +763,7 @@ class _UpcomingEventCard extends StatelessWidget {
                 backgroundColor: AppColors.primary,
                 foregroundColor: AppColors.white,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 elevation: 0,
               ),
