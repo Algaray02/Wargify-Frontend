@@ -15,39 +15,6 @@ class AuditScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Laporan Keuangan',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF0D1B2A),
-                  ),
-                ),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const ReportPreviewScreen()),
-                    );
-                  },
-                  icon: const Icon(Icons.picture_as_pdf_rounded, size: 16),
-                  label: const Text('Cetak PDF'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF004E92),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    textStyle: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 32),
-            
             // Report Title
             Center(
               child: Column(
@@ -57,16 +24,7 @@ class AuditScreen extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: const Color(0xFFE3F2FD),
                       borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      'WARGIFY AUTOMATED REPORT',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primary,
-                        letterSpacing: 1.1,
-                      ),
-                    ),
+                    )
                   ),
                   const SizedBox(height: 12),
                   Text(
@@ -247,6 +205,25 @@ class AuditScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ReportPreviewScreen()),
+                );
+              },
+              icon: const Icon(Icons.picture_as_pdf_rounded),
+              label: const Text('Unduh PDF Laporan'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF004E92),
+                foregroundColor: Colors.white,
+                minimumSize: const Size(double.infinity, 56),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                textStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16),
+                elevation: 0,
+              ),
+            ),
+            const SizedBox(height: 32),
           ],
         ),
       ),

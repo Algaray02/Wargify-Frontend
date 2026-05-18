@@ -30,8 +30,8 @@ class ReportPreviewScreen extends StatelessWidget {
             padding: const EdgeInsets.all(8.0),
             child: ElevatedButton.icon(
               onPressed: () {},
-              icon: const Icon(Icons.picture_as_pdf_rounded, size: 16),
-              label: const Text('Cetak PDF'),
+              icon: const Icon(Icons.download, size: 16),
+              label: const Text('Unduh PDF'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF004E92),
                 foregroundColor: Colors.white,

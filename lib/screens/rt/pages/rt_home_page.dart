@@ -4,6 +4,8 @@ import '../../../core/constants/colors.dart';
 import '../../../models/user_model.dart';
 import 'sos/sos_trigger_screen.dart';
 import 'sos/sos_dashboard_screen.dart';
+import 'pengumuman/pengumuman_screen.dart';
+import 'laporan/laporan_screen.dart';
 
 class RTHomePage extends StatelessWidget {
   final UserModel user;
@@ -266,12 +268,28 @@ class RTHomePage extends StatelessWidget {
             title: 'Manajemen Laporan',
             subtitle: 'KELOLA LAPORAN',
             icon: Icons.description_rounded,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => LaporanScreen(user: user),
+                ),
+              );
+            },
           ),
           const SizedBox(height: 16),
           _buildManagementCard(
             title: 'Manajemen Pengumuman',
             subtitle: 'KELOLA PENGUMUMAN',
-            icon: Icons.description_rounded,
+            icon: Icons.campaign_rounded,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => PengumumanScreen(user: user),
+                ),
+              );
+            },
           ),
           const SizedBox(height: 100), // Bottom padding
         ],
@@ -279,9 +297,13 @@ class RTHomePage extends StatelessWidget {
     );
   }
 
-  Widget _buildManagementCard({required String title, required String subtitle, required IconData icon}) {
+  Widget _buildManagementCard({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    VoidCallback? onTap,
+  }) {
     return Container(
-      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
@@ -293,42 +315,52 @@ class RTHomePage extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(24),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  title,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: const Color(0xFF0D1B2A),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF0D1B2A),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey[500],
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(12),
                   ),
+                  child: Icon(icon, color: Colors.white, size: 32),
                 ),
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.primary,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: Colors.white, size: 32),
-          ),
-        ],
+        ),
       ),
     );
   }
