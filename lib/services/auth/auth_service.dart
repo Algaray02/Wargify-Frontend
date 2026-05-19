@@ -54,7 +54,7 @@ class AuthService {
 
       if (token != null) {
         await _dio.post(ApiEndpoints.logout,
-            options: Options(headers: {'Authorization': 'Bearer $token'}));
+          options: Options(headers: {'Authorization': 'Bearer $token'}));
       }
     } catch (e) {
       // Log error but continue clearing local storage

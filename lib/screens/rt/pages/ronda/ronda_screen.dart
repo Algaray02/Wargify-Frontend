@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/colors.dart';
 import 'manage_ronda_screen.dart';
+import 'live_ronda_screen.dart';
 
 class RondaScreen extends StatelessWidget {
   const RondaScreen({super.key});
@@ -118,7 +119,12 @@ class RondaScreen extends StatelessWidget {
                 ],
               ),
               TextButton(
-                onPressed: () {},
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const LiveRondaScreen()),
+                  );
+                },
                 child: Text(
                   'Lihat Peta',
                   style: GoogleFonts.plusJakartaSans(
