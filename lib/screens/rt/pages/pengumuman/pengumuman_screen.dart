@@ -369,6 +369,7 @@ class _PengumumanScreenState extends State<PengumumanScreen> {
                   child: ChoiceChip(
                     label: Text(tab),
                     selected: isSelected,
+                    showCheckmark: false, // Menghilangkan ikon centang saat aktif
                     onSelected: (selected) {
                       if (selected) {
                         setState(() {
