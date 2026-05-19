@@ -12,6 +12,8 @@ class AddRondaScreen extends StatefulWidget {
 
 class _AddRondaScreenState extends State<AddRondaScreen> {
   DateTime _selectedDate = DateTime(2024, 7, 24);
+  TimeOfDay _startTime = const TimeOfDay(hour: 22, minute: 0);
+  TimeOfDay _endTime = const TimeOfDay(hour: 2, minute: 0);
   String _selectedGroup = 'Regu Yakuzs';
   String _selectedCoordinator = 'Pilih Koordinator';
   List<Map<String, String>> _members = [
@@ -71,6 +73,88 @@ class _AddRondaScreenState extends State<AddRondaScreen> {
                   const Icon(Icons.calendar_today_rounded, size: 20, color: Color(0xFF004E92)),
                 ],
               ),
+            ),
+            const SizedBox(height: 24),
+            
+            // Select Time
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildLabel('JAM MULAI'),
+                      const SizedBox(height: 12),
+                      InkWell(
+                        onTap: () async {
+                          final time = await showTimePicker(
+                            context: context,
+                            initialTime: _startTime,
+                          );
+                          if (time != null) {
+                            setState(() => _startTime = time);
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF0F5F9),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              Text(
+                                _startTime.format(context),
+                                style: GoogleFonts.plusJakartaSans(fontSize: 14, color: const Color(0xFF0D1B2A)),
+                              ),
+                              const Spacer(),
+                              const Icon(Icons.access_time_rounded, size: 20, color: Color(0xFF004E92)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildLabel('JAM SELESAI'),
+                      const SizedBox(height: 12),
+                      InkWell(
+                        onTap: () async {
+                          final time = await showTimePicker(
+                            context: context,
+                            initialTime: _endTime,
+                          );
+                          if (time != null) {
+                            setState(() => _endTime = time);
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF0F5F9),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              Text(
+                                _endTime.format(context),
+                                style: GoogleFonts.plusJakartaSans(fontSize: 14, color: const Color(0xFF0D1B2A)),
+                              ),
+                              const Spacer(),
+                              const Icon(Icons.access_time_rounded, size: 20, color: Color(0xFF004E92)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
             
