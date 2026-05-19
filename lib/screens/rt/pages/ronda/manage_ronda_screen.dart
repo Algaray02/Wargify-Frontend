@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/colors.dart';
 import 'add_ronda_screen.dart';
 import 'edit_checkpoints_screen.dart';
+import 'edit_ronda_screen.dart';
 
 class RondaSchedule {
   final String id;
@@ -180,71 +181,6 @@ class _ManageRondaScreenState extends State<ManageRondaScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 10),
-
-          // Short-cut to Checkpoint Settings (Premium Glowing Button)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-            child: InkWell(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const EditCheckpointsScreen()),
-                );
-              },
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.primary.withOpacity(0.12), width: 1),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primary.withOpacity(0.02),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(Icons.pin_drop_rounded, color: AppColors.primary, size: 22),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Atur Checkpoint Patroli',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: const Color(0xFF0D1B2A),
-                            ),
-                          ),
-                          Text(
-                            'Ubah urutan patroli & checkpoint QR',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11,
-                              color: Colors.grey[500],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Icon(Icons.arrow_forward_ios_rounded, color: Colors.grey, size: 14),
-                  ],
-                ),
-              ),
-            ),
-          ),
 
           // Header title & count
           Padding(
@@ -510,6 +446,34 @@ class _ManageRondaScreenState extends State<ManageRondaScreen> {
                     ),
                   ],
                 ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.edit_outlined, color: AppColors.primary, size: 20),
+                onPressed: () async {
+                  final result = await Navigator.push<Map<String, String>>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => EditRondaScreen(
+                        groupId: item.groupId,
+                        coordinatorId: item.coordinatorId,
+                        dateStr: item.dateStr,
+                        status: item.status,
+                      ),
+                    ),
+                  );
+                  if (result != null) {
+                    setState(() {
+                      final idx = _schedules.indexWhere((s) => s.id == item.id);
+                      if (idx != -1) {
+                        _schedules[idx] = _schedules[idx].copyWith(
+                          groupId: result['groupId'],
+                          coordinatorId: result['coordinatorId'],
+                          dateStr: result['dateStr'],
+                        );
+                      }
+                    });
+                  }
+                },
               ),
               IconButton(
                 icon: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20),

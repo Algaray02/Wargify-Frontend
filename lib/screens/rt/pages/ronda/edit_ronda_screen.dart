@@ -3,29 +3,49 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/colors.dart';
 import 'edit_checkpoints_screen.dart';
 
-class AddRondaScreen extends StatefulWidget {
-  const AddRondaScreen({super.key});
+class EditRondaScreen extends StatefulWidget {
+  final String groupId;
+  final String coordinatorId;
+  final String dateStr;
+  final String status;
+
+  const EditRondaScreen({
+    super.key,
+    required this.groupId,
+    required this.coordinatorId,
+    required this.dateStr,
+    required this.status,
+  });
 
   @override
-  State<AddRondaScreen> createState() => _AddRondaScreenState();
+  State<EditRondaScreen> createState() => _EditRondaScreenState();
 }
 
-class _AddRondaScreenState extends State<AddRondaScreen> {
-  DateTime _selectedDate = DateTime(2024, 7, 24);
-  String _selectedGroup = 'Regu Yakuzs';
-  String _selectedCoordinator = 'Pilih Koordinator';
-  List<Map<String, String>> _members = [
+class _EditRondaScreenState extends State<EditRondaScreen> {
+  late String _selectedGroup;
+  late String _selectedCoordinator;
+  late String _dateStr;
+  
+  final List<Map<String, String>> _members = [
     {'name': 'Agus (Pak RW)', 'avatar': 'https://i.pravatar.cc/150?u=agus'},
     {'name': 'Siti (Bu RT)', 'avatar': 'https://i.pravatar.cc/150?u=siti'},
     {'name': 'Budi', 'avatar': 'https://i.pravatar.cc/150?u=budi'},
     {'name': 'Dewi', 'avatar': 'https://i.pravatar.cc/150?u=dewi'},
   ];
   
-  List<Map<String, dynamic>> _checkpoints = [
+  final List<Map<String, dynamic>> _checkpoints = [
     {'name': 'Area Belakang', 'checked': true},
     {'name': 'Pos Utama', 'checked': true},
     {'name': 'Sektor Barat', 'checked': false},
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedGroup = widget.groupId;
+    _selectedCoordinator = widget.coordinatorId;
+    _dateStr = widget.dateStr;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +59,7 @@ class _AddRondaScreenState extends State<AddRondaScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Tambah Jadwal Ronda',
+          'Edit Jadwal Ronda',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 18,
             fontWeight: FontWeight.bold,
@@ -64,7 +84,7 @@ class _AddRondaScreenState extends State<AddRondaScreen> {
               child: Row(
                 children: [
                   Text(
-                    'Senin, 24 Juli 2024',
+                    _dateStr,
                     style: GoogleFonts.plusJakartaSans(fontSize: 14, color: const Color(0xFF0D1B2A)),
                   ),
                   const Spacer(),
@@ -89,7 +109,7 @@ class _AddRondaScreenState extends State<AddRondaScreen> {
                   value: _selectedGroup,
                   isExpanded: true,
                   icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF004E92)),
-                  items: ['Regu Yakuzs', 'Regu Elang', 'Regu Mawar'].map((String value) {
+                  items: ['Regu Yakuzs', 'Regu Elang', 'Regu Mawar', 'Regu Rajawali'].map((String value) {
                     return DropdownMenuItem<String>(
                       value: value,
                       child: Text(value, style: GoogleFonts.plusJakartaSans(fontSize: 14, color: const Color(0xFF0D1B2A))),
@@ -141,7 +161,7 @@ class _AddRondaScreenState extends State<AddRondaScreen> {
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
-                  value: _selectedCoordinator == 'Pilih Koordinator' ? null : _selectedCoordinator,
+                  value: _selectedCoordinator,
                   hint: Text('Pilih Koordinator', style: GoogleFonts.plusJakartaSans(fontSize: 14)),
                   isExpanded: true,
                   icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF004E92)),
@@ -164,6 +184,7 @@ class _AddRondaScreenState extends State<AddRondaScreen> {
                 _buildLabel('PILIH CHECKPOINT / WILAYAH'),
                 TextButton(
                   onPressed: () {
+                    // Navigate to the beautiful drag & drop EditCheckpointsScreen!
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => const EditCheckpointsScreen()),
@@ -171,7 +192,11 @@ class _AddRondaScreenState extends State<AddRondaScreen> {
                   },
                   child: Text(
                     'Edit Checkpoint',
-                    style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF004E92)),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12, 
+                      fontWeight: FontWeight.bold, 
+                      color: const Color(0xFF004E92),
+                    ),
                   ),
                 ),
               ],
@@ -206,11 +231,15 @@ class _AddRondaScreenState extends State<AddRondaScreen> {
               height: 55,
               child: ElevatedButton.icon(
                 onPressed: () {
-                  Navigator.pop(context);
+                  Navigator.pop(context, {
+                    'groupId': _selectedGroup,
+                    'coordinatorId': _selectedCoordinator,
+                    'dateStr': _dateStr,
+                  });
                 },
                 icon: const Icon(Icons.check_circle_outline_rounded, color: Colors.white, size: 20),
                 label: Text(
-                  'Simpan Jadwal',
+                  'Simpan Perubahan',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
