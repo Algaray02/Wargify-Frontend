@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong2.dart';
 import '../../../../core/constants/colors.dart';
 
 class CheckpointItem {
@@ -26,6 +28,10 @@ class _EditCheckpointsScreenState extends State<EditCheckpointsScreen> {
 
   final TextEditingController _addressController = TextEditingController();
   final TextEditingController _noteController = TextEditingController();
+
+  // Active Map Pin Location state
+  LatLng? _pinnedCoordinate = const LatLng(-6.2088, 106.8456); // Default: Jakarta center
+  final MapController _mapController = MapController();
 
   @override
   void dispose() {
@@ -160,11 +166,11 @@ class _EditCheckpointsScreenState extends State<EditCheckpointsScreen> {
                 height: 1.4,
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
 
             // Drag and drop list
             Container(
-              constraints: const BoxConstraints(maxHeight: 320),
+              constraints: const BoxConstraints(maxHeight: 280),
               child: _checkpoints.isEmpty
                   ? _buildEmptyCheckpoints()
                   : ReorderableListView.builder(
@@ -198,7 +204,7 @@ class _EditCheckpointsScreenState extends State<EditCheckpointsScreen> {
                 border: Border.all(
                   color: const Color(0xFFCBDCE6),
                   width: 1.5,
-                  style: BorderStyle.solid, // fallback clear line
+                  style: BorderStyle.solid,
                 ),
               ),
               child: Column(
@@ -276,74 +282,93 @@ class _EditCheckpointsScreenState extends State<EditCheckpointsScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 30),
+            const SizedBox(height: 24),
 
-            // Map preview card at bottom (glowing grey styled map)
+            // Tambahkan Pin Di Peta (New Interactive Section)
+            Text(
+              'TAMBAHKAN PIN DI PETA',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: const Color(0xFF005B94),
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Ketuk di mana saja pada peta di bawah ini untuk menandai koordinat checkpoint baru.',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Active Interactive Map using flutter_map
             Container(
-              height: 240,
+              height: 260,
               width: double.infinity,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(24),
-                image: const DecorationImage(
-                  image: NetworkImage('https://images.unsplash.com/photo-1524661135-423995f22d0b?w=600&auto=format&fit=crop'),
-                  fit: BoxFit.cover,
-                  colorFilter: ColorFilter.mode(
-                    Colors.grey,
-                    BlendMode.saturation,
-                  ),
-                ),
+                border: Border.all(color: Colors.grey.withOpacity(0.2)),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.06),
-                    blurRadius: 15,
-                    offset: const Offset(0, 6),
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
-              child: Stack(
-                children: [
-                  // Location map Pin in center
-                  const Center(
-                    child: Icon(
-                      Icons.location_pin,
-                      color: Color(0xFF004B87),
-                      size: 44,
-                    ),
-                  ),
-                  // Floating badge at bottom-left
-                  Positioned(
-                    bottom: 16,
-                    left: 16,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 6,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: FlutterMap(
+                  mapController: _mapController,
+                  options: MapOptions(
+                    initialCenter: const LatLng(-6.2088, 106.8456), // Jakarta center
+                    initialZoom: 15,
+                    onTap: (tapPosition, point) {
+                      setState(() {
+                        _pinnedCoordinate = point;
+                        // Format the lat/long coordinate cleanly inside the address field!
+                        _addressController.text =
+                            'Lokasi (${point.latitude.toStringAsFixed(4)}, ${point.longitude.toStringAsFixed(4)})';
+                      });
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Pin diletakkan di ${point.latitude.toStringAsFixed(4)}, ${point.longitude.toStringAsFixed(4)}',
+                            style: GoogleFonts.plusJakartaSans(),
                           ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.location_on, size: 14, color: Color(0xFF004B87)),
-                          const SizedBox(width: 6),
-                          Text(
-                            'ROUTE PREVIEW ACTIVE',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: const Color(0xFF004B87),
+                          duration: const Duration(seconds: 1),
+                          backgroundColor: AppColors.primary,
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      );
+                    },
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.wargify.app',
+                    ),
+                    if (_pinnedCoordinate != null)
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            point: _pinnedCoordinate!,
+                            width: 60,
+                            height: 60,
+                            child: const Icon(
+                              Icons.location_pin,
+                              color: Colors.red,
+                              size: 44,
                             ),
                           ),
                         ],
                       ),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 40),
