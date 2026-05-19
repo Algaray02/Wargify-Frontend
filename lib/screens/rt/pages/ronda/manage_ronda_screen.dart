@@ -1,7 +1,44 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/colors.dart';
+import 'add_ronda_screen.dart';
 import 'edit_checkpoints_screen.dart';
+
+class RondaSchedule {
+  final String id;
+  final String groupId;
+  final String coordinatorId;
+  final String dateStr;
+  final String shiftHours;
+  final String status; // SCHEDULED, ONGOING, COMPLETED, MISSED
+
+  RondaSchedule({
+    required this.id,
+    required this.groupId,
+    required this.coordinatorId,
+    required this.dateStr,
+    required this.shiftHours,
+    required this.status,
+  });
+
+  RondaSchedule copyWith({
+    String? id,
+    String? groupId,
+    String? coordinatorId,
+    String? dateStr,
+    String? shiftHours,
+    String? status,
+  }) {
+    return RondaSchedule(
+      id: id ?? this.id,
+      groupId: groupId ?? this.groupId,
+      coordinatorId: coordinatorId ?? this.coordinatorId,
+      dateStr: dateStr ?? this.dateStr,
+      shiftHours: shiftHours ?? this.shiftHours,
+      status: status ?? this.status,
+    );
+  }
+}
 
 class ManageRondaScreen extends StatefulWidget {
   const ManageRondaScreen({super.key});
@@ -11,65 +48,98 @@ class ManageRondaScreen extends StatefulWidget {
 }
 
 class _ManageRondaScreenState extends State<ManageRondaScreen> {
-  // Mock Active Squad Data
-  String _selectedSquad = 'REGU ELANG';
-  String _startTime = '22:00';
-  String _endTime = '04:00';
-  bool _sendReminder = true;
-  
-  final List<String> _members = ['Bpk. Ahmad', 'Bpk. Doni', 'Bpk. Bambang', 'Ibu Rini'];
-  final List<String> _allSquads = ['REGU ELANG', 'REGU GARUDA', 'REGU RAJAWALI', 'REGU MACAN'];
-  final List<String> _days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
-  final List<String> _activeDays = ['Senin', 'Rabu', 'Jumat'];
+  String _selectedFilter = 'SEMUA';
 
-  void _addMember() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        final controller = TextEditingController();
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text(
-            'Tambah Anggota Ronda',
-            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold),
-          ),
-          content: TextField(
-            controller: controller,
-            decoration: InputDecoration(
-              hintText: 'Nama lengkap warga...',
-              hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Batal', style: GoogleFonts.plusJakartaSans(color: Colors.grey)),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final name = controller.text.trim();
-                if (name.isNotEmpty) {
-                  setState(() {
-                    _members.add(name);
-                  });
-                  Navigator.pop(context);
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              child: Text('Simpan', style: GoogleFonts.plusJakartaSans(color: Colors.white)),
-            ),
-          ],
-        );
-      },
+  // Mock list matching the DB table structure 'ronda_schedules'
+  final List<RondaSchedule> _schedules = [
+    RondaSchedule(
+      id: 'sch_1',
+      groupId: 'Regu Yakuzs',
+      coordinatorId: 'Agus (Pak RW)',
+      dateStr: 'Senin, 24 Juli 2024',
+      shiftHours: '22:00 - 04:00',
+      status: 'SCHEDULED',
+    ),
+    RondaSchedule(
+      id: 'sch_2',
+      groupId: 'Regu Elang',
+      coordinatorId: 'Budi Santoso',
+      dateStr: 'Selasa, 25 Juli 2024',
+      shiftHours: '22:00 - 04:00',
+      status: 'ONGOING',
+    ),
+    RondaSchedule(
+      id: 'sch_3',
+      groupId: 'Regu Mawar',
+      coordinatorId: 'Siti (Bu RT)',
+      dateStr: 'Minggu, 23 Juli 2024',
+      shiftHours: '22:00 - 04:00',
+      status: 'COMPLETED',
+    ),
+    RondaSchedule(
+      id: 'sch_4',
+      groupId: 'Regu Rajawali',
+      coordinatorId: 'Pak Doni',
+      dateStr: 'Sabtu, 22 Juli 2024',
+      shiftHours: '22:00 - 04:00',
+      status: 'MISSED',
+    ),
+  ];
+
+  List<RondaSchedule> _getFilteredSchedules() {
+    if (_selectedFilter == 'SEMUA') return _schedules;
+    return _schedules.where((s) => s.status == _selectedFilter).toList();
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'SCHEDULED':
+        return const Color(0xFF64748B); // Slate Grey
+      case 'ONGOING':
+        return const Color(0xFF0284C7); // Sky Blue
+      case 'COMPLETED':
+        return AppColors.success; // Green
+      case 'MISSED':
+        return AppColors.danger; // Red
+      default:
+        return Colors.black;
+    }
+  }
+
+  Color _getStatusBgColor(String status) {
+    switch (status) {
+      case 'SCHEDULED':
+        return const Color(0xFFF1F5F9);
+      case 'ONGOING':
+        return const Color(0xFFF0F9FF);
+      case 'COMPLETED':
+        return const Color(0xFFF0FDF4);
+      case 'MISSED':
+        return const Color(0xFFFEF2F2);
+      default:
+        return Colors.grey[100]!;
+    }
+  }
+
+  void _deleteSchedule(int index) {
+    final sch = _getFilteredSchedules()[index];
+    setState(() {
+      _schedules.removeWhere((item) => item.id == sch.id);
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Jadwal untuk ${sch.groupId} berhasil dihapus.', style: GoogleFonts.plusJakartaSans()),
+        backgroundColor: Colors.grey[800],
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final filteredSchedules = _getFilteredSchedules();
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -106,61 +176,15 @@ class _ManageRondaScreenState extends State<ManageRondaScreen> {
           ),
         ),
       ),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 20),
-            
-            // Big Banner Header
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF0F4C81), Color(0xFF1B4F72)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF0F4C81).withOpacity(0.25),
-                    blurRadius: 15,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'PENGATURAN PATROLI',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white.withOpacity(0.7),
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Kelola shift, anggota regu, dan checkpoint ronda secara sentral.',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14,
-                      color: Colors.white.withOpacity(0.9),
-                      height: 1.4,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 10),
 
-            // Short-cut to Checkpoint Settings (Premium Glowing Button)
-            InkWell(
+          // Short-cut to Checkpoint Settings (Premium Glowing Button)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+            child: InkWell(
               onTap: () {
                 Navigator.push(
                   context,
@@ -169,15 +193,15 @@ class _ManageRondaScreenState extends State<ManageRondaScreen> {
               },
               borderRadius: BorderRadius.circular(20),
               child: Container(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.primary.withOpacity(0.12), width: 1.5),
+                  border: Border.all(color: AppColors.primary.withOpacity(0.12), width: 1),
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.primary.withOpacity(0.04),
-                      blurRadius: 12,
+                      color: AppColors.primary.withOpacity(0.02),
+                      blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
                   ],
@@ -185,14 +209,14 @@ class _ManageRondaScreenState extends State<ManageRondaScreen> {
                 child: Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(16),
+                        color: AppColors.primary.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.pin_drop_rounded, color: AppColors.primary, size: 28),
+                      child: const Icon(Icons.pin_drop_rounded, color: AppColors.primary, size: 22),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -200,14 +224,13 @@ class _ManageRondaScreenState extends State<ManageRondaScreen> {
                           Text(
                             'Atur Checkpoint Patroli',
                             style: GoogleFonts.plusJakartaSans(
-                              fontSize: 16,
+                              fontSize: 14,
                               fontWeight: FontWeight.bold,
                               color: const Color(0xFF0D1B2A),
                             ),
                           ),
-                          const SizedBox(height: 4),
                           Text(
-                            'Edit koordinasi peta dan titik penanda QR warga.',
+                            'Ubah urutan patroli & checkpoint QR',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 11,
                               color: Colors.grey[500],
@@ -216,264 +239,285 @@ class _ManageRondaScreenState extends State<ManageRondaScreen> {
                         ],
                       ),
                     ),
-                    const Icon(Icons.arrow_forward_ios_rounded, color: Colors.grey, size: 16),
+                    const Icon(Icons.arrow_forward_ios_rounded, color: Colors.grey, size: 14),
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 28),
+          ),
 
-            // 1. Shift Time Picker Settings
-            Text(
-              'Shift & Jam Operasional',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: const Color(0xFF0D1B2A),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Waktu Mulai', style: GoogleFonts.plusJakartaSans(fontSize: 14, color: Colors.grey[700])),
-                      DropdownButton<String>(
-                        value: _startTime,
-                        underline: const SizedBox(),
-                        onChanged: (val) {
-                          if (val != null) setState(() => _startTime = val);
-                        },
-                        items: ['20:00', '21:00', '22:00', '23:00'].map((time) {
-                          return DropdownMenuItem(value: time, child: Text(time, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)));
-                        }).toList(),
-                      ),
-                    ],
-                  ),
-                  const Divider(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Waktu Selesai', style: GoogleFonts.plusJakartaSans(fontSize: 14, color: Colors.grey[700])),
-                      DropdownButton<String>(
-                        value: _endTime,
-                        underline: const SizedBox(),
-                        onChanged: (val) {
-                          if (val != null) setState(() => _endTime = val);
-                        },
-                        items: ['03:00', '04:00', '05:00', '06:00'].map((time) {
-                          return DropdownMenuItem(value: time, child: Text(time, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)));
-                        }).toList(),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 28),
-
-            // 2. Active Days Selector
-            Text(
-              'Hari Ronda Aktif',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: const Color(0xFF0D1B2A),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _days.map((day) {
-                final isSelected = _activeDays.contains(day);
-                return FilterChip(
-                  label: Text(day),
-                  selected: isSelected,
-                  selectedColor: AppColors.primary.withOpacity(0.12),
-                  checkmarkColor: AppColors.primary,
-                  labelStyle: GoogleFonts.plusJakartaSans(
-                    fontSize: 12,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                    color: isSelected ? AppColors.primary : Colors.grey[600],
-                  ),
-                  backgroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    side: BorderSide(color: isSelected ? AppColors.primary.withOpacity(0.4) : Colors.grey.withOpacity(0.1)),
-                  ),
-                  onSelected: (selected) {
-                    setState(() {
-                      if (selected) {
-                        _activeDays.add(day);
-                      } else {
-                        _activeDays.remove(day);
-                      }
-                    });
-                  },
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 28),
-
-            // 3. Regu Ronda / Active Squad Picker
-            Row(
+          // Header title & count
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Regu Ronda Aktif',
+                  'Daftar Jadwal Ronda',
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 16,
+                    fontSize: 18,
                     fontWeight: FontWeight.w800,
                     color: const Color(0xFF0D1B2A),
                   ),
                 ),
-                DropdownButton<String>(
-                  value: _selectedSquad,
-                  underline: const SizedBox(),
-                  onChanged: (val) {
-                    if (val != null) setState(() => _selectedSquad = val);
-                  },
-                  items: _allSquads.map((squad) {
-                    return DropdownMenuItem(
-                      value: squad,
-                      child: Text(
-                        squad,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primary,
-                          fontSize: 13,
-                        ),
-                      ),
-                    );
-                  }).toList(),
+                Text(
+                  '${filteredSchedules.length} Jadwal',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[500],
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+          ),
 
-            // Squad Members List
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Anggota Regu (${_members.length})',
-                        style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey[500]),
-                      ),
-                      TextButton.icon(
-                        onPressed: _addMember,
-                        icon: const Icon(Icons.add, size: 16, color: AppColors.primary),
-                        label: Text('Tambah', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 12)),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _members.length,
-                    itemBuilder: (context, index) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 16,
-                              backgroundColor: AppColors.primary.withOpacity(0.1),
-                              child: Text(
-                                _members[index][0],
-                                style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Text(
-                              _members[index],
-                              style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF0D1B2A)),
-                            ),
-                            const Spacer(),
-                            IconButton(
-                              icon: const Icon(Icons.remove_circle_outline, color: Colors.red, size: 18),
-                              onPressed: () {
-                                setState(() {
-                                  _members.removeAt(index);
-                                });
-                              },
-                            ),
-                          ],
-                        ),
-                      );
+          // Filter Status Chips (NO checkmark!)
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: ['SEMUA', 'SCHEDULED', 'ONGOING', 'COMPLETED', 'MISSED'].map((filter) {
+                final isSelected = _selectedFilter == filter;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: ChoiceChip(
+                    label: Text(filter),
+                    selected: isSelected,
+                    showCheckmark: false,
+                    onSelected: (selected) {
+                      if (selected) {
+                        setState(() => _selectedFilter = filter);
+                      }
                     },
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // 4. Notifications/Reminders
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: SwitchListTile(
-                title: Text(
-                  'Kirim Pengingat Otomatis',
-                  style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF0D1B2A)),
-                ),
-                subtitle: Text(
-                  'Kirim notifikasi pengingat ke warga H-1 sebelum jaga.',
-                  style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.grey[500]),
-                ),
-                value: _sendReminder,
-                activeColor: AppColors.primary,
-                onChanged: (val) => setState(() => _sendReminder = val),
-              ),
-            ),
-            const SizedBox(height: 40),
-
-            // Save Big Button
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Jadwal ronda berhasil diperbarui!', style: GoogleFonts.plusJakartaSans()),
-                    backgroundColor: AppColors.success,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    selectedColor: AppColors.primary,
+                    backgroundColor: Colors.white,
+                    labelStyle: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                      color: isSelected ? Colors.white : Colors.grey[600],
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      side: BorderSide(
+                        color: isSelected ? AppColors.primary : Colors.grey.withOpacity(0.12),
+                      ),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   ),
                 );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                minimumSize: const Size(double.infinity, 54),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                elevation: 4,
-              ),
-              child: Text(
-                'Simpan Pengaturan',
-                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
-              ),
+              }).toList(),
             ),
-            const SizedBox(height: 60),
-          ],
+          ),
+          const SizedBox(height: 12),
+
+          // Schedules List
+          Expanded(
+            child: filteredSchedules.isEmpty
+                ? _buildEmptyState()
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 100),
+                    physics: const BouncingScrollPhysics(),
+                    itemCount: filteredSchedules.length,
+                    itemBuilder: (context, index) {
+                      final item = filteredSchedules[index];
+                      return _buildScheduleCard(item, index);
+                    },
+                  ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          // Navigate to existing AddRondaScreen!
+          await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const AddRondaScreen()),
+          );
+          
+          // Mimic adding a new item after return (demo data fallback)
+          setState(() {
+            _schedules.insert(
+              0,
+              RondaSchedule(
+                id: DateTime.now().toString(),
+                groupId: 'Regu Elang',
+                coordinatorId: 'Budi Santoso',
+                dateStr: 'Rabu, 26 Juli 2024',
+                shiftHours: '22:00 - 04:00',
+                status: 'SCHEDULED',
+              ),
+            );
+          });
+        },
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        elevation: 6,
+        icon: const Icon(Icons.add_rounded, size: 24),
+        label: Text(
+          'Tambah Jadwal',
+          style: GoogleFonts.plusJakartaSans(
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+            letterSpacing: 0.5,
+          ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.calendar_today_rounded, size: 40, color: Colors.grey[300]),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Tidak ada jadwal ronda ditemukan.',
+            style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey[700]),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Silakan tekan tombol Tambah Jadwal.',
+            style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey[500]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScheduleCard(RondaSchedule item, int index) {
+    final statusColor = _getStatusColor(item.status);
+    final statusBgColor = _getStatusBgColor(item.status);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.01),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: Colors.grey.withOpacity(0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header of Card (Group name & status badge)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                item.groupId,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusBgColor,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  item.status,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: statusColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Date & Time rows
+          Row(
+            children: [
+              const Icon(Icons.calendar_today_outlined, size: 16, color: Colors.grey),
+              const SizedBox(width: 8),
+              Text(
+                item.dateStr,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF0D1B2A),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(Icons.access_time_rounded, size: 16, color: Colors.grey),
+              const SizedBox(width: 8),
+              Text(
+                item.shiftHours,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
+                  color: Colors.grey[700],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          const Divider(height: 20),
+
+          // Coordinator info & actions row
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 12,
+                backgroundColor: AppColors.primary.withOpacity(0.1),
+                child: Text(
+                  item.coordinatorId[0],
+                  style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.primary),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Koordinator',
+                      style: GoogleFonts.plusJakartaSans(fontSize: 9, color: Colors.grey[500]),
+                    ),
+                    Text(
+                      item.coordinatorId,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF0D1B2A),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20),
+                onPressed: () => _deleteSchedule(index),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
