@@ -221,7 +221,9 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
                 children: [
                   TextSpan(text: '${_getGreeting()} '),
                   TextSpan(
-                    text: _currentUser?.fullName ?? 'Memuat...',
+                    text: _currentUser != null
+                        ? _currentUser!.fullName.trim().split(' ')[0]
+                        : 'Memuat...',
                     style: const TextStyle(color: AppColors.primary),
                   ),
                 ],

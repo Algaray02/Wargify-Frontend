@@ -30,7 +30,7 @@ class BendaharaHomePage extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Sore, ${user.fullName.split(' ')[0]}.',
+            'Sore, ${user.fullName.trim().split(' ')[0]}.',
             style: GoogleFonts.plusJakartaSans(
               fontSize: 28,
               fontWeight: FontWeight.w800,

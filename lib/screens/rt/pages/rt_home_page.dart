@@ -20,7 +20,7 @@ class RTHomePage extends StatelessWidget {
   }
 
   String _getFirstName() {
-    return user.fullName.split(' ')[0];
+    return user.fullName.trim().split(' ')[0];
   }
 
   @override
