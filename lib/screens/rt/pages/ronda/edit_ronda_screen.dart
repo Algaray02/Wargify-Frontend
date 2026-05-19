@@ -25,12 +25,15 @@ class _EditRondaScreenState extends State<EditRondaScreen> {
   late String _selectedGroup;
   late String _selectedCoordinator;
   late String _dateStr;
+
+  final List<String> _groups = ['Regu Yakuzs', 'Regu Elang', 'Regu Mawar', 'Regu Rajawali'];
   
   final List<Map<String, String>> _members = [
     {'name': 'Agus (Pak RW)', 'avatar': 'https://i.pravatar.cc/150?u=agus'},
     {'name': 'Siti (Bu RT)', 'avatar': 'https://i.pravatar.cc/150?u=siti'},
-    {'name': 'Budi', 'avatar': 'https://i.pravatar.cc/150?u=budi'},
+    {'name': 'Budi Santoso', 'avatar': 'https://i.pravatar.cc/150?u=budi'},
     {'name': 'Dewi', 'avatar': 'https://i.pravatar.cc/150?u=dewi'},
+    {'name': 'Pak Doni', 'avatar': 'https://i.pravatar.cc/150?u=doni'},
   ];
   
   final List<Map<String, dynamic>> _checkpoints = [
@@ -45,6 +48,20 @@ class _EditRondaScreenState extends State<EditRondaScreen> {
     _selectedGroup = widget.groupId;
     _selectedCoordinator = widget.coordinatorId;
     _dateStr = widget.dateStr;
+
+    // Robust fall-safe check for group dropdown
+    if (!_groups.contains(_selectedGroup)) {
+      _groups.add(_selectedGroup);
+    }
+
+    // Robust fall-safe check: dynamically add coordinator to list if not present to avoid assertion crash
+    final exists = _members.any((member) => member['name'] == _selectedCoordinator);
+    if (!exists) {
+      _members.add({
+        'name': _selectedCoordinator,
+        'avatar': 'https://i.pravatar.cc/150?u=${_selectedCoordinator.toLowerCase().replaceAll(' ', '')}',
+      });
+    }
   }
 
   @override
@@ -109,7 +126,7 @@ class _EditRondaScreenState extends State<EditRondaScreen> {
                   value: _selectedGroup,
                   isExpanded: true,
                   icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF004E92)),
-                  items: ['Regu Yakuzs', 'Regu Elang', 'Regu Mawar', 'Regu Rajawali'].map((String value) {
+                  items: _groups.map((String value) {
                     return DropdownMenuItem<String>(
                       value: value,
                       child: Text(value, style: GoogleFonts.plusJakartaSans(fontSize: 14, color: const Color(0xFF0D1B2A))),
