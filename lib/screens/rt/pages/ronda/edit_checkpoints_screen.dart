@@ -30,7 +30,7 @@ class _EditCheckpointsScreenState extends State<EditCheckpointsScreen> {
   final TextEditingController _noteController = TextEditingController();
 
   // Active Map Pin Location state
-  LatLng? _pinnedCoordinate = const LatLng(-6.2088, 106.8456); // Default: Jakarta center
+  LatLng? _pinnedCoordinate = LatLng(-6.2088, 106.8456); // Default: Jakarta center
   final MapController _mapController = MapController();
 
   @override
@@ -324,7 +324,7 @@ class _EditCheckpointsScreenState extends State<EditCheckpointsScreen> {
                 child: FlutterMap(
                   mapController: _mapController,
                   options: MapOptions(
-                    initialCenter: const LatLng(-6.2088, 106.8456), // Jakarta center
+                    initialCenter: LatLng(-6.2088, 106.8456), // Jakarta center
                     initialZoom: 15,
                     onTap: (tapPosition, point) {
                       setState(() {
