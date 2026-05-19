@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/colors.dart';
-import 'add_ronda_screen.dart';
+import 'manage_ronda_screen.dart';
 
 class RondaScreen extends StatelessWidget {
   const RondaScreen({super.key});
@@ -151,15 +151,15 @@ class RondaScreen extends StatelessWidget {
                   color: const Color(0xFF0D1B2A),
                 ),
               ),
-              ElevatedButton.icon(
+               ElevatedButton.icon(
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const AddRondaScreen()),
+                    MaterialPageRoute(builder: (context) => const ManageRondaScreen()),
                   );
                 },
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Tambah Jadwal Ronda'),
+                icon: const Icon(Icons.settings_rounded, size: 16),
+                label: const Text('Atur Jadwal Ronda'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF004E92),
                   foregroundColor: Colors.white,

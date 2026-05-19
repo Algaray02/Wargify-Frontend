@@ -6,6 +6,7 @@ import 'sos/sos_trigger_screen.dart';
 import 'sos/sos_dashboard_screen.dart';
 import 'pengumuman/pengumuman_screen.dart';
 import 'laporan/laporan_screen.dart';
+import 'ronda/manage_ronda_screen.dart';
 
 class RTHomePage extends StatelessWidget {
   final UserModel user;
@@ -287,6 +288,20 @@ class RTHomePage extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (context) => PengumumanScreen(user: user),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 16),
+          _buildManagementCard(
+            title: 'Atur Jadwal Ronda',
+            subtitle: 'KELOLA JADWAL & CHECKPOINT RONDA',
+            icon: Icons.security_rounded,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ManageRondaScreen(),
                 ),
               );
             },

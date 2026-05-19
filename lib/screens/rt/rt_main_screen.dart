@@ -10,6 +10,7 @@ import 'pages/gallery/gallery_screen.dart';
 import 'pages/rt_home_page.dart';
 import 'pages/ronda/ronda_screen.dart';
 import '../profile/profile_screen.dart';
+import 'pages/notifikasi/notifikasi_log_screen.dart';
 
 class RTMainScreen extends StatefulWidget {
   final UserModel user;
@@ -120,7 +121,17 @@ class _RTMainScreenState extends State<RTMainScreen> {
                     ),
                   ],
                 ),
-                const Icon(Icons.notifications_none_rounded, size: 28),
+                IconButton(
+                  icon: const Icon(Icons.notifications_none_rounded, size: 28),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const NotifikasiLogScreen(),
+                      ),
+                    );
+                  },
+                ),
               ],
             ),
           ),
