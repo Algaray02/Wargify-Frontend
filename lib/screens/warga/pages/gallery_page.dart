@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:wargify/core/constants/colors.dart';
-import 'package:wargify/screens/warga/home/home_screen.dart';
-import 'package:wargify/screens/warga/iuran/iuran_screen.dart';
+import 'package:wargify/screens/warga/pages/home_page.dart';
+import 'package:wargify/screens/warga/pages/iuran_page.dart';
 import 'package:wargify/widgets/warga/warga_header.dart';
 import 'package:wargify/widgets/warga/warga_bottom_nav.dart';
 import 'package:wargify/widgets/warga/gallery/gallery_filter_chip.dart';
 import 'package:wargify/widgets/warga/gallery/gallery_group_section.dart';
-import 'package:wargify/screens/warga/ronda/ronda_screen.dart';
-import 'package:wargify/screens/warga/qr/qr_scanner_screen.dart';
+import 'package:wargify/screens/warga/pages/ronda_page.dart';
+import 'package:wargify/screens/warga/pages/qr_scanner_page.dart';
 
 class GalleryScreen extends StatefulWidget {
   const GalleryScreen({super.key});

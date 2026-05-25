@@ -5,10 +5,12 @@ import 'package:wargify/widgets/common/sos_card.dart';
 import 'package:wargify/widgets/common/lapor_fasilitas_card.dart';
 import 'package:wargify/widgets/warga/warga_header.dart';
 import 'package:wargify/widgets/warga/warga_bottom_nav.dart';
-import 'package:wargify/screens/warga/iuran/iuran_screen.dart';
-import 'package:wargify/screens/warga/gallery/gallery_screen.dart';
-import 'package:wargify/screens/warga/ronda/ronda_screen.dart';
-import 'package:wargify/screens/warga/qr/qr_scanner_screen.dart';
+import 'package:wargify/screens/warga/pages/iuran_page.dart';
+import 'package:wargify/screens/warga/pages/gallery_page.dart';
+import 'package:wargify/screens/warga/pages/ronda_page.dart';
+import 'package:wargify/screens/warga/pages/qr_scanner_page.dart';
+import 'package:wargify/screens/warga/pages/sos_trigger_page.dart';
+import 'package:wargify/screens/warga/pages/laporan_fasilitas_page.dart';
 
 class WargaHomeScreen extends StatefulWidget {
   const WargaHomeScreen({super.key});
@@ -34,17 +36,9 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
     {
       'kategori': 'LINGKUNGAN',
       'judul': 'Minggu Bersih: Kerja Bakti Massal RT 04',
-      'imageUrl':
-          'https://i.pinimg.com/564x/6e/0f/05/6e0f057d6d82cb6a1f1054c2b3504f92.jpg',
       'color': 'green',
     },
-    {
-      'kategori': 'KEAMANAN',
-      'judul': 'Penambahan Siskamling',
-      'imageUrl':
-          'https://froyonion.sgp1.cdn.digitaloceanspaces.com/images/blogdetail/858eb1bd32c0fc50cba8ba93e472de88e7082914.jpg',
-      'color': 'blue',
-    },
+    {'kategori': 'KEAMANAN', 'judul': 'Penambahan Siskamling', 'color': 'blue'},
   ];
 
   final List<Map<String, String>> _upcomingEvents = [
@@ -116,15 +110,47 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
     }
   }
 
+  // --- Tampilkan popup sesuai tipe event dengan ScaleTransition ---
+  void _showEventDetail(BuildContext context, String type) {
+    Widget dialog;
+    switch (type) {
+      case 'rapat':
+        dialog = const _RapatDetailDialog();
+        break;
+      case 'ronda':
+        dialog = const _RondaDetailDialog();
+        break;
+      case 'kegiatan':
+      default:
+        dialog = const _KegiatanDetailDialog();
+        break;
+    }
+
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Tutup',
+      barrierColor: Colors.black54,
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (context, animation, secondaryAnimation) => dialog,
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutBack,
+        );
+        return ScaleTransition(
+          scale: curved,
+          child: FadeTransition(opacity: animation, child: child),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: WargaHeader(
-        onNotificationTap: () {
-          // TODO: navigate to notifications
-        },
-      ),
+      appBar: const WargaHeader(),
       bottomNavigationBar: WargaBottomNav(
         currentIndex: _currentNavIndex,
         onTap: (index) {
@@ -137,7 +163,6 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
           }
           if (index == 2) {
             Navigator.push(
-              // ← push bukan pushReplacement
               context,
               MaterialPageRoute(builder: (_) => const QrScannerScreen()),
             );
@@ -380,11 +405,21 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
             const SizedBox(height: 16),
 
             // --- SOS Card ---
-            SosCard(onTap: () {}),
+            SosCard(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SosTriggerPage()),
+              ),
+            ),
             const SizedBox(height: 12),
 
             // --- Lapor Fasilitas ---
-            LaporFasilitasCard(onTap: () {}),
+            LaporFasilitasCard(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const LaporanFasilitasPage()),
+              ),
+            ),
             const SizedBox(height: 24),
 
             // --- Kegiatan Terbaru ---
@@ -440,6 +475,8 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
                 child: _UpcomingEventCard(
                   event: event,
                   icon: _getEventIcon(event['type'] ?? ''),
+                  onSelengkapnya: () =>
+                      _showEventDetail(context, event['type'] ?? ''),
                 ),
               ),
             ),
@@ -451,6 +488,10 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
     );
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PRIVATE WIDGETS — hanya dipakai di file ini
+// ═══════════════════════════════════════════════════════════════════════════════
 
 // ─── Kegiatan Card ───────────────────────────────────────────────────────────
 
@@ -541,13 +582,18 @@ class _KegiatanCard extends StatelessWidget {
   }
 }
 
-// ─── Upcoming Event Card ─────────────────────────────────────────────────────
+// ─── Upcoming Event Card ──────────────────────────────────────────────────────
 
 class _UpcomingEventCard extends StatelessWidget {
   final Map<String, String> event;
   final IconData icon;
+  final VoidCallback onSelengkapnya;
 
-  const _UpcomingEventCard({required this.event, required this.icon});
+  const _UpcomingEventCard({
+    required this.event,
+    required this.icon,
+    required this.onSelengkapnya,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -724,7 +770,7 @@ class _UpcomingEventCard extends StatelessWidget {
             width: double.infinity,
             height: 42,
             child: ElevatedButton(
-              onPressed: () {},
+              onPressed: onSelengkapnya,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: AppColors.white,
@@ -743,6 +789,417 @@ class _UpcomingEventCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─── Info Row (shared antar dialog di file ini) ───────────────────────────────
+
+class _InfoRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _InfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: AppColors.primary, size: 18),
+        ),
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 10,
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.5,
+              ),
+            ),
+            Text(
+              value,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Tombol Tutup (shared antar dialog di file ini) ───────────────────────────
+
+class _TutupButton extends StatelessWidget {
+  final VoidCallback onPressed;
+
+  const _TutupButton({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: AppColors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(30),
+          ),
+          elevation: 0,
+        ),
+        child: Text(
+          'Tutup',
+          style: GoogleFonts.plusJakartaSans(
+            fontWeight: FontWeight.bold,
+            fontSize: 15,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Popup: Rapat Mendatang ───────────────────────────────────────────────────
+
+class _RapatDetailDialog extends StatelessWidget {
+  const _RapatDetailDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Rapat Mendatang',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Detail card
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Pembahasan Anggaran RT 2024',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const _InfoRow(
+                    icon: Icons.calendar_today_outlined,
+                    label: 'WAKTU',
+                    value: 'Sabtu, 28 Sept | 19:30 WIB',
+                  ),
+                  const SizedBox(height: 10),
+                  const _InfoRow(
+                    icon: Icons.map_outlined,
+                    label: 'LOKASI',
+                    value: 'Balai Warga',
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            Text(
+              'DESKRIPSI',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary,
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            // TODO: ganti dengan data dari backend
+            ...[
+              'Laporan Penggunaan Dana 2023',
+              'Rencana Kerja Bakti Massal',
+              'Diskusi Keamanan Lingkungan',
+              'Lain-lain',
+            ].map(
+              (item) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(top: 5),
+                      child: Icon(
+                        Icons.circle,
+                        size: 6,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        item,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            _TutupButton(onPressed: () => Navigator.of(context).pop()),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Popup: Shift Ronda ───────────────────────────────────────────────────────
+
+class _RondaDetailDialog extends StatelessWidget {
+  const _RondaDetailDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    // TODO: ganti dengan data dari backend
+    const rekanTim = ['Bambang Wijaya', 'Siti Aminah', 'Yuda Pratama'];
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Shift Ronda',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            const _InfoRow(
+              icon: Icons.calendar_today_outlined,
+              label: 'HARI & TANGGAL',
+              value: 'Selasa, 24 Oktober 2023',
+            ),
+            const SizedBox(height: 10),
+            const _InfoRow(
+              icon: Icons.access_time_outlined,
+              label: 'JAM OPERASIONAL',
+              value: '22:00 – 02:00 WIB',
+            ),
+            const SizedBox(height: 10),
+            const _InfoRow(
+              icon: Icons.location_on_outlined,
+              label: 'LOKASI TITIK KUMPUL',
+              value: 'Pos Ronda RT 04 / Sektor Barat',
+            ),
+            const SizedBox(height: 20),
+
+            Row(
+              children: [
+                const Icon(
+                  Icons.people_outline,
+                  size: 18,
+                  color: AppColors.textSecondary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Rekan Tim',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            ...rekanTim.map(
+              (nama) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: AppColors.secondary,
+                      child: const Icon(
+                        Icons.person,
+                        color: AppColors.primary,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      nama,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            _TutupButton(onPressed: () => Navigator.of(context).pop()),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Popup: Kegiatan Mendatang ────────────────────────────────────────────────
+
+class _KegiatanDetailDialog extends StatelessWidget {
+  const _KegiatanDetailDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Kegiatan Mendatang',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Detail card
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Kerja Bakti',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const _InfoRow(
+                    icon: Icons.calendar_today_outlined,
+                    label: 'WAKTU',
+                    value: 'Sabtu, 28 Sept | 06:00 WIB',
+                  ),
+                  const SizedBox(height: 10),
+                  const _InfoRow(
+                    icon: Icons.map_outlined,
+                    label: 'LOKASI',
+                    value: 'Sekitar Sungai',
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            Text(
+              'DESKRIPSI',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary,
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // TODO: ganti dengan data dari backend
+            Text(
+              'Kegiatan gotong royong untuk warga',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 20),
+            _TutupButton(onPressed: () => Navigator.of(context).pop()),
+          ],
+        ),
       ),
     );
   }

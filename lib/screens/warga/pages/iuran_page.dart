@@ -5,10 +5,10 @@ import 'package:wargify/widgets/warga/warga_header.dart';
 import 'package:wargify/widgets/warga/warga_bottom_nav.dart';
 import 'package:wargify/widgets/warga/iuran/total_dana_card.dart';
 import 'package:wargify/widgets/warga/iuran/iuran_item_card.dart';
-import 'package:wargify/screens/warga/home/home_screen.dart';
-import 'package:wargify/screens/warga/gallery/gallery_screen.dart';
-import 'package:wargify/screens/warga/ronda/ronda_screen.dart';
-import 'package:wargify/screens/warga/qr/qr_scanner_screen.dart';
+import 'package:wargify/screens/warga/pages/home_page.dart';
+import 'package:wargify/screens/warga/pages/gallery_page.dart';
+import 'package:wargify/screens/warga/pages/ronda_page.dart';
+import 'package:wargify/screens/warga/pages/qr_scanner_page.dart';
 
 class IuranScreen extends StatefulWidget {
   const IuranScreen({super.key});

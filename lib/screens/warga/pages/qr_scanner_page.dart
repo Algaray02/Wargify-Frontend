@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:wargify/core/constants/colors.dart';
-import 'package:wargify/screens/warga/home/home_screen.dart';
+import 'package:wargify/screens/warga/pages/home_page.dart';
 
 class QrScannerScreen extends StatefulWidget {
   const QrScannerScreen({super.key});

@@ -21,9 +21,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _handleLogin() async {
     if (_usernameController.text.isEmpty || _passwordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Harap isi semua field')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Harap isi semua field')));
       return;
     }
 
@@ -37,11 +37,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (mounted) {
         Navigator.of(context).pushReplacement(
-<<<<<<< HEAD
-          MaterialPageRoute(builder: (context) => const WargaHomeScreen()),
-=======
           MaterialPageRoute(builder: (context) => const DashboardWrapper()),
->>>>>>> 35f4dbdc3b1297708338a8a30e84e20d2dcff4c5
         );
       }
     } catch (e) {
@@ -78,8 +74,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   padding: const EdgeInsets.all(12.0),
                   child: Image.asset(
                     'assets/images/logo.png',
-                    errorBuilder: (context, error, stackTrace) =>
-                        const Icon(Icons.home_work, size: 50, color: AppColors.primary),
+                    errorBuilder: (context, error, stackTrace) => const Icon(
+                      Icons.home_work,
+                      size: 50,
+                      color: AppColors.primary,
+                    ),
                   ),
                 ),
               ),
@@ -163,7 +162,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                 : Icons.visibility,
                           ),
                           onPressed: () => setState(
-                              () => _isPasswordVisible = !_isPasswordVisible),
+                            () => _isPasswordVisible = !_isPasswordVisible,
+                          ),
                         ),
                         fillColor: AppColors.white,
                         filled: true,
@@ -186,7 +186,10 @@ class _LoginScreenState extends State<LoginScreen> {
               RichText(
                 textAlign: TextAlign.center,
                 text: TextSpan(
-                  style: GoogleFonts.plusJakartaSans(color: AppColors.textPrimary, fontSize: 14),
+                  style: GoogleFonts.plusJakartaSans(
+                    color: AppColors.textPrimary,
+                    fontSize: 14,
+                  ),
                   children: const [
                     TextSpan(text: "Don't have account? "),
                     TextSpan(
