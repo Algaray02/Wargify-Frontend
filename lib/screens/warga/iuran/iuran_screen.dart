@@ -8,7 +8,7 @@ import 'package:wargify/widgets/warga/iuran/iuran_item_card.dart';
 import 'package:wargify/screens/warga/home/home_screen.dart';
 import 'package:wargify/screens/warga/gallery/gallery_screen.dart';
 import 'package:wargify/screens/warga/ronda/ronda_screen.dart';
-import 'package:wargify/screens/warga/qr/qr_scanner_screen.dart';
+import 'package:wargify/screens/common/qr/qr_scanner_screen.dart';
 
 class IuranScreen extends StatefulWidget {
   const IuranScreen({super.key});

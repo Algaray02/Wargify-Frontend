@@ -5,10 +5,10 @@ import 'package:wargify/screens/warga/home/home_screen.dart';
 import 'package:wargify/screens/warga/iuran/iuran_screen.dart';
 import 'package:wargify/widgets/warga/warga_header.dart';
 import 'package:wargify/widgets/warga/warga_bottom_nav.dart';
-import 'package:wargify/widgets/warga/gallery/gallery_filter_chip.dart';
-import 'package:wargify/widgets/warga/gallery/gallery_group_section.dart';
+import 'package:wargify/widgets/common/gallery/gallery_filter_chip.dart';
+import 'package:wargify/widgets/common/gallery/gallery_group_section.dart';
 import 'package:wargify/screens/warga/ronda/ronda_screen.dart';
-import 'package:wargify/screens/warga/qr/qr_scanner_screen.dart';
+import 'package:wargify/screens/common/qr/qr_scanner_screen.dart';
 
 class GalleryScreen extends StatefulWidget {
   const GalleryScreen({super.key});

@@ -7,11 +7,11 @@ import 'package:wargify/screens/warga/iuran/iuran_screen.dart';
 import 'package:wargify/screens/warga/gallery/gallery_screen.dart';
 import 'package:wargify/widgets/warga/warga_header.dart';
 import 'package:wargify/widgets/warga/warga_bottom_nav.dart';
-import 'package:wargify/widgets/warga/ronda/ronda_timer_card.dart';
-import 'package:wargify/widgets/warga/ronda/ronda_persiapan_card.dart';
-import 'package:wargify/widgets/warga/ronda/jadwal_ronda_card.dart';
-import 'package:wargify/widgets/warga/ronda/riwayat_ronda_item.dart';
-import 'package:wargify/screens/warga/qr/qr_scanner_screen.dart';
+import 'package:wargify/widgets/common/ronda/ronda_timer_card.dart';
+import 'package:wargify/widgets/common/ronda/ronda_persiapan_card.dart';
+import 'package:wargify/widgets/common/ronda/jadwal_ronda_card.dart';
+import 'package:wargify/widgets/common/ronda/riwayat_ronda_item.dart';
+import 'package:wargify/screens/common/qr/qr_scanner_screen.dart';
 
 class RondaScreen extends StatefulWidget {
   const RondaScreen({super.key});

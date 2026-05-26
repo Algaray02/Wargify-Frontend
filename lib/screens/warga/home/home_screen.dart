@@ -8,10 +8,10 @@ import 'package:wargify/widgets/warga/warga_bottom_nav.dart';
 import 'package:wargify/screens/warga/iuran/iuran_screen.dart';
 import 'package:wargify/screens/warga/gallery/gallery_screen.dart';
 import 'package:wargify/screens/warga/ronda/ronda_screen.dart';
-import 'package:wargify/screens/warga/qr/qr_scanner_screen.dart';
+import 'package:wargify/screens/common/qr/qr_scanner_screen.dart';
 import 'package:wargify/services/auth/auth_service.dart';
 import 'package:wargify/models/user_model.dart';
-
+import 'package:wargify/screens/common/notifikasi/notifikasi_log_screen.dart';
 class WargaHomeScreen extends StatefulWidget {
   const WargaHomeScreen({super.key});
 
@@ -152,7 +152,12 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
       appBar: WargaHeader(
         user: _currentUser,
         onNotificationTap: () {
-          // TODO: navigate to notifications
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const NotifikasiLogScreen(),
+            ),
+          );
         },
       ),
       bottomNavigationBar: WargaBottomNav(
@@ -448,7 +453,7 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
 
             // --- Horizontal Scroll Kegiatan Cards ---
             SizedBox(
-              height: 180,
+              height: 200,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: _kegiatanTerbaru.length,

@@ -3,13 +3,14 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/constants/colors.dart';
 import '../../../services/auth/auth_service.dart';
 import '../../../models/user_model.dart';
-import '../auth/login_screen.dart';
-import 'pages/bendahara_home_page.dart';
-import 'pages/activity/activity_screen.dart';
-import 'pages/residents/residents_screen.dart';
-import 'pages/audit/audit_screen.dart';
-import 'pages/scan/attendance_scanner_screen.dart';
-import '../profile/profile_screen.dart';
+import 'package:wargify/screens/auth/login_screen.dart';
+import 'home/home_screen.dart';
+import 'activity/activity_screen.dart';
+import 'residents/residents_screen.dart';
+import 'audit/audit_screen.dart';
+import 'package:wargify/screens/common/scan/attendance_scanner_screen.dart';
+import 'package:wargify/screens/profile/profile_screen.dart';
+import 'package:wargify/screens/common/notifikasi/notifikasi_log_screen.dart';
 
 class BendaharaMainScreen extends StatefulWidget {
   final UserModel user;
@@ -120,7 +121,17 @@ class _BendaharaMainScreenState extends State<BendaharaMainScreen> {
                     ),
                   ],
                 ),
-                const Icon(Icons.notifications_none_rounded, size: 28),
+                IconButton(
+                  icon: const Icon(Icons.notifications_none_rounded, size: 28),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const NotifikasiLogScreen(),
+                      ),
+                    );
+                  },
+                ),
               ],
             ),
           ),
