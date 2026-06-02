@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import 'package:wargify/core/constants/api_endpoints.dart';
 import 'package:wargify/core/constants/colors.dart';
+import 'package:wargify/services/api_service.dart';
 import 'add_ronda_screen.dart';
-import 'edit_checkpoints_screen.dart';
 import 'edit_ronda_screen.dart';
 
 class RondaSchedule {
@@ -12,6 +14,9 @@ class RondaSchedule {
   final String dateStr;
   final String shiftHours;
   final String status; // SCHEDULED, ONGOING, COMPLETED, MISSED
+  final int checkpoints;
+  final int scanned;
+  final Map<String, dynamic> raw;
 
   RondaSchedule({
     required this.id,
@@ -20,6 +25,9 @@ class RondaSchedule {
     required this.dateStr,
     required this.shiftHours,
     required this.status,
+    this.checkpoints = 0,
+    this.scanned = 0,
+    this.raw = const <String, dynamic>{},
   });
 
   RondaSchedule copyWith({
@@ -29,6 +37,9 @@ class RondaSchedule {
     String? dateStr,
     String? shiftHours,
     String? status,
+    int? checkpoints,
+    int? scanned,
+    Map<String, dynamic>? raw,
   }) {
     return RondaSchedule(
       id: id ?? this.id,
@@ -37,6 +48,9 @@ class RondaSchedule {
       dateStr: dateStr ?? this.dateStr,
       shiftHours: shiftHours ?? this.shiftHours,
       status: status ?? this.status,
+      checkpoints: checkpoints ?? this.checkpoints,
+      scanned: scanned ?? this.scanned,
+      raw: raw ?? this.raw,
     );
   }
 }
@@ -49,43 +63,68 @@ class ManageRondaScreen extends StatefulWidget {
 }
 
 class _ManageRondaScreenState extends State<ManageRondaScreen> {
+  final ApiService _apiService = ApiService();
   String _selectedFilter = 'SEMUA';
+  bool _isLoading = true;
 
-  // Mock list matching the DB table structure 'ronda_schedules'
-  final List<RondaSchedule> _schedules = [
-    RondaSchedule(
-      id: 'sch_1',
-      groupId: 'Regu Yakuzs',
-      coordinatorId: 'Agus (Pak RW)',
-      dateStr: 'Senin, 24 Juli 2024',
-      shiftHours: '22:00 - 04:00',
-      status: 'SCHEDULED',
-    ),
-    RondaSchedule(
-      id: 'sch_2',
-      groupId: 'Regu Elang',
-      coordinatorId: 'Budi Santoso',
-      dateStr: 'Selasa, 25 Juli 2024',
-      shiftHours: '22:00 - 04:00',
-      status: 'ONGOING',
-    ),
-    RondaSchedule(
-      id: 'sch_3',
-      groupId: 'Regu Mawar',
-      coordinatorId: 'Siti (Bu RT)',
-      dateStr: 'Minggu, 23 Juli 2024',
-      shiftHours: '22:00 - 04:00',
-      status: 'COMPLETED',
-    ),
-    RondaSchedule(
-      id: 'sch_4',
-      groupId: 'Regu Rajawali',
-      coordinatorId: 'Pak Doni',
-      dateStr: 'Sabtu, 22 Juli 2024',
-      shiftHours: '22:00 - 04:00',
-      status: 'MISSED',
-    ),
-  ];
+  final List<RondaSchedule> _schedules = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchSchedules();
+  }
+
+  Future<void> _fetchSchedules() async {
+    try {
+      final rows = await _apiService.getList(ApiEndpoints.rondaSchedules);
+      final dateFormatter = DateFormat('EEEE, dd MMM yyyy');
+      final timeFormatter = DateFormat('HH:mm');
+      final items = rows.map((row) {
+        final data = Map<String, dynamic>.from(row as Map);
+        final group = Map<String, dynamic>.from((data['group'] ?? {}) as Map);
+        final coordinator = Map<String, dynamic>.from(
+          (data['coordinator'] ?? {}) as Map,
+        );
+        final checkpoints = data['checkpoints'] is List
+            ? data['checkpoints'] as List
+            : const [];
+        final logs = data['checkpoint_logs'] is List
+            ? data['checkpoint_logs'] as List
+            : const [];
+        final start = DateTime.tryParse('${data['shift_start']}');
+        final end = DateTime.tryParse('${data['shift_end']}');
+        final date =
+            DateTime.tryParse('${data['schedule_date']}') ??
+            start ??
+            DateTime.now();
+
+        return RondaSchedule(
+          id: data['schedule_id']?.toString() ?? '',
+          groupId: group['name']?.toString() ?? '-',
+          coordinatorId: coordinator['full_name']?.toString() ?? '-',
+          dateStr: dateFormatter.format(date),
+          shiftHours: start != null && end != null
+              ? '${timeFormatter.format(start)} - ${timeFormatter.format(end)}'
+              : '-',
+          status: data['status']?.toString() ?? 'SCHEDULED',
+          checkpoints: checkpoints.length,
+          scanned: logs.length,
+          raw: data,
+        );
+      }).toList();
+
+      if (!mounted) return;
+      setState(() {
+        _schedules
+          ..clear()
+          ..addAll(items);
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   List<RondaSchedule> _getFilteredSchedules() {
     if (_selectedFilter == 'SEMUA') return _schedules;
@@ -122,18 +161,183 @@ class _ManageRondaScreenState extends State<ManageRondaScreen> {
     }
   }
 
-  void _deleteSchedule(int index) {
+  Future<void> _deleteSchedule(int index) async {
     final sch = _getFilteredSchedules()[index];
-    setState(() {
-      _schedules.removeWhere((item) => item.id == sch.id);
+    await _apiService.patch('${ApiEndpoints.rondaSchedules}/${sch.id}', {
+      'status': 'MISSED',
     });
+    await _fetchSchedules();
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Jadwal untuk ${sch.groupId} berhasil dihapus.', style: GoogleFonts.plusJakartaSans()),
+        content: Text(
+          'Jadwal untuk ${sch.groupId} berhasil dihapus.',
+          style: GoogleFonts.plusJakartaSans(),
+        ),
         backgroundColor: Colors.grey[800],
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
+    );
+  }
+
+  void _showSchedulePreview(RondaSchedule item) {
+    final data = item.raw;
+    final group = data['group'] is Map
+        ? Map<String, dynamic>.from(data['group'] as Map)
+        : <String, dynamic>{};
+    final coordinator = data['coordinator'] is Map
+        ? Map<String, dynamic>.from(data['coordinator'] as Map)
+        : <String, dynamic>{};
+    final checkpoints = data['checkpoints'] is List
+        ? data['checkpoints'] as List
+        : const [];
+    final logs = data['checkpoint_logs'] is List
+        ? data['checkpoint_logs'] as List
+        : const [];
+    final members = group['members'] is List
+        ? group['members'] as List
+        : const [];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.78,
+          ),
+          padding: const EdgeInsets.fromLTRB(24, 18, 24, 24),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(24),
+              topRight: Radius.circular(24),
+            ),
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        group['name']?.toString() ?? item.groupId,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF0D1B2A),
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _getStatusBgColor(item.status),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        item.status,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: _getStatusColor(item.status),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                _buildPreviewRow(
+                  Icons.calendar_today_rounded,
+                  'Tanggal',
+                  item.dateStr,
+                ),
+                _buildPreviewRow(
+                  Icons.access_time_rounded,
+                  'Shift',
+                  item.shiftHours,
+                ),
+                _buildPreviewRow(
+                  Icons.person_pin_circle_rounded,
+                  'Koordinator',
+                  coordinator['full_name']?.toString() ?? item.coordinatorId,
+                ),
+                _buildPreviewRow(
+                  Icons.groups_rounded,
+                  'Anggota',
+                  '${members.length} orang',
+                ),
+                _buildPreviewRow(
+                  Icons.qr_code_scanner_rounded,
+                  'Checkpoint',
+                  '${logs.length}/${checkpoints.length}',
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'Daftar Checkpoint',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF0D1B2A),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                if (checkpoints.isEmpty)
+                  Text(
+                    'Belum ada checkpoint pada jadwal ini.',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  )
+                else
+                  ...checkpoints.map((checkpoint) {
+                    final checkpointData = Map<String, dynamic>.from(
+                      checkpoint as Map,
+                    );
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.place_rounded,
+                            size: 16,
+                            color: AppColors.primary,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              checkpointData['name']?.toString() ?? '-',
+                              style: GoogleFonts.plusJakartaSans(fontSize: 13),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -213,43 +417,54 @@ class _ManageRondaScreenState extends State<ManageRondaScreen> {
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Row(
-              children: ['SEMUA', 'SCHEDULED', 'ONGOING', 'COMPLETED', 'MISSED'].map((filter) {
-                final isSelected = _selectedFilter == filter;
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: ChoiceChip(
-                    label: Text(filter),
-                    selected: isSelected,
-                    showCheckmark: false,
-                    onSelected: (selected) {
-                      if (selected) {
-                        setState(() => _selectedFilter = filter);
-                      }
-                    },
-                    selectedColor: AppColors.primary,
-                    backgroundColor: Colors.white,
-                    labelStyle: GoogleFonts.plusJakartaSans(
-                      fontSize: 11,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                      color: isSelected ? Colors.white : Colors.grey[600],
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      side: BorderSide(
-                        color: isSelected ? AppColors.primary : Colors.grey.withOpacity(0.12),
+              children: ['SEMUA', 'SCHEDULED', 'ONGOING', 'COMPLETED', 'MISSED']
+                  .map((filter) {
+                    final isSelected = _selectedFilter == filter;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: ChoiceChip(
+                        label: Text(filter),
+                        selected: isSelected,
+                        showCheckmark: false,
+                        onSelected: (selected) {
+                          if (selected) {
+                            setState(() => _selectedFilter = filter);
+                          }
+                        },
+                        selectedColor: AppColors.primary,
+                        backgroundColor: Colors.white,
+                        labelStyle: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.w500,
+                          color: isSelected ? Colors.white : Colors.grey[600],
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          side: BorderSide(
+                            color: isSelected
+                                ? AppColors.primary
+                                : Colors.grey.withOpacity(0.12),
+                          ),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                       ),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  ),
-                );
-              }).toList(),
+                    );
+                  })
+                  .toList(),
             ),
           ),
           const SizedBox(height: 12),
 
           // Schedules List
           Expanded(
-            child: filteredSchedules.isEmpty
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : filteredSchedules.isEmpty
                 ? _buildEmptyState()
                 : ListView.builder(
                     padding: const EdgeInsets.fromLTRB(24, 0, 24, 100),
@@ -265,26 +480,11 @@ class _ManageRondaScreenState extends State<ManageRondaScreen> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
-          // Navigate to existing AddRondaScreen!
-          await Navigator.push(
+          final changed = await Navigator.push<bool>(
             context,
             MaterialPageRoute(builder: (context) => const AddRondaScreen()),
           );
-          
-          // Mimic adding a new item after return (demo data fallback)
-          setState(() {
-            _schedules.insert(
-              0,
-              RondaSchedule(
-                id: DateTime.now().toString(),
-                groupId: 'Regu Elang',
-                coordinatorId: 'Budi Santoso',
-                dateStr: 'Rabu, 26 Juli 2024',
-                shiftHours: '22:00 - 04:00',
-                status: 'SCHEDULED',
-              ),
-            );
-          });
+          if (changed == true) _fetchSchedules();
         },
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
@@ -313,17 +513,28 @@ class _ManageRondaScreenState extends State<ManageRondaScreen> {
               color: Colors.white,
               shape: BoxShape.circle,
             ),
-            child: Icon(Icons.calendar_today_rounded, size: 40, color: Colors.grey[300]),
+            child: Icon(
+              Icons.calendar_today_rounded,
+              size: 40,
+              color: Colors.grey[300],
+            ),
           ),
           const SizedBox(height: 16),
           Text(
             'Tidak ada jadwal ronda ditemukan.',
-            style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey[700]),
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[700],
+            ),
           ),
           const SizedBox(height: 6),
           Text(
             'Silakan tekan tombol Tambah Jadwal.',
-            style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey[500]),
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12,
+              color: Colors.grey[500],
+            ),
           ),
         ],
       ),
@@ -334,152 +545,218 @@ class _ManageRondaScreenState extends State<ManageRondaScreen> {
     final statusColor = _getStatusColor(item.status);
     final statusBgColor = _getStatusBgColor(item.status);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.01),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-        border: Border.all(color: Colors.grey.withOpacity(0.08)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header of Card (Group name & status badge)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                item.groupId,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primary,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: statusBgColor,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  item.status,
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: () => _showSchedulePreview(item),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.01),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+          border: Border.all(color: Colors.grey.withOpacity(0.08)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header of Card (Group name & status badge)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  item.groupId,
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 10,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: statusColor,
+                    color: AppColors.primary,
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-
-          // Date & Time rows
-          Row(
-            children: [
-              const Icon(Icons.calendar_today_outlined, size: 16, color: Colors.grey),
-              const SizedBox(width: 8),
-              Text(
-                item.dateStr,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: const Color(0xFF0D1B2A),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              const Icon(Icons.access_time_rounded, size: 16, color: Colors.grey),
-              const SizedBox(width: 8),
-              Text(
-                item.shiftHours,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 13,
-                  color: Colors.grey[700],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          const Divider(height: 20),
-
-          // Coordinator info & actions row
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 12,
-                backgroundColor: AppColors.primary.withOpacity(0.1),
-                child: Text(
-                  item.coordinatorId[0],
-                  style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.primary),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Koordinator',
-                      style: GoogleFonts.plusJakartaSans(fontSize: 9, color: Colors.grey[500]),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: statusBgColor,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    item.status,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: statusColor,
                     ),
-                    Text(
-                      item.coordinatorId,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF0D1B2A),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+
+            // Date & Time rows
+            Row(
+              children: [
+                const Icon(
+                  Icons.calendar_today_outlined,
+                  size: 16,
+                  color: Colors.grey,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  item.dateStr,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF0D1B2A),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(
+                  Icons.access_time_rounded,
+                  size: 16,
+                  color: Colors.grey,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  item.shiftHours,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    color: Colors.grey[700],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            const Divider(height: 20),
+            Row(
+              children: [
+                const Icon(
+                  Icons.qr_code_scanner_rounded,
+                  size: 16,
+                  color: Colors.grey,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Checkpoint ${item.scanned}/${item.checkpoints}',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    color: Colors.grey[700],
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 20),
+
+            // Coordinator info & actions row
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 12,
+                  backgroundColor: AppColors.primary.withOpacity(0.1),
+                  child: Text(
+                    item.coordinatorId[0],
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Koordinator',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 9,
+                          color: Colors.grey[500],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.edit_outlined, color: AppColors.primary, size: 20),
-                onPressed: () async {
-                  final result = await Navigator.push<Map<String, String>>(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => EditRondaScreen(
-                        groupId: item.groupId,
-                        coordinatorId: item.coordinatorId,
-                        dateStr: item.dateStr,
-                        status: item.status,
+                      Text(
+                        item.coordinatorId,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF0D1B2A),
+                        ),
                       ),
-                    ),
-                  );
-                  if (result != null) {
-                    setState(() {
-                      final idx = _schedules.indexWhere((s) => s.id == item.id);
-                      if (idx != -1) {
-                        _schedules[idx] = _schedules[idx].copyWith(
-                          groupId: result['groupId'],
-                          coordinatorId: result['coordinatorId'],
-                          dateStr: result['dateStr'],
-                        );
-                      }
-                    });
-                  }
-                },
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(
+                    Icons.edit_outlined,
+                    color: AppColors.primary,
+                    size: 20,
+                  ),
+                  onPressed: () async {
+                    final result = await Navigator.push<bool>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            EditRondaScreen(schedule: item.raw),
+                      ),
+                    );
+                    if (result == true) _fetchSchedules();
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(
+                    Icons.delete_outline_rounded,
+                    color: Colors.red,
+                    size: 20,
+                  ),
+                  onPressed: () => _deleteSchedule(index),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPreviewRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: AppColors.primary),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 92,
+            child: Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                color: Colors.grey[600],
               ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20),
-                onPressed: () => _deleteSchedule(index),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF0D1B2A),
               ),
-            ],
+            ),
           ),
         ],
       ),

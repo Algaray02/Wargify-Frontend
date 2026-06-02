@@ -11,6 +11,7 @@ import 'package:wargify/widgets/common/ronda/ronda_timer_card.dart';
 import 'package:wargify/widgets/common/ronda/ronda_persiapan_card.dart';
 import 'package:wargify/widgets/common/ronda/jadwal_ronda_card.dart';
 import 'package:wargify/widgets/common/ronda/riwayat_ronda_item.dart';
+import 'package:wargify/screens/common/notifikasi/notifikasi_log_screen.dart';
 import 'package:wargify/screens/common/qr/qr_scanner_screen.dart';
 
 class RondaScreen extends StatefulWidget {
@@ -124,7 +125,10 @@ class _RondaScreenState extends State<RondaScreen> {
       backgroundColor: AppColors.background,
       appBar: WargaHeader(
         onNotificationTap: () {
-          // TODO: navigate to notifications
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const NotifikasiLogScreen()),
+          );
         },
       ),
       bottomNavigationBar: WargaBottomNav(

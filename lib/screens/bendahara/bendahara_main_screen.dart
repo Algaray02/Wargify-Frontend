@@ -23,18 +23,28 @@ class BendaharaMainScreen extends StatefulWidget {
 class _BendaharaMainScreenState extends State<BendaharaMainScreen> {
   int _currentIndex = 0;
   final _authService = AuthService();
+  late UserModel _currentUser;
 
   late final List<Widget> _pages;
 
   @override
   void initState() {
     super.initState();
+    _currentUser = widget.user;
     _pages = [
-      BendaharaHomePage(user: widget.user),
+      BendaharaHomePage(user: _currentUser),
       const ActivityScreen(),
       const ResidentsScreen(),
       const AuditScreen(),
     ];
+    _refreshProfile();
+  }
+
+  Future<void> _refreshProfile() async {
+    try {
+      final user = await _authService.getProfile();
+      if (mounted) setState(() => _currentUser = user);
+    } catch (_) {}
   }
 
   Future<void> _handleLogout() async {
@@ -66,8 +76,11 @@ class _BendaharaMainScreenState extends State<BendaharaMainScreen> {
                         if (value == 'profile') {
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (context) => ProfileScreen(user: widget.user)),
-                          );
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  ProfileScreen(user: _currentUser),
+                            ),
+                          ).then((_) => _refreshProfile());
                         } else if (value == 'logout') {
                           _handleLogout();
                         }
@@ -78,9 +91,16 @@ class _BendaharaMainScreenState extends State<BendaharaMainScreen> {
                           value: 'profile',
                           child: Row(
                             children: [
-                              const Icon(Icons.person_outline, size: 20, color: AppColors.primary),
+                              const Icon(
+                                Icons.person_outline,
+                                size: 20,
+                                color: AppColors.primary,
+                              ),
                               const SizedBox(width: 8),
-                              Text('Lihat Profil', style: GoogleFonts.plusJakartaSans()),
+                              Text(
+                                'Lihat Profil',
+                                style: GoogleFonts.plusJakartaSans(),
+                              ),
                             ],
                           ),
                         ),
@@ -88,9 +108,18 @@ class _BendaharaMainScreenState extends State<BendaharaMainScreen> {
                           value: 'logout',
                           child: Row(
                             children: [
-                              const Icon(Icons.logout, size: 20, color: Colors.red),
+                              const Icon(
+                                Icons.logout,
+                                size: 20,
+                                color: Colors.red,
+                              ),
                               const SizedBox(width: 8),
-                              Text('Keluar', style: GoogleFonts.plusJakartaSans(color: Colors.red)),
+                              Text(
+                                'Keluar',
+                                style: GoogleFonts.plusJakartaSans(
+                                  color: Colors.red,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -102,9 +131,7 @@ class _BendaharaMainScreenState extends State<BendaharaMainScreen> {
                           shape: BoxShape.circle,
                           color: Colors.grey[300],
                           image: DecorationImage(
-                            image: NetworkImage(
-                              'https://ui-avatars.com/api/?name=${widget.user.fullName}&background=00468B&color=fff',
-                            ),
+                            image: _avatarProvider(_currentUser),
                             fit: BoxFit.cover,
                           ),
                         ),
@@ -138,10 +165,7 @@ class _BendaharaMainScreenState extends State<BendaharaMainScreen> {
         ),
       ),
       body: SafeArea(
-        child: IndexedStack(
-          index: _currentIndex,
-          children: _pages,
-        ),
+        child: IndexedStack(index: _currentIndex, children: _pages),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       floatingActionButton: Container(
@@ -152,13 +176,19 @@ class _BendaharaMainScreenState extends State<BendaharaMainScreen> {
           onPressed: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => const AttendanceScannerScreen()),
+              MaterialPageRoute(
+                builder: (context) => const AttendanceScannerScreen(),
+              ),
             );
           },
           backgroundColor: AppColors.primary,
           elevation: 4,
           shape: const CircleBorder(),
-          child: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 30),
+          child: const Icon(
+            Icons.qr_code_scanner_rounded,
+            color: Colors.white,
+            size: 30,
+          ),
         ),
       ),
       bottomNavigationBar: BottomAppBar(
@@ -208,6 +238,17 @@ class _BendaharaMainScreenState extends State<BendaharaMainScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  ImageProvider _avatarProvider(UserModel user) {
+    if (user.profilePictureUrl.isNotEmpty) {
+      return NetworkImage(user.profilePictureUrl);
+    }
+
+    final encodedName = Uri.encodeComponent(user.fullName);
+    return NetworkImage(
+      'https://ui-avatars.com/api/?name=$encodedName&background=00468B&color=fff',
     );
   }
 }

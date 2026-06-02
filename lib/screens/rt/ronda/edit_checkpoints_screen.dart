@@ -1,15 +1,40 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:wargify/core/constants/api_endpoints.dart';
 import 'package:wargify/core/constants/colors.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:wargify/services/api_service.dart';
 
 class CheckpointItem {
   final String id;
   final String name;
   final bool isMain;
+  final double latitude;
+  final double longitude;
+  final String? qrCodeData;
 
-  CheckpointItem({required this.id, required this.name, this.isMain = false});
+  CheckpointItem({
+    required this.id,
+    required this.name,
+    this.isMain = false,
+    required this.latitude,
+    required this.longitude,
+    this.qrCodeData,
+  });
+
+  LatLng get location => LatLng(latitude, longitude);
+
+  factory CheckpointItem.fromJson(Map<String, dynamic> json) {
+    return CheckpointItem(
+      id: json['checkpoint_id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '-',
+      isMain: json['is_main_pos'] == true || json['is_main_pos'] == 1,
+      latitude: double.tryParse('${json['latitude']}') ?? -6.200000,
+      longitude: double.tryParse('${json['longitude']}') ?? 106.816666,
+      qrCodeData: json['qr_code_data']?.toString(),
+    );
+  }
 }
 
 class EditCheckpointsScreen extends StatefulWidget {
@@ -20,111 +45,115 @@ class EditCheckpointsScreen extends StatefulWidget {
 }
 
 class _EditCheckpointsScreenState extends State<EditCheckpointsScreen> {
-  final List<CheckpointItem> _checkpoints = [
-    CheckpointItem(id: '1', name: 'Area Belakang', isMain: true),
-    CheckpointItem(id: '2', name: 'Pos Utama'),
-    CheckpointItem(id: '3', name: 'Sektor Barat'),
-    CheckpointItem(id: '4', name: 'Gudang Timur'),
-  ];
+  final ApiService _apiService = ApiService();
+  final List<CheckpointItem> _checkpoints = [];
 
   final TextEditingController _addressController = TextEditingController();
-  final TextEditingController _noteController = TextEditingController();
   bool _isPinSet = false;
   final MapController _mapController = MapController();
   LatLng? _selectedLocation;
-  bool _showForm = false;
   int? _editingIndex;
   bool _isMainCheckpoint = false;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCheckpoints();
+  }
 
   @override
   void dispose() {
     _addressController.dispose();
-    _noteController.dispose();
     super.dispose();
   }
 
-  void _addCheckpoint() {
-    final name = _addressController.text.trim();
-    if (name.isNotEmpty && _isPinSet) {
+  Future<void> _loadCheckpoints() async {
+    try {
+      final rows = await _apiService.getList(ApiEndpoints.rondaCheckpoints);
+      if (!mounted) return;
       setState(() {
-        _checkpoints.add(CheckpointItem(
-          id: DateTime.now().toString(),
-          name: name,
-          isMain: _isMainCheckpoint,
-        ));
-        _addressController.clear();
-        _noteController.clear();
-        _isPinSet = false;
-        _selectedLocation = null;
-        _isMainCheckpoint = false;
-        _showForm = false;
+        _checkpoints
+          ..clear()
+          ..addAll(
+            rows
+                .map(
+                  (row) => CheckpointItem.fromJson(
+                    Map<String, dynamic>.from(row as Map),
+                  ),
+                )
+                .toList(),
+          );
+        _isLoading = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Checkpoint "$name" berhasil ditambahkan!', style: GoogleFonts.plusJakartaSans()),
-          backgroundColor: AppColors.success,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Nama checkpoint dan pin harus diisi!', style: GoogleFonts.plusJakartaSans()),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showSnack('Gagal memuat checkpoint: $error', Colors.red);
     }
   }
 
-  void _updateCheckpoint() {
+  Future<void> _addCheckpoint() async {
+    final name = _addressController.text.trim();
+    if (name.isNotEmpty && _isPinSet && _selectedLocation != null) {
+      await _apiService.post(ApiEndpoints.rondaCheckpoints, {
+        'name': name,
+        'latitude': _selectedLocation!.latitude,
+        'longitude': _selectedLocation!.longitude,
+        'is_main_pos': _isMainCheckpoint,
+      });
+      await _loadCheckpoints();
+      _resetForm();
+      _showSnack('Checkpoint "$name" berhasil ditambahkan!', AppColors.success);
+    } else {
+      _showSnack('Nama checkpoint dan pin harus diisi!', Colors.red);
+    }
+  }
+
+  Future<void> _updateCheckpoint() async {
     final name = _addressController.text.trim();
     if (name.isNotEmpty && _isPinSet && _editingIndex != null) {
-      setState(() {
-        _checkpoints[_editingIndex!] = CheckpointItem(
-          id: _checkpoints[_editingIndex!].id,
-          name: name,
-          isMain: _isMainCheckpoint,
-        );
-        _addressController.clear();
-        _noteController.clear();
-        _isPinSet = false;
-        _selectedLocation = null;
-        _isMainCheckpoint = false;
-        _showForm = false;
-        _editingIndex = null;
+      final item = _checkpoints[_editingIndex!];
+      final location = _selectedLocation ?? item.location;
+      await _apiService.patch('${ApiEndpoints.rondaCheckpoints}/${item.id}', {
+        'name': name,
+        'latitude': location.latitude,
+        'longitude': location.longitude,
+        'qr_code_data': item.qrCodeData,
+        'is_main_pos': _isMainCheckpoint,
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Checkpoint "$name" berhasil diperbarui!', style: GoogleFonts.plusJakartaSans()),
-          backgroundColor: AppColors.success,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
+      await _loadCheckpoints();
+      _resetForm();
+      _showSnack('Checkpoint "$name" berhasil diperbarui!', AppColors.success);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Nama checkpoint dan pin harus diisi!', style: GoogleFonts.plusJakartaSans()),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
+      _showSnack('Nama checkpoint dan pin harus diisi!', Colors.red);
     }
   }
 
-  void _deleteCheckpoint(int index) {
+  Future<void> _deleteCheckpoint(int index) async {
     final name = _checkpoints[index].name;
+    await _apiService.delete(
+      '${ApiEndpoints.rondaCheckpoints}/${_checkpoints[index].id}',
+    );
+    await _loadCheckpoints();
+    _showSnack('Checkpoint "$name" dihapus', Colors.grey[800]!);
+  }
+
+  void _resetForm() {
     setState(() {
-      _checkpoints.removeAt(index);
+      _addressController.clear();
+      _isPinSet = false;
+      _selectedLocation = null;
+      _isMainCheckpoint = false;
+      _editingIndex = null;
     });
+  }
+
+  void _showSnack(String message, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Checkpoint "$name" dihapus', style: GoogleFonts.plusJakartaSans()),
-        backgroundColor: Colors.grey[800],
+        content: Text(message, style: GoogleFonts.plusJakartaSans()),
+        backgroundColor: color,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
@@ -141,7 +170,10 @@ class _EditCheckpointsScreenState extends State<EditCheckpointsScreen> {
           height: MediaQuery.of(context).size.height * 0.8,
           decoration: const BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(24),
+              topRight: Radius.circular(24),
+            ),
           ),
           child: Column(
             children: [
@@ -155,7 +187,10 @@ class _EditCheckpointsScreenState extends State<EditCheckpointsScreen> {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 8,
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -185,14 +220,17 @@ class _EditCheckpointsScreenState extends State<EditCheckpointsScreen> {
                       ),
                       children: [
                         TileLayer(
-                          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                          urlTemplate:
+                              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                           userAgentPackageName: 'com.example.wargify',
                         ),
                       ],
                     ),
                     const Center(
                       child: Padding(
-                        padding: EdgeInsets.only(bottom: 40.0), // Offset so pin points exactly to center
+                        padding: EdgeInsets.only(
+                          bottom: 40.0,
+                        ), // Offset so pin points exactly to center
                         child: Icon(
                           Icons.location_pin,
                           color: Colors.red,
@@ -215,7 +253,9 @@ class _EditCheckpointsScreenState extends State<EditCheckpointsScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                     child: Text(
                       'Simpan Lokasi',
@@ -234,17 +274,19 @@ class _EditCheckpointsScreenState extends State<EditCheckpointsScreen> {
     );
   }
 
-  void _showCheckpointFormModal(BuildContext context, {int? index, CheckpointItem? item}) {
+  void _showCheckpointFormModal(
+    BuildContext context, {
+    int? index,
+    CheckpointItem? item,
+  }) {
     if (item != null) {
       _addressController.text = item.name;
-      _noteController.clear();
       _isPinSet = true;
-      _selectedLocation = const LatLng(-6.200000, 106.816666); // Mock placeholder
+      _selectedLocation = item.location;
       _editingIndex = index;
       _isMainCheckpoint = item.isMain;
     } else {
       _addressController.clear();
-      _noteController.clear();
       _isPinSet = false;
       _selectedLocation = null;
       _editingIndex = null;
@@ -259,11 +301,16 @@ class _EditCheckpointsScreenState extends State<EditCheckpointsScreen> {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
             return Padding(
-              padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+              ),
               child: Container(
                 decoration: const BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(24),
+                    topRight: Radius.circular(24),
+                  ),
                 ),
                 padding: const EdgeInsets.all(24),
                 child: Column(
@@ -274,7 +321,9 @@ class _EditCheckpointsScreenState extends State<EditCheckpointsScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          _editingIndex != null ? 'EDIT CHECKPOINT' : 'ADD NEW CHECKPOINT',
+                          _editingIndex != null
+                              ? 'EDIT CHECKPOINT'
+                              : 'ADD NEW CHECKPOINT',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 14,
                             fontWeight: FontWeight.w800,
@@ -284,7 +333,11 @@ class _EditCheckpointsScreenState extends State<EditCheckpointsScreen> {
                         ),
                         GestureDetector(
                           onTap: () => Navigator.pop(context),
-                          child: const Icon(Icons.close, color: Colors.grey, size: 20),
+                          child: const Icon(
+                            Icons.close,
+                            color: Colors.grey,
+                            size: 20,
+                          ),
                         ),
                       ],
                     ),
@@ -293,37 +346,32 @@ class _EditCheckpointsScreenState extends State<EditCheckpointsScreen> {
                       controller: _addressController,
                       decoration: InputDecoration(
                         hintText: 'Nama Checkpoint / Lokasi',
-                        hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: Colors.grey[400]),
-                        prefixIcon: const Icon(Icons.location_on_outlined, color: Colors.grey, size: 20),
+                        hintStyle: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          color: Colors.grey[400],
+                        ),
+                        prefixIcon: const Icon(
+                          Icons.location_on_outlined,
+                          color: Colors.grey,
+                          size: 20,
+                        ),
                         filled: true,
                         fillColor: Colors.grey[50],
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(color: Colors.grey.withOpacity(0.2)),
+                          borderSide: BorderSide(
+                            color: Colors.grey.withOpacity(0.2),
+                          ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(color: Colors.grey.withOpacity(0.2)),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _noteController,
-                      decoration: InputDecoration(
-                        hintText: 'Keterangan/Patokan (contoh: Depan rumah Pak Abi)',
-                        hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: Colors.grey[400]),
-                        filled: true,
-                        fillColor: Colors.grey[50],
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(color: Colors.grey.withOpacity(0.2)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(color: Colors.grey.withOpacity(0.2)),
+                          borderSide: BorderSide(
+                            color: Colors.grey.withOpacity(0.2),
+                          ),
                         ),
                       ),
                     ),
@@ -363,26 +411,45 @@ class _EditCheckpointsScreenState extends State<EditCheckpointsScreen> {
                       },
                       borderRadius: BorderRadius.circular(10),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
                         decoration: BoxDecoration(
-                          color: _isPinSet ? AppColors.success.withOpacity(0.1) : Colors.white,
+                          color: _isPinSet
+                              ? AppColors.success.withOpacity(0.1)
+                              : Colors.white,
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: _isPinSet ? AppColors.success : Colors.grey.withOpacity(0.2)),
+                          border: Border.all(
+                            color: _isPinSet
+                                ? AppColors.success
+                                : Colors.grey.withOpacity(0.2),
+                          ),
                         ),
                         child: Row(
                           children: [
                             Icon(
-                              _isPinSet ? Icons.check_circle : Icons.location_pin,
-                              color: _isPinSet ? AppColors.success : Colors.grey[600],
+                              _isPinSet
+                                  ? Icons.check_circle
+                                  : Icons.location_pin,
+                              color: _isPinSet
+                                  ? AppColors.success
+                                  : Colors.grey[600],
                               size: 20,
                             ),
                             const SizedBox(width: 12),
                             Text(
-                              _isPinSet ? 'Pin Terpasang di Peta' : 'Pasang Pin di Peta',
+                              _isPinSet
+                                  ? 'Pin Terpasang di Peta'
+                                  : 'Pasang Pin di Peta',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 13,
-                                color: _isPinSet ? AppColors.success : Colors.grey[600],
-                                fontWeight: _isPinSet ? FontWeight.bold : FontWeight.normal,
+                                color: _isPinSet
+                                    ? AppColors.success
+                                    : Colors.grey[600],
+                                fontWeight: _isPinSet
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
                               ),
                             ),
                           ],
@@ -406,7 +473,8 @@ class _EditCheckpointsScreenState extends State<EditCheckpointsScreen> {
                             ),
                             children: [
                               TileLayer(
-                                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                urlTemplate:
+                                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                                 userAgentPackageName: 'com.example.wargify',
                               ),
                               MarkerLayer(
@@ -415,7 +483,11 @@ class _EditCheckpointsScreenState extends State<EditCheckpointsScreen> {
                                     point: _selectedLocation!,
                                     width: 40,
                                     height: 40,
-                                    child: const Icon(Icons.location_pin, color: Colors.red, size: 30),
+                                    child: const Icon(
+                                      Icons.location_pin,
+                                      color: Colors.red,
+                                      size: 30,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -429,22 +501,33 @@ class _EditCheckpointsScreenState extends State<EditCheckpointsScreen> {
                       width: double.infinity,
                       height: 48,
                       child: ElevatedButton(
-                        onPressed: () {
-                          if (_editingIndex != null) {
-                            _updateCheckpoint();
-                          } else {
-                            _addCheckpoint();
+                        onPressed: () async {
+                          try {
+                            if (_editingIndex != null) {
+                              await _updateCheckpoint();
+                            } else {
+                              await _addCheckpoint();
+                            }
+                            if (context.mounted) Navigator.pop(context);
+                          } catch (error) {
+                            _showSnack(
+                              'Gagal menyimpan checkpoint: $error',
+                              Colors.red,
+                            );
                           }
-                          Navigator.pop(context);
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF004B87),
                           foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                           elevation: 0,
                         ),
                         child: Text(
-                          _editingIndex != null ? 'Simpan Perubahan' : 'Tambah Checkpoint',
+                          _editingIndex != null
+                              ? 'Simpan Perubahan'
+                              : 'Tambah Checkpoint',
                           style: GoogleFonts.plusJakartaSans(
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
@@ -505,14 +588,6 @@ class _EditCheckpointsScreenState extends State<EditCheckpointsScreen> {
             child: TextButton(
               onPressed: () {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Urutan Checkpoint berhasil disimpan!', style: GoogleFonts.plusJakartaSans()),
-                    backgroundColor: AppColors.primary,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                );
               },
               child: Text(
                 'SAVE',
@@ -526,63 +601,70 @@ class _EditCheckpointsScreenState extends State<EditCheckpointsScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: () => _showCheckpointFormModal(context),
-                  icon: const Icon(Icons.add, size: 18),
-                  label: Text(
-                    'Tambah Checkpoint',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: () => _showCheckpointFormModal(context),
+                        icon: const Icon(Icons.add, size: 18),
+                        label: Text(
+                          'Tambah Checkpoint',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          elevation: 0,
+                        ),
+                      ),
+                    ],
                   ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    elevation: 0,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
-            // Drag and drop list
-            _checkpoints.isEmpty
-                ? _buildEmptyCheckpoints()
-                : ReorderableListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _checkpoints.length,
-                    onReorder: (oldIndex, newIndex) {
-                      setState(() {
-                        if (newIndex > oldIndex) {
-                          newIndex -= 1;
-                        }
-                        final item = _checkpoints.removeAt(oldIndex);
-                        _checkpoints.insert(newIndex, item);
-                      });
-                    },
-                    itemBuilder: (context, index) {
-                      final item = _checkpoints[index];
-                      return _buildCheckpointCard(item, index);
-                    },
-                  ),
-            const SizedBox(height: 40),
-          ],
-        ),
-      ),
+                  // Drag and drop list
+                  _checkpoints.isEmpty
+                      ? _buildEmptyCheckpoints()
+                      : ReorderableListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _checkpoints.length,
+                          onReorder: (oldIndex, newIndex) {
+                            setState(() {
+                              if (newIndex > oldIndex) {
+                                newIndex -= 1;
+                              }
+                              final item = _checkpoints.removeAt(oldIndex);
+                              _checkpoints.insert(newIndex, item);
+                            });
+                          },
+                          itemBuilder: (context, index) {
+                            final item = _checkpoints[index];
+                            return _buildCheckpointCard(item, index);
+                          },
+                        ),
+                  const SizedBox(height: 40),
+                ],
+              ),
+            ),
     );
   }
 
@@ -637,7 +719,10 @@ class _EditCheckpointsScreenState extends State<EditCheckpointsScreen> {
                 if (item.isMain) ...[
                   const SizedBox(height: 4),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(6),
@@ -656,14 +741,27 @@ class _EditCheckpointsScreenState extends State<EditCheckpointsScreen> {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.edit_outlined, color: AppColors.primary, size: 20),
+            icon: const Icon(
+              Icons.edit_outlined,
+              color: AppColors.primary,
+              size: 20,
+            ),
             onPressed: () {
               _showCheckpointFormModal(context, index: index, item: item);
             },
           ),
           IconButton(
             icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
-            onPressed: () => _deleteCheckpoint(index),
+            onPressed: () async {
+              try {
+                await _deleteCheckpoint(index);
+              } catch (error) {
+                _showSnack(
+                  'Checkpoint tidak bisa dihapus karena masih dipakai jadwal.',
+                  Colors.red,
+                );
+              }
+            },
           ),
         ],
       ),

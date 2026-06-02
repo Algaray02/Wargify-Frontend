@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/colors.dart';
+import '../../services/app_notification_service.dart';
 import '../../services/auth/auth_service.dart';
 import '../../widgets/common/primary_button.dart';
 import '../dashboard/dashboard_wrapper.dart';
-import '../warga/home/home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -22,9 +22,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _handleLogin() async {
     if (_usernameController.text.isEmpty || _passwordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Harap isi semua field')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Harap isi semua field')));
       return;
     }
 
@@ -35,6 +35,7 @@ class _LoginScreenState extends State<LoginScreen> {
         _usernameController.text,
         _passwordController.text,
       );
+      await AppNotificationService().initialize(registerToken: true);
 
       if (mounted) {
         Navigator.of(context).pushReplacement(
@@ -75,8 +76,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   padding: const EdgeInsets.all(12.0),
                   child: Image.asset(
                     'assets/images/logo.png',
-                    errorBuilder: (context, error, stackTrace) =>
-                        const Icon(Icons.home_work, size: 50, color: AppColors.primary),
+                    errorBuilder: (context, error, stackTrace) => const Icon(
+                      Icons.home_work,
+                      size: 50,
+                      color: AppColors.primary,
+                    ),
                   ),
                 ),
               ),
@@ -160,7 +164,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                 : Icons.visibility,
                           ),
                           onPressed: () => setState(
-                              () => _isPasswordVisible = !_isPasswordVisible),
+                            () => _isPasswordVisible = !_isPasswordVisible,
+                          ),
                         ),
                         fillColor: AppColors.white,
                         filled: true,
@@ -183,7 +188,10 @@ class _LoginScreenState extends State<LoginScreen> {
               RichText(
                 textAlign: TextAlign.center,
                 text: TextSpan(
-                  style: GoogleFonts.plusJakartaSans(color: AppColors.textPrimary, fontSize: 14),
+                  style: GoogleFonts.plusJakartaSans(
+                    color: AppColors.textPrimary,
+                    fontSize: 14,
+                  ),
                   children: const [
                     TextSpan(text: "Don't have account? "),
                     TextSpan(

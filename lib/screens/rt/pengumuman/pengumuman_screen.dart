@@ -2,19 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:wargify/core/constants/colors.dart';
 import 'package:wargify/models/user_model.dart';
+import 'package:intl/intl.dart';
+import 'package:wargify/core/constants/api_endpoints.dart';
+import 'package:wargify/services/api_service.dart';
 import 'add_pengumuman_screen.dart';
-import 'edit_pengumuman_screen.dart';
 import 'detail_pengumuman_screen.dart';
+import 'edit_pengumuman_screen.dart';
 
 class Announcement {
   final String id;
   final String title;
   final String content;
   final String type; // Penting, Kegiatan, Himbauan, Keuangan, Lainnya
-  final String targetAudience; // Semua Warga, Kepala Keluarga, Kelompok Ronda, Pengurus RT
+  final String
+  targetAudience; // Semua Warga, Kepala Keluarga, Kelompok Ronda, Pengurus RT
   final String status; // Aktif, Draft, Terjadwal
   final String date;
   final String author;
+  final String? bannerUrl;
 
   Announcement({
     required this.id,
@@ -25,6 +30,7 @@ class Announcement {
     required this.status,
     required this.date,
     required this.author,
+    this.bannerUrl,
   });
 
   Announcement copyWith({
@@ -36,6 +42,7 @@ class Announcement {
     String? status,
     String? date,
     String? author,
+    String? bannerUrl,
   }) {
     return Announcement(
       id: id ?? this.id,
@@ -46,6 +53,7 @@ class Announcement {
       status: status ?? this.status,
       date: date ?? this.date,
       author: author ?? this.author,
+      bannerUrl: bannerUrl ?? this.bannerUrl,
     );
   }
 }
@@ -60,52 +68,84 @@ class PengumumanScreen extends StatefulWidget {
 
 class _PengumumanScreenState extends State<PengumumanScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final ApiService _apiService = ApiService();
   String _selectedTab = 'Semua';
   String _searchQuery = '';
+  bool _isLoading = true;
 
-  // Initial rich sample data
-  final List<Announcement> _announcements = [
-    Announcement(
-      id: '1',
-      title: 'Himbauan Keamanan Malam & Ronda Bersama',
-      content: 'Dihimbau kepada seluruh warga RT 05 untuk senantiasa mengunci pagar rumah masing-masing sebelum pukul 22.00 WIB demi keamanan bersama. Bagi warga yang mendapat jadwal ronda malam ini harap berkumpul tepat waktu di Pos Ronda Utama.',
-      type: 'Himbauan',
-      targetAudience: 'Semua Warga',
-      status: 'Aktif',
-      date: '18 Mei 2026',
-      author: 'Budi Santoso (Ketua RT)',
-    ),
-    Announcement(
-      id: '2',
-      title: 'Rapat Bulanan Warga Mei 2026',
-      content: 'Agenda rapat bulanan akan diselenggarakan untuk membahas rencana renovasi gapura masuk RT 05 dan laporan bulanan keuangan kas RT. Kehadiran Bapak/Ibu sekalian sangat diharapkan demi kelancaran kegiatan bersama.',
-      type: 'Kegiatan',
-      targetAudience: 'Kepala Keluarga',
-      status: 'Terjadwal',
-      date: '22 Mei 2026',
-      author: 'Budi Santoso (Ketua RT)',
-    ),
-    Announcement(
-      id: '3',
-      title: 'Laporan Pertanggungjawaban Kas RT Q1',
-      content: 'Laporan rincian pemasukan dan pengeluaran kas RT selama periode Januari - Maret 2026 telah selesai disusun oleh Bendahara. Silakan unduh atau tinjau dokumen terlampir pada portal ini.',
-      type: 'Keuangan',
-      targetAudience: 'Semua Warga',
-      status: 'Aktif',
-      date: '10 Apr 2026',
-      author: 'Sri Rahayu (Bendahara)',
-    ),
-    Announcement(
-      id: '4',
-      title: 'Pemberitahuan Fogging Nyamuk DBD',
-      content: 'Sehubungan dengan adanya kasus DBD di wilayah sekitar, Puskesmas bekerja sama dengan pengurus RT akan mengadakan penyemprotan fogging. Mohon warga menutup makanan/minuman rapat-rapat saat penyemprotan berlangsung.',
-      type: 'Penting',
-      targetAudience: 'Semua Warga',
-      status: 'Draft',
-      date: '20 Mei 2026',
-      author: 'Budi Santoso (Ketua RT)',
-    ),
-  ];
+  final List<Announcement> _announcements = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchAnnouncements();
+  }
+
+  Future<void> _fetchAnnouncements() async {
+    try {
+      final rows = await _apiService.getList(ApiEndpoints.announcements);
+      final formatter = DateFormat('dd MMM yyyy');
+      final items = rows.map((row) {
+        final data = Map<String, dynamic>.from(row as Map);
+        final creator = Map<String, dynamic>.from(
+          (data['creator'] ?? {}) as Map,
+        );
+        final status = data['status'] == 'PUBLISHED' ? 'Aktif' : 'Draft';
+        final activity = data['activity'];
+        final title = data['title']?.toString() ?? 'Pengumuman';
+        final category = data['category']?.toString();
+
+        return Announcement(
+          id: data['announcement_id']?.toString() ?? '',
+          title: title,
+          content: data['content']?.toString() ?? '',
+          type:
+              _categoryLabel(category) ??
+              (activity != null
+                  ? 'Kegiatan'
+                  : title.toLowerCase().contains('iuran')
+                  ? 'Keuangan'
+                  : 'Himbauan'),
+          targetAudience: 'Semua Warga',
+          status: status,
+          date: formatter.format(
+            DateTime.tryParse('${data['created_at']}') ?? DateTime.now(),
+          ),
+          author: creator['full_name']?.toString() ?? widget.user.fullName,
+          bannerUrl: data['banner_url']?.toString(),
+        );
+      }).toList();
+
+      if (!mounted) return;
+      setState(() {
+        _announcements
+          ..clear()
+          ..addAll(items);
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  String? _categoryLabel(String? code) {
+    switch (code) {
+      case 'PENTING':
+        return 'Penting';
+      case 'KEGIATAN':
+        return 'Kegiatan';
+      case 'HIMBAUAN':
+        return 'Himbauan';
+      case 'KEUANGAN':
+        return 'Keuangan';
+      case 'LAINNYA':
+        return 'Lainnya';
+      default:
+        return null;
+    }
+  }
 
   @override
   void dispose() {
@@ -123,12 +163,121 @@ class _PengumumanScreenState extends State<PengumumanScreen> {
       if (_searchQuery.isNotEmpty) {
         final query = _searchQuery.toLowerCase();
         final matchesTitle = announcement.title.toLowerCase().contains(query);
-        final matchesContent = announcement.content.toLowerCase().contains(query);
+        final matchesContent = announcement.content.toLowerCase().contains(
+          query,
+        );
         final matchesType = announcement.type.toLowerCase().contains(query);
         return matchesTitle || matchesContent || matchesType;
       }
       return true;
     }).toList();
+  }
+
+  Future<void> _publishAnnouncement(Announcement announcement) async {
+    if (announcement.id.isEmpty) return;
+    try {
+      await _apiService.post(
+        '${ApiEndpoints.announcements}/${announcement.id}/publish',
+        {},
+      );
+      await _fetchAnnouncements();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Pengumuman berhasil diterbitkan ke semua warga.',
+            style: GoogleFonts.plusJakartaSans(),
+          ),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Gagal menerbitkan pengumuman: $error',
+            style: GoogleFonts.plusJakartaSans(),
+          ),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
+  }
+
+  Future<void> _deleteAnnouncement(Announcement announcement) async {
+    if (announcement.id.isEmpty || announcement.status != 'Draft') return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text(
+          'Hapus draf?',
+          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          'Draf "${announcement.title}" akan dihapus permanen.',
+          style: GoogleFonts.plusJakartaSans(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _apiService.delete(
+        '${ApiEndpoints.announcements}/${announcement.id}',
+      );
+      await _fetchAnnouncements();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Draf pengumuman berhasil dihapus.',
+            style: GoogleFonts.plusJakartaSans(),
+          ),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Gagal menghapus draf: $error',
+            style: GoogleFonts.plusJakartaSans(),
+          ),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
+  }
+
+  Future<void> _openEditAnnouncement(Announcement announcement) async {
+    final result = await Navigator.push<Announcement>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditPengumumanScreen(announcement: announcement),
+      ),
+    );
+    if (result != null) {
+      await _fetchAnnouncements();
+    }
   }
 
   Color _getTypeColor(String type) {
@@ -187,74 +336,6 @@ class _PengumumanScreenState extends State<PengumumanScreen> {
       default:
         return Colors.black;
     }
-  }
-
-  void _confirmDelete(BuildContext context, Announcement announcement) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            const Icon(Icons.delete_forever_rounded, color: AppColors.danger, size: 28),
-            const SizedBox(width: 12),
-            Text(
-              'Hapus Pengumuman',
-              style: GoogleFonts.plusJakartaSans(
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-                color: const Color(0xFF0D1B2A),
-              ),
-            ),
-          ],
-        ),
-        content: Text(
-          'Apakah Anda yakin ingin menghapus pengumuman "${announcement.title}"? Tindakan ini tidak dapat dibatalkan.',
-          style: GoogleFonts.plusJakartaSans(fontSize: 14, color: Colors.grey[700]),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Batal',
-              style: GoogleFonts.plusJakartaSans(
-                fontWeight: FontWeight.bold,
-                color: Colors.grey[600],
-              ),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                _announcements.removeWhere((item) => item.id == announcement.id);
-              });
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Pengumuman berhasil dihapus',
-                    style: GoogleFonts.plusJakartaSans(),
-                  ),
-                  backgroundColor: AppColors.success,
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.danger,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              elevation: 0,
-            ),
-            child: Text(
-              'Hapus',
-              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -331,11 +412,21 @@ class _PengumumanScreenState extends State<PengumumanScreen> {
                 },
                 decoration: InputDecoration(
                   hintText: 'Cari pengumuman atau topik...',
-                  hintStyle: GoogleFonts.plusJakartaSans(fontSize: 14, color: Colors.grey[400]),
-                  prefixIcon: const Icon(Icons.search_rounded, color: AppColors.primary, size: 22),
+                  hintStyle: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    color: Colors.grey[400],
+                  ),
+                  prefixIcon: const Icon(
+                    Icons.search_rounded,
+                    color: AppColors.primary,
+                    size: 22,
+                  ),
                   suffixIcon: _searchQuery.isNotEmpty
                       ? IconButton(
-                          icon: const Icon(Icons.clear_rounded, color: Colors.grey),
+                          icon: const Icon(
+                            Icons.clear_rounded,
+                            color: Colors.grey,
+                          ),
                           onPressed: () {
                             setState(() {
                               _searchController.clear();
@@ -350,7 +441,10 @@ class _PengumumanScreenState extends State<PengumumanScreen> {
                     borderRadius: BorderRadius.circular(16),
                     borderSide: BorderSide.none,
                   ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
                 ),
               ),
             ),
@@ -362,14 +456,15 @@ class _PengumumanScreenState extends State<PengumumanScreen> {
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Row(
-              children: ['Semua', 'Aktif', 'Terjadwal', 'Draft'].map((tab) {
+              children: ['Semua', 'Aktif', 'Draft'].map((tab) {
                 bool isSelected = _selectedTab == tab;
                 return Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   child: ChoiceChip(
                     label: Text(tab),
                     selected: isSelected,
-                    showCheckmark: false, // Menghilangkan ikon centang saat aktif
+                    showCheckmark:
+                        false, // Menghilangkan ikon centang saat aktif
                     onSelected: (selected) {
                       if (selected) {
                         setState(() {
@@ -381,16 +476,23 @@ class _PengumumanScreenState extends State<PengumumanScreen> {
                     backgroundColor: Colors.white,
                     labelStyle: GoogleFonts.plusJakartaSans(
                       fontSize: 13,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.w500,
                       color: isSelected ? Colors.white : Colors.grey[600],
                     ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                       side: BorderSide(
-                        color: isSelected ? AppColors.primary : Colors.grey.withOpacity(0.1),
+                        color: isSelected
+                            ? AppColors.primary
+                            : Colors.grey.withOpacity(0.1),
                       ),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                   ),
                 );
               }).toList(),
@@ -427,7 +529,9 @@ class _PengumumanScreenState extends State<PengumumanScreen> {
 
           // Announcement List
           Expanded(
-            child: filteredItems.isEmpty
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : filteredItems.isEmpty
                 ? _buildEmptyState()
                 : ListView.builder(
                     padding: const EdgeInsets.fromLTRB(24, 0, 24, 100),
@@ -446,24 +550,25 @@ class _PengumumanScreenState extends State<PengumumanScreen> {
           final result = await Navigator.push<Announcement>(
             context,
             MaterialPageRoute(
-              builder: (context) => AddPengumumanScreen(
-                user: widget.user,
-              ),
+              builder: (context) => AddPengumumanScreen(user: widget.user),
             ),
           );
           if (result != null) {
-            setState(() {
-              _announcements.insert(0, result);
-            });
+            await _fetchAnnouncements();
+            if (!context.mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  'Pengumuman berhasil diterbitkan!',
+                  result.status == 'Aktif'
+                      ? 'Pengumuman berhasil diterbitkan!'
+                      : 'Draf pengumuman berhasil disimpan!',
                   style: GoogleFonts.plusJakartaSans(),
                 ),
                 backgroundColor: AppColors.success,
                 behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
             );
           }
@@ -502,7 +607,11 @@ class _PengumumanScreenState extends State<PengumumanScreen> {
                 ),
               ],
             ),
-            child: Icon(Icons.campaign_outlined, size: 64, color: AppColors.primary.withOpacity(0.3)),
+            child: Icon(
+              Icons.campaign_outlined,
+              size: 64,
+              color: AppColors.primary.withOpacity(0.3),
+            ),
           ),
           const SizedBox(height: 20),
           Text(
@@ -570,7 +679,10 @@ class _PengumumanScreenState extends State<PengumumanScreen> {
               children: [
                 // Category Tag
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: typeBg,
                     borderRadius: BorderRadius.circular(10),
@@ -659,7 +771,11 @@ class _PengumumanScreenState extends State<PengumumanScreen> {
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.people_alt_outlined, size: 13, color: Colors.grey[500]),
+                          Icon(
+                            Icons.people_alt_outlined,
+                            size: 13,
+                            color: Colors.grey[500],
+                          ),
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
@@ -677,7 +793,11 @@ class _PengumumanScreenState extends State<PengumumanScreen> {
                       const SizedBox(height: 2),
                       Row(
                         children: [
-                          Icon(Icons.calendar_today_outlined, size: 12, color: Colors.grey[500]),
+                          Icon(
+                            Icons.calendar_today_outlined,
+                            size: 12,
+                            color: Colors.grey[500],
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             item.date,
@@ -692,57 +812,54 @@ class _PengumumanScreenState extends State<PengumumanScreen> {
                   ),
                 ),
 
-                // Edit & Delete Actions
-                Row(
-                  children: [
-                    // Edit
-                    IconButton(
-                      icon: const Icon(Icons.edit_outlined, size: 18, color: AppColors.primary),
-                      onPressed: () async {
-                        final result = await Navigator.push<Announcement>(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => EditPengumumanScreen(
-                              announcement: item,
-                            ),
+                if (item.status == 'Draft')
+                  Wrap(
+                    spacing: 2,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      IconButton(
+                        tooltip: 'Edit draf',
+                        icon: const Icon(Icons.edit_rounded, size: 18),
+                        color: AppColors.primary,
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => _openEditAnnouncement(item),
+                      ),
+                      IconButton(
+                        tooltip: 'Hapus draf',
+                        icon: const Icon(
+                          Icons.delete_outline_rounded,
+                          size: 18,
+                        ),
+                        color: AppColors.danger,
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => _deleteAnnouncement(item),
+                      ),
+                      TextButton.icon(
+                        onPressed: () => _publishAnnouncement(item),
+                        icon: const Icon(Icons.campaign_rounded, size: 16),
+                        label: Text(
+                          'Terbitkan',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
                           ),
-                        );
-                        if (result != null) {
-                          setState(() {
-                            int index = _announcements.indexWhere((a) => a.id == item.id);
-                            if (index != -1) {
-                              _announcements[index] = result;
-                            }
-                          });
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'Pengumuman berhasil diperbarui',
-                                style: GoogleFonts.plusJakartaSans(),
-                              ),
-                              backgroundColor: AppColors.success,
-                              behavior: SnackBarBehavior.floating,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            ),
-                          );
-                        }
-                      },
-                      tooltip: 'Edit',
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
+                        ),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.primary,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  Text(
+                    'Tersiar',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.success,
                     ),
-                    const SizedBox(width: 14),
-
-                    // Delete
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.danger),
-                      onPressed: () => _confirmDelete(context, item),
-                      tooltip: 'Hapus',
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                  ],
-                ),
+                  ),
               ],
             ),
           ],

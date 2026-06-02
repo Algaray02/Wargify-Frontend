@@ -118,7 +118,10 @@ class DetailPengumumanScreen extends StatelessWidget {
                     children: [
                       // Type tag
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
                           color: typeBg,
                           borderRadius: BorderRadius.circular(10),
@@ -143,9 +146,14 @@ class DetailPengumumanScreen extends StatelessWidget {
 
                       // Status Tag
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
-                          color: _getStatusColor(announcement.status).withOpacity(0.1),
+                          color: _getStatusColor(
+                            announcement.status,
+                          ).withOpacity(0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Row(
@@ -196,7 +204,11 @@ class DetailPengumumanScreen extends StatelessWidget {
                       CircleAvatar(
                         radius: 18,
                         backgroundColor: AppColors.primary.withOpacity(0.1),
-                        child: const Icon(Icons.person, color: AppColors.primary, size: 18),
+                        child: const Icon(
+                          Icons.person,
+                          color: AppColors.primary,
+                          size: 18,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -229,6 +241,29 @@ class DetailPengumumanScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
+            if (announcement.bannerUrl != null &&
+                announcement.bannerUrl!.isNotEmpty) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: Image.network(
+                  announcement.bannerUrl!,
+                  width: double.infinity,
+                  height: 220,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    height: 160,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: const Icon(Icons.broken_image_outlined),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+
             // Target Audience Alert Card
             Container(
               width: double.infinity,
@@ -240,7 +275,11 @@ class DetailPengumumanScreen extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.group_outlined, color: AppColors.primary, size: 20),
+                  const Icon(
+                    Icons.group_outlined,
+                    color: AppColors.primary,
+                    size: 20,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(

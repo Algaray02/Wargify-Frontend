@@ -1,10 +1,19 @@
+import 'dart:io';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
+import 'package:wargify/core/constants/api_endpoints.dart';
 import 'package:wargify/core/constants/colors.dart';
+import 'package:wargify/services/api_service.dart';
+
 import 'laporan_screen.dart';
 
 class DetailLaporanScreen extends StatefulWidget {
-  final Report report;
+  final FacilityReport report;
+
   const DetailLaporanScreen({super.key, required this.report});
 
   @override
@@ -12,23 +21,19 @@ class DetailLaporanScreen extends StatefulWidget {
 }
 
 class _DetailLaporanScreenState extends State<DetailLaporanScreen> {
+  final ApiService _apiService = ApiService();
+  final ImagePicker _imagePicker = ImagePicker();
   final TextEditingController _noteController = TextEditingController();
+
   late String _currentStatus;
-  int _charCount = 0;
-  String? _mockUploadedPhotoUrl;
-  bool _isUploading = false;
-  late List<TimelineLog> _timelineLogs;
+  XFile? _selectedResolvedPhoto;
+  bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
     _currentStatus = widget.report.status;
-    _timelineLogs = List.from(widget.report.timeline);
-    _noteController.addListener(() {
-      setState(() {
-        _charCount = _noteController.text.length;
-      });
-    });
+    _noteController.text = widget.report.responseMessage;
   }
 
   @override
@@ -37,117 +42,115 @@ class _DetailLaporanScreenState extends State<DetailLaporanScreen> {
     super.dispose();
   }
 
-  void _handleStatusSelect(String status) {
-    setState(() {
-      _currentStatus = status;
-    });
-  }
-
-  void _simulatePhotoUpload() async {
-    setState(() {
-      _isUploading = true;
-    });
-    // Simulate minor lag for premium feel
-    await Future.delayed(const Duration(milliseconds: 600));
-    if (mounted) {
-      setState(() {
-        _isUploading = false;
-        _mockUploadedPhotoUrl = 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=800'; // Repaired pipe mock
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Foto bukti berhasil diunggah!', style: GoogleFonts.plusJakartaSans()),
-          backgroundColor: AppColors.success,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'IN_PROGRESS':
+        return 'Diproses';
+      case 'RESOLVED':
+        return 'Selesai';
+      default:
+        return 'Menunggu';
     }
   }
 
-  void _removeUploadedPhoto() {
-    setState(() {
-      _mockUploadedPhotoUrl = null;
-    });
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'IN_PROGRESS':
+        return const Color(0xFF0D47A1);
+      case 'RESOLVED':
+        return const Color(0xFF2E7D32);
+      default:
+        return const Color(0xFFE65100);
+    }
   }
 
-  void _handleSave() {
+  IconData _categoryIcon(String category) {
+    final text = category.toLowerCase();
+    if (text.contains('lampu') || text.contains('listrik')) {
+      return Icons.lightbulb_outline_rounded;
+    }
+    if (text.contains('air') || text.contains('pipa')) {
+      return Icons.plumbing_rounded;
+    }
+    if (text.contains('sampah') || text.contains('selokan')) {
+      return Icons.delete_outline_rounded;
+    }
+    if (text.contains('jalan')) {
+      return Icons.add_road_rounded;
+    }
+    return Icons.report_problem_outlined;
+  }
+
+  Future<void> _pickResolvedPhoto() async {
+    final image = await _imagePicker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 82,
+      maxWidth: 1600,
+    );
+
+    if (image == null || !mounted) return;
+    setState(() => _selectedResolvedPhoto = image);
+  }
+
+  Future<void> _handleSave() async {
+    if (_isSaving) return;
+
     final note = _noteController.text.trim();
-    if (note.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Harap tuliskan catatan perkembangan perbaikan.', style: GoogleFonts.plusJakartaSans()),
-          backgroundColor: AppColors.danger,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
+    if (_currentStatus == 'RESOLVED' && note.isEmpty) {
+      _showSnack('Catatan penyelesaian wajib diisi.', isError: true);
       return;
     }
 
-    // Add new timeline log
-    final now = DateTime.now();
-    final timeStr = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')} WIB';
-    
-    // Add to top of list as the latest activity
-    final newLog = TimelineLog(
-      time: timeStr,
-      content: 'Status diubah menjadi $_currentStatus oleh Ketua RT. Catatan: "$note"',
-      isHighlight: true,
-    );
+    setState(() => _isSaving = true);
 
-    // Remove highlight state from previous logs
-    final updatedLogs = _timelineLogs.map((l) => TimelineLog(time: l.time, content: l.content, isHighlight: false)).toList();
-    updatedLogs.insert(0, newLog);
+    try {
+      if (_currentStatus == 'RESOLVED') {
+        final formData = FormData.fromMap({
+          'response_message': note,
+          if (_selectedResolvedPhoto != null)
+            'resolved_photo_file': await MultipartFile.fromFile(
+              _selectedResolvedPhoto!.path,
+              filename: _selectedResolvedPhoto!.name,
+            ),
+        });
 
-    final updatedReport = widget.report.copyWith(
-      status: _currentStatus,
-      timeline: updatedLogs,
-    );
+        await _apiService.patchMultipart(
+          '${ApiEndpoints.facilityReports}/${widget.report.id}/response',
+          formData,
+        );
+      } else {
+        await _apiService.patch(
+          '${ApiEndpoints.facilityReports}/${widget.report.id}/status',
+          {'status': _currentStatus},
+        );
+      }
 
+      if (!mounted) return;
+      _showSnack('Laporan berhasil diperbarui.');
+      Navigator.pop(context, true);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      _showSnack('Gagal memperbarui laporan: $error', isError: true);
+    }
+  }
+
+  void _showSnack(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Status laporan berhasil diperbarui!', style: GoogleFonts.plusJakartaSans()),
-        backgroundColor: AppColors.success,
+        content: Text(message, style: GoogleFonts.plusJakartaSans()),
+        backgroundColor: isError ? AppColors.danger : AppColors.success,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
-
-    // Return the updated report object back to the main list screen
-    Navigator.pop(context, updatedReport);
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'Menunggu':
-        return const Color(0xFFE65100);
-      case 'Diproses':
-        return const Color(0xFF0D47A1);
-      case 'Selesai':
-        return const Color(0xFF2E7D32);
-      default:
-        return Colors.black;
-    }
-  }
-
-  Color _getCategoryBadgeBg(String cat) {
-    if (cat.toUpperCase() == 'URGENT') {
-      return const Color(0xFFFFEBEE); // Light Red
-    }
-    return const Color(0xFFE3F2FD); // Light Blue
-  }
-
-  Color _getCategoryBadgeText(String cat) {
-    if (cat.toUpperCase() == 'URGENT') {
-      return const Color(0xFFC62828); // Dark Red
-    }
-    return const Color(0xFF1565C0); // Dark Blue
   }
 
   @override
   Widget build(BuildContext context) {
-    final statusColor = _getStatusColor(_currentStatus);
+    final dateFormatter = DateFormat('dd MMM yyyy');
+    final timeFormatter = DateFormat('HH:mm');
+    final statusColor = _statusColor(_currentStatus);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF6F9FD),
@@ -159,443 +162,285 @@ class _DetailLaporanScreenState extends State<DetailLaporanScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Detail & Update Status',
+          'Detail Laporan',
           style: GoogleFonts.plusJakartaSans(
             color: const Color(0xFF0D1B2A),
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w800,
             fontSize: 16,
           ),
         ),
       ),
-      body: SingleChildScrollView(
+      body: ListView(
         physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Subheader ID & Urgency Tag
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'ID LAPORAN: ${widget.report.id}',
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'ID: ${widget.report.id}',
+                  overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
                     color: Colors.grey[500],
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _getCategoryBadgeBg(widget.report.category),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    widget.report.category,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                      color: _getCategoryBadgeText(widget.report.category),
-                    ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  _statusLabel(_currentStatus).toUpperCase(),
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    color: statusColor,
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 14),
-
-            // Premium Image Header Block
-            Container(
-              height: 200,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
               ),
-              child: Stack(
-                children: [
-                  // Full cover Image
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
-                    child: Image.network(
-                      widget.report.imageUrl,
-                      width: double.infinity,
-                      height: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          color: Colors.grey[300],
-                          child: const Icon(Icons.broken_image_rounded, size: 48),
-                        );
-                      },
-                    ),
-                  ),
-                  // Dark shadow overlay at bottom for visibility of location badge
-                  Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      gradient: LinearGradient(
-                        colors: [Colors.black.withOpacity(0.4), Colors.transparent],
-                        begin: Alignment.bottomCenter,
-                        end: Alignment.center,
-                      ),
-                    ),
-                  ),
-                  // Location badge floating bottom left
-                  Positioned(
-                    bottom: 14,
-                    left: 14,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.65),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.location_on, color: Colors.white, size: 14),
-                          const SizedBox(width: 4),
-                          Text(
-                            widget.report.location,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  // Status floating top right
-                  Positioned(
-                    top: 14,
-                    right: 14,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: statusColor,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        _currentStatus.toUpperCase(),
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 18),
-
-            // Report Details Box
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEBF3F9).withOpacity(0.5),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: const Color(0xFFE0E8F0)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.report.title,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: const Color(0xFF0D1B2A),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    widget.report.description,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13,
-                      color: Colors.grey[700],
-                      height: 1.6,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Divider(color: Colors.grey.withOpacity(0.12), height: 1),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'DILAPORKAN OLEH',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.grey[400],
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '${widget.report.reporterName} (${widget.report.reporterRole})',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: const Color(0xFF0D1B2A),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'WAKTU',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey[400],
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            widget.report.time,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: const Color(0xFF0D1B2A),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Form Status Update Card
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.015),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 4,
-                        height: 18,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0056B3),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Pembaruan Status',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          color: const Color(0xFF0D1B2A),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  Text(
-                    'PILIH STATUS SAAT INI',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey[500],
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-
-                  // Three Row Status Buttons
-                  Row(
-                    children: [
-                      _buildStatusSelectButton('Menunggu', Icons.access_time_rounded),
-                      const SizedBox(width: 8),
-                      _buildStatusSelectButton('Diproses', Icons.engineering_rounded),
-                      const SizedBox(width: 8),
-                      _buildStatusSelectButton('Selesai', Icons.check_circle_outline_rounded),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'CATATAN UNTUK WARGA',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey[500],
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      Text(
-                        '$_charCount/140 karakter',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 10,
-                          color: _charCount > 140 ? AppColors.danger : Colors.grey[400],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Text area
-                  TextFormField(
-                    controller: _noteController,
-                    maxLines: 4,
-                    maxLength: 140,
-                    style: GoogleFonts.plusJakartaSans(fontSize: 13),
-                    decoration: InputDecoration(
-                      hintText: 'Tuliskan perkembangan perbaikan di sini...',
-                      hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: Colors.grey[350]),
-                      counterText: '',
-                      filled: true,
-                      fillColor: const Color(0xFFF8FBFE),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(color: Colors.grey.withOpacity(0.1)),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(color: Colors.grey.withOpacity(0.1)),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(color: AppColors.primary, width: 1.0),
-                      ),
-                      contentPadding: const EdgeInsets.all(16),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  Text(
-                    'BUKTI FOTO (OPSIONAL)',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey[500],
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Upload photo block
-                  _mockUploadedPhotoUrl != null
-                      ? _buildUploadedPhotoThumbnail()
-                      : _buildPhotoUploadPlaceholder(),
-
-                  const SizedBox(height: 24),
-
-                  // Submit button
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: ElevatedButton.icon(
-                      onPressed: _handleSave,
-                      icon: const Icon(Icons.send_rounded, size: 18),
-                      label: Text(
-                        'Simpan',
-                        style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF0056B3),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                        elevation: 0,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Riwayat Aktivitas (Vertical Timeline)
-            Text(
-              'Riwayat Aktivitas',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-                color: const Color(0xFF0D1B2A),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Timeline List View
-            _buildTimelineListView(),
-
-            const SizedBox(height: 80),
-          ],
-        ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _buildReportImage(),
+          const SizedBox(height: 16),
+          _buildReportDetail(dateFormatter, timeFormatter),
+          const SizedBox(height: 18),
+          _buildStatusCard(),
+          const SizedBox(height: 18),
+          _buildResponseCard(),
+          const SizedBox(height: 18),
+          _buildTimeline(dateFormatter, timeFormatter),
+        ],
       ),
     );
   }
 
-  Widget _buildStatusSelectButton(String status, IconData icon) {
-    bool isSelected = _currentStatus == status;
-    Color colorTheme = _getStatusColor(status);
+  Widget _buildReportImage() {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        height: 210,
+        width: double.infinity,
+        color: const Color(0xFFE9EFF5),
+        child: widget.report.imageUrl.isEmpty
+            ? _buildNoImage('Tidak ada foto laporan')
+            : Image.network(
+                widget.report.imageUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) =>
+                    _buildNoImage('Foto gagal dimuat'),
+              ),
+      ),
+    );
+  }
+
+  Widget _buildNoImage(String label) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.image_not_supported_rounded, color: Colors.grey[400]),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: Colors.grey[500],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReportDetail(
+    DateFormat dateFormatter,
+    DateFormat timeFormatter,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE7EEF7)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE6F0FA),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(
+                  _categoryIcon(widget.report.category),
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.report.category,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      widget.report.title,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                        color: const Color(0xFF0D1B2A),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            widget.report.description,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13,
+              color: Colors.grey[700],
+              height: 1.55,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Divider(color: Colors.grey.withOpacity(0.1)),
+          const SizedBox(height: 12),
+          _buildInfoRow(
+            Icons.person_rounded,
+            'Pelapor',
+            '${widget.report.reporterName} • ${widget.report.reporterPhone}',
+          ),
+          const SizedBox(height: 10),
+          _buildInfoRow(
+            Icons.schedule_rounded,
+            'Waktu laporan',
+            '${dateFormatter.format(widget.report.createdAt)} • ${timeFormatter.format(widget.report.createdAt)} WIB',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 18, color: Colors.grey[500]),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.grey[500],
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF0D1B2A),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatusCard() {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE7EEF7)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Ubah Status',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+              color: const Color(0xFF0D1B2A),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _buildStatusButton('SUBMITTED', Icons.access_time_rounded),
+              const SizedBox(width: 8),
+              _buildStatusButton('IN_PROGRESS', Icons.engineering_rounded),
+              const SizedBox(width: 8),
+              _buildStatusButton('RESOLVED', Icons.check_circle_rounded),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusButton(String status, IconData icon) {
+    final selected = _currentStatus == status;
+    final color = _statusColor(status);
 
     return Expanded(
       child: GestureDetector(
-        onTap: () => _handleStatusSelect(status),
-        child: Container(
-          height: 60,
+        onTap: () => setState(() => _currentStatus = status),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          height: 64,
           decoration: BoxDecoration(
-            color: isSelected ? colorTheme.withOpacity(0.04) : Colors.white,
+            color: selected ? color.withOpacity(0.08) : const Color(0xFFF8FBFE),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: isSelected ? colorTheme : Colors.grey.withOpacity(0.15),
-              width: isSelected ? 1.5 : 1.0,
+              color: selected ? color : const Color(0xFFE1EAF3),
+              width: selected ? 1.4 : 1,
             ),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                icon,
-                color: isSelected ? colorTheme : Colors.grey[400],
-                size: 20,
-              ),
-              const SizedBox(height: 4),
+              Icon(icon, color: selected ? color : Colors.grey[400], size: 20),
+              const SizedBox(height: 5),
               Text(
-                status,
+                _statusLabel(status),
                 style: GoogleFonts.plusJakartaSans(
-                  fontSize: 11,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                  color: isSelected ? colorTheme : Colors.grey[500],
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                  color: selected ? color : Colors.grey[600],
                 ),
               ),
             ],
@@ -605,238 +450,297 @@ class _DetailLaporanScreenState extends State<DetailLaporanScreen> {
     );
   }
 
-  Widget _buildPhotoUploadPlaceholder() {
-    return GestureDetector(
-      onTap: _isUploading ? null : _simulatePhotoUpload,
-      child: Container(
-        width: double.infinity,
-        height: 110,
-        decoration: BoxDecoration(
-          color: const Color(0xFFF8FBFE),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: const Color(0xFFD0DFEF),
-            width: 1.0,
-            style: BorderStyle.solid, // Uses standard borders since custom dash border requires external painter
+  Widget _buildResponseCard() {
+    final resolving = _currentStatus == 'RESOLVED';
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE7EEF7)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            resolving ? 'Penyelesaian Laporan' : 'Catatan Penyelesaian',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+              color: const Color(0xFF0D1B2A),
+            ),
           ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: _isUploading
-              ? [
-                  const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Mengunggah...',
-                    style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey[500]),
-                  ),
-                ]
-              : [
-                  const Icon(Icons.add_photo_alternate_outlined, color: Color(0xFF0056B3), size: 30),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Unggah Foto Progres',
-                    style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF0D1B2A)),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Format JPG, PNG max 5MB',
-                    style: GoogleFonts.plusJakartaSans(fontSize: 10, color: Colors.grey[400]),
-                  ),
-                ],
-        ),
+          const SizedBox(height: 6),
+          Text(
+            resolving
+                ? 'Catatan akan dikirim ke warga dan status laporan menjadi selesai.'
+                : 'Backend hanya menyimpan catatan ketika laporan diselesaikan.',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12,
+              color: Colors.grey[600],
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _noteController,
+            enabled: resolving,
+            maxLines: 4,
+            maxLength: 500,
+            style: GoogleFonts.plusJakartaSans(fontSize: 13),
+            decoration: InputDecoration(
+              counterText: '',
+              hintText: 'Contoh: Lampu jalan sudah diganti dan berfungsi.',
+              hintStyle: GoogleFonts.plusJakartaSans(
+                fontSize: 13,
+                color: Colors.grey[400],
+              ),
+              filled: true,
+              fillColor: resolving ? const Color(0xFFF8FBFE) : Colors.grey[100],
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: Color(0xFFE1EAF3)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: Color(0xFFE1EAF3)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: AppColors.primary),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Foto Bukti Selesai',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildResolvedPhoto(resolving),
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton.icon(
+              onPressed: _isSaving ? null : _handleSave,
+              icon: _isSaving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.save_rounded, size: 18),
+              label: Text(
+                _isSaving ? 'Menyimpan...' : 'Simpan Perubahan',
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w900),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildUploadedPhotoThumbnail() {
-    return Container(
-      width: double.infinity,
-      height: 110,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.withOpacity(0.1)),
-      ),
+  Widget _buildResolvedPhoto(bool enabled) {
+    Widget content;
+
+    if (_selectedResolvedPhoto != null) {
+      content = Image.file(
+        File(_selectedResolvedPhoto!.path),
+        width: double.infinity,
+        height: double.infinity,
+        fit: BoxFit.cover,
+      );
+    } else if (widget.report.resolvedPhotoUrl.isNotEmpty) {
+      content = Image.network(
+        widget.report.resolvedPhotoUrl,
+        width: double.infinity,
+        height: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) =>
+            _buildNoImage('Foto bukti gagal dimuat'),
+      );
+    } else {
+      content = Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.add_photo_alternate_outlined,
+              color: enabled ? AppColors.primary : Colors.grey[400],
+              size: 30,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              enabled ? 'Pilih foto bukti' : 'Aktif saat status selesai',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: enabled ? const Color(0xFF0D1B2A) : Colors.grey[500],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: enabled ? _pickResolvedPhoto : null,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        child: Stack(
-          children: [
-            Image.network(
-              _mockUploadedPhotoUrl!,
-              width: double.infinity,
-              height: double.infinity,
-              fit: BoxFit.cover,
-            ),
-            Container(
-              color: Colors.black.withOpacity(0.15),
-            ),
-            Positioned(
-              top: 8,
-              right: 8,
-              child: InkWell(
-                onTap: _removeUploadedPhoto,
-                child: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: const BoxDecoration(
-                    color: Colors.black54,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.delete_forever_rounded, color: Colors.white, size: 16),
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: 8,
-              left: 12,
-              child: Row(
-                children: [
-                  const Icon(Icons.check_circle, color: Color(0xFFACF44A), size: 14),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Foto terpilih',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+        child: Container(
+          height: 126,
+          width: double.infinity,
+          color: const Color(0xFFF8FBFE),
+          child: Stack(
+            children: [
+              Positioned.fill(child: content),
+              if (_selectedResolvedPhoto != null)
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: GestureDetector(
+                    onTap: () => setState(() => _selectedResolvedPhoto = null),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: const BoxDecoration(
+                        color: Colors.black54,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.close_rounded,
+                        color: Colors.white,
+                        size: 16,
+                      ),
                     ),
                   ),
-                ],
-              ),
-            ),
-          ],
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildTimelineListView() {
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _timelineLogs.length,
-      itemBuilder: (context, index) {
-        final log = _timelineLogs[index];
-        bool isLast = index == _timelineLogs.length - 1;
+  Widget _buildTimeline(DateFormat dateFormatter, DateFormat timeFormatter) {
+    final items = <({String title, String subtitle, bool active})>[
+      (
+        title: 'Laporan diterima',
+        subtitle:
+            '${widget.report.reporterName} mengirim laporan pada ${dateFormatter.format(widget.report.createdAt)} ${timeFormatter.format(widget.report.createdAt)} WIB.',
+        active: widget.report.status == 'SUBMITTED',
+      ),
+      if (widget.report.status == 'IN_PROGRESS' ||
+          widget.report.status == 'RESOLVED')
+        (
+          title: 'Laporan diproses',
+          subtitle: 'Pengurus RT mulai menangani laporan ini.',
+          active: widget.report.status == 'IN_PROGRESS',
+        ),
+      if (widget.report.status == 'RESOLVED')
+        (
+          title: 'Laporan selesai',
+          subtitle: widget.report.responseMessage.isEmpty
+              ? 'Laporan ditandai selesai.'
+              : widget.report.responseMessage,
+          active: true,
+        ),
+    ];
 
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Custom Circle/Dot and Vertical Line Timeline Painter
-            Column(
-              children: [
-                Container(
-                  width: 14,
-                  height: 14,
-                  decoration: BoxDecoration(
-                    color: log.isHighlight ? const Color(0xFFE3F2FD) : Colors.white,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: log.isHighlight ? const Color(0xFF0056B3) : const Color(0xFF0056B3).withOpacity(0.5),
-                      width: log.isHighlight ? 4 : 2.5,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Riwayat Aktivitas',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 15,
+            fontWeight: FontWeight.w900,
+            color: const Color(0xFF0D1B2A),
+          ),
+        ),
+        const SizedBox(height: 12),
+        ...items.asMap().entries.map((entry) {
+          final index = entry.key;
+          final item = entry.value;
+          final isLast = index == items.length - 1;
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Column(
+                children: [
+                  Container(
+                    width: 14,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: item.active ? AppColors.primary : Colors.white,
+                      border: Border.all(color: AppColors.primary, width: 2),
                     ),
                   ),
-                ),
-                if (!isLast)
-                  Container(
-                    width: 2.0,
-                    height: 90, // Taller line to match description height
-                    color: const Color(0xFF0056B3).withOpacity(0.2),
-                  ),
-              ],
-            ),
-            const SizedBox(width: 16),
-
-            // Timeline Card Details
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Blue Highlight Box for new/latest status
-                  log.isHighlight
-                      ? Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEEF5FC),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFFD2E4F7)),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF0056B3),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  'BARU SAJA',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 8,
-                                    fontWeight: FontWeight.w900,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                log.content,
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: const Color(0xFF0D47A1),
-                                  height: 1.5,
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      : Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFFEBF2F7)),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                log.time,
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.grey[400],
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                log.content,
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 12,
-                                  color: const Color(0xFF0D1B2A),
-                                  height: 1.5,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                  const SizedBox(height: 18),
+                  if (!isLast)
+                    Container(
+                      width: 2,
+                      height: 74,
+                      color: AppColors.primary.withOpacity(0.18),
+                    ),
                 ],
               ),
-            ),
-          ],
-        );
-      },
+              const SizedBox(width: 14),
+              Expanded(
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFE7EEF7)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.title,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                          color: const Color(0xFF0D1B2A),
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        item.subtitle,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                          height: 1.45,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        }),
+      ],
     );
   }
 }

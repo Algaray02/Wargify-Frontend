@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "139905698034",
+    "project_id": "wargify",
+    "storage_bucket": "wargify.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:139905698034:android:18de5f4d10f42751bca86b",
+        "android_client_info": {
+          "package_name": "com.example.frontend"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBU9ngZ24I6jGU76QsMVNvko3ofE9kSo6M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

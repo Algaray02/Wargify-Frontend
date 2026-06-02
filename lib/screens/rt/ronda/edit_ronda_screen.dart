@@ -1,69 +1,188 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:wargify/core/constants/colors.dart';
+import 'package:intl/intl.dart';
+import 'package:wargify/core/constants/api_endpoints.dart';
+import 'package:wargify/services/api_service.dart';
+
+import '../../../core/constants/colors.dart';
 import 'edit_checkpoints_screen.dart';
 
 class EditRondaScreen extends StatefulWidget {
-  final String groupId;
-  final String coordinatorId;
-  final String dateStr;
-  final String status;
+  final Map<String, dynamic> schedule;
 
-  const EditRondaScreen({
-    super.key,
-    required this.groupId,
-    required this.coordinatorId,
-    required this.dateStr,
-    required this.status,
-  });
+  const EditRondaScreen({super.key, required this.schedule});
 
   @override
   State<EditRondaScreen> createState() => _EditRondaScreenState();
 }
 
 class _EditRondaScreenState extends State<EditRondaScreen> {
-  late String _selectedGroup;
-  late String _selectedCoordinator;
-  late String _dateStr;
+  final ApiService _apiService = ApiService();
+
+  DateTime _selectedDate = DateTime.now();
   TimeOfDay _startTime = const TimeOfDay(hour: 22, minute: 0);
   TimeOfDay _endTime = const TimeOfDay(hour: 2, minute: 0);
-
-  final List<String> _groups = ['Regu Yakuzs', 'Regu Elang', 'Regu Mawar', 'Regu Rajawali'];
-  
-  final List<Map<String, String>> _members = [
-    {'name': 'Agus (Pak RW)', 'avatar': 'https://i.pravatar.cc/150?u=agus'},
-    {'name': 'Siti (Bu RT)', 'avatar': 'https://i.pravatar.cc/150?u=siti'},
-    {'name': 'Budi Santoso', 'avatar': 'https://i.pravatar.cc/150?u=budi'},
-    {'name': 'Dewi', 'avatar': 'https://i.pravatar.cc/150?u=dewi'},
-    {'name': 'Pak Doni', 'avatar': 'https://i.pravatar.cc/150?u=doni'},
-  ];
-  
-  final List<Map<String, dynamic>> _checkpoints = [
-    {'name': 'Area Belakang', 'checked': true},
-    {'name': 'Pos Utama', 'checked': true},
-    {'name': 'Sektor Barat', 'checked': false},
-  ];
+  String? _selectedGroupId;
+  String? _selectedCoordinatorId;
+  String _selectedStatus = 'SCHEDULED';
+  bool _isLoading = true;
+  bool _isSubmitting = false;
+  List<Map<String, dynamic>> _groups = [];
+  List<Map<String, dynamic>> _members = [];
+  List<Map<String, dynamic>> _checkpoints = [];
 
   @override
   void initState() {
     super.initState();
-    _selectedGroup = widget.groupId;
-    _selectedCoordinator = widget.coordinatorId;
-    _dateStr = widget.dateStr;
+    _hydrateInitialValue();
+    _loadOptions();
+  }
 
-    // Robust fall-safe check for group dropdown
-    if (!_groups.contains(_selectedGroup)) {
-      _groups.add(_selectedGroup);
+  void _hydrateInitialValue() {
+    final schedule = widget.schedule;
+    _selectedGroupId = schedule['group_id']?.toString();
+    _selectedCoordinatorId = schedule['coordinator_id']?.toString();
+    _selectedStatus = schedule['status']?.toString() ?? 'SCHEDULED';
+    _selectedDate =
+        DateTime.tryParse('${schedule['schedule_date']}') ?? DateTime.now();
+
+    final start = DateTime.tryParse('${schedule['shift_start']}');
+    final end = DateTime.tryParse('${schedule['shift_end']}');
+    if (start != null) {
+      _startTime = TimeOfDay(hour: start.hour, minute: start.minute);
     }
+    if (end != null) {
+      _endTime = TimeOfDay(hour: end.hour, minute: end.minute);
+    }
+  }
 
-    // Robust fall-safe check: dynamically add coordinator to list if not present to avoid assertion crash
-    final exists = _members.any((member) => member['name'] == _selectedCoordinator);
-    if (!exists) {
-      _members.add({
-        'name': _selectedCoordinator,
-        'avatar': 'https://i.pravatar.cc/150?u=${_selectedCoordinator.toLowerCase().replaceAll(' ', '')}',
+  Future<void> _loadOptions() async {
+    try {
+      final results = await Future.wait([
+        _apiService.getList(ApiEndpoints.rondaGroups),
+        _apiService.getList(ApiEndpoints.rondaCheckpoints),
+      ]);
+      final groups = (results[0])
+          .map((row) => Map<String, dynamic>.from(row as Map))
+          .toList();
+      final selectedCheckpointIds = widget.schedule['checkpoints'] is List
+          ? (widget.schedule['checkpoints'] as List)
+                .map((row) => Map<String, dynamic>.from(row as Map))
+                .map((row) => row['checkpoint_id']?.toString())
+                .whereType<String>()
+                .toSet()
+          : <String>{};
+      final checkpoints = (results[1]).map((row) {
+        final data = Map<String, dynamic>.from(row as Map);
+        data['checked'] = selectedCheckpointIds.contains(
+          data['checkpoint_id']?.toString(),
+        );
+        return data;
+      }).toList();
+
+      if (!mounted) return;
+      setState(() {
+        _groups = groups;
+        _checkpoints = checkpoints;
+        _syncMembers(keepCoordinator: true);
+        _isLoading = false;
       });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showSnack('Gagal memuat data ronda: $error', true);
     }
+  }
+
+  void _syncMembers({bool keepCoordinator = false}) {
+    final group = _groups.firstWhere(
+      (item) => item['group_id']?.toString() == _selectedGroupId,
+      orElse: () => {},
+    );
+    final members = group['members'];
+    _members = members is List
+        ? members.map((row) => Map<String, dynamic>.from(row as Map)).toList()
+        : [];
+    if (!keepCoordinator ||
+        !_members.any(
+          (item) => item['user_id']?.toString() == _selectedCoordinatorId,
+        )) {
+      _selectedCoordinatorId = _members.isNotEmpty
+          ? _members.first['user_id']?.toString()
+          : null;
+    }
+  }
+
+  DateTime _combine(
+    DateTime date,
+    TimeOfDay time, {
+    bool nextDayIfEarlier = false,
+  }) {
+    var result = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      time.hour,
+      time.minute,
+    );
+    final start = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      _startTime.hour,
+      _startTime.minute,
+    );
+    if (nextDayIfEarlier && result.isBefore(start)) {
+      result = result.add(const Duration(days: 1));
+    }
+    return result;
+  }
+
+  Future<void> _submit() async {
+    final scheduleId = widget.schedule['schedule_id']?.toString();
+    if (scheduleId == null ||
+        _selectedGroupId == null ||
+        _selectedCoordinatorId == null ||
+        _isSubmitting) {
+      _showSnack('Regu dan koordinator harus dipilih.', true);
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+    try {
+      final checkpointIds = _checkpoints
+          .where((checkpoint) => checkpoint['checked'] == true)
+          .map((checkpoint) => checkpoint['checkpoint_id']?.toString())
+          .whereType<String>()
+          .toList();
+      await _apiService.patch('${ApiEndpoints.rondaSchedules}/$scheduleId', {
+        'group_id': _selectedGroupId,
+        'coordinator_id': _selectedCoordinatorId,
+        'schedule_date': DateFormat('yyyy-MM-dd').format(_selectedDate),
+        'shift_start': _combine(_selectedDate, _startTime).toIso8601String(),
+        'shift_end': _combine(
+          _selectedDate,
+          _endTime,
+          nextDayIfEarlier: true,
+        ).toIso8601String(),
+        'status': _selectedStatus,
+        'checkpoint_ids': checkpointIds,
+      });
+      if (mounted) Navigator.pop(context, true);
+    } catch (error) {
+      if (mounted) _showSnack('Gagal menyimpan perubahan: $error', true);
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  void _showSnack(String message, bool isError) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: GoogleFonts.plusJakartaSans()),
+        backgroundColor: isError ? AppColors.danger : AppColors.success,
+      ),
+    );
   }
 
   @override
@@ -86,279 +205,285 @@ class _EditRondaScreenState extends State<EditRondaScreen> {
           ),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildLabel('PILIH TANGGAL'),
+                  const SizedBox(height: 12),
+                  _buildDatePicker(),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildTimePicker(
+                          'JAM MULAI',
+                          _startTime,
+                          (value) => setState(() => _startTime = value),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildTimePicker(
+                          'JAM SELESAI',
+                          _endTime,
+                          (value) => setState(() => _endTime = value),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  _buildLabel('PILIH REGU KELOMPOK'),
+                  const SizedBox(height: 12),
+                  _buildGroupDropdown(),
+                  const SizedBox(height: 24),
+                  _buildLabel('DAFTAR PESERTA'),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _members.map(_buildMemberChip).toList(),
+                  ),
+                  const SizedBox(height: 24),
+                  _buildLabel('PILIH KOORDINATOR REGU'),
+                  const SizedBox(height: 12),
+                  _buildCoordinatorDropdown(),
+                  const SizedBox(height: 24),
+                  _buildLabel('STATUS JADWAL'),
+                  const SizedBox(height: 12),
+                  _buildStatusDropdown(),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildLabel('PILIH CHECKPOINT / WILAYAH'),
+                      TextButton(
+                        onPressed: () async {
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const EditCheckpointsScreen(),
+                            ),
+                          );
+                          _loadOptions();
+                        },
+                        child: Text(
+                          'Edit Checkpoint',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF004E92),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  ..._checkpoints.map(_buildCheckpointTile),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 55,
+                    child: ElevatedButton.icon(
+                      onPressed: _isSubmitting ? null : _submit,
+                      icon: const Icon(
+                        Icons.check_circle_outline_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      label: Text(
+                        _isSubmitting ? 'Menyimpan...' : 'Simpan Perubahan',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF004E92),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+              ),
+            ),
+    );
+  }
+
+  Widget _buildDatePicker() {
+    return InkWell(
+      onTap: () async {
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: _selectedDate,
+          firstDate: DateTime.now().subtract(const Duration(days: 365)),
+          lastDate: DateTime.now().add(const Duration(days: 365)),
+        );
+        if (picked != null) setState(() => _selectedDate = picked);
+      },
+      child: _fieldContainer(
+        Row(
           children: [
-            // Select Date
-            _buildLabel('PILIH TANGGAL'),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0F5F9),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Text(
-                    _dateStr,
-                    style: GoogleFonts.plusJakartaSans(fontSize: 14, color: const Color(0xFF0D1B2A)),
-                  ),
-                  const Spacer(),
-                  const Icon(Icons.calendar_today_rounded, size: 20, color: Color(0xFF004E92)),
-                ],
+            Text(
+              DateFormat('EEEE, dd MMM yyyy').format(_selectedDate),
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14,
+                color: const Color(0xFF0D1B2A),
               ),
             ),
-            const SizedBox(height: 24),
-            
-            // Select Time
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildLabel('JAM MULAI'),
-                      const SizedBox(height: 12),
-                      InkWell(
-                        onTap: () async {
-                          final time = await showTimePicker(
-                            context: context,
-                            initialTime: _startTime,
-                          );
-                          if (time != null) {
-                            setState(() => _startTime = time);
-                          }
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF0F5F9),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              Text(
-                                _startTime.format(context),
-                                style: GoogleFonts.plusJakartaSans(fontSize: 14, color: const Color(0xFF0D1B2A)),
-                              ),
-                              const Spacer(),
-                              const Icon(Icons.access_time_rounded, size: 20, color: Color(0xFF004E92)),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildLabel('JAM SELESAI'),
-                      const SizedBox(height: 12),
-                      InkWell(
-                        onTap: () async {
-                          final time = await showTimePicker(
-                            context: context,
-                            initialTime: _endTime,
-                          );
-                          if (time != null) {
-                            setState(() => _endTime = time);
-                          }
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF0F5F9),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              Text(
-                                _endTime.format(context),
-                                style: GoogleFonts.plusJakartaSans(fontSize: 14, color: const Color(0xFF0D1B2A)),
-                              ),
-                              const Spacer(),
-                              const Icon(Icons.access_time_rounded, size: 20, color: Color(0xFF004E92)),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            const Spacer(),
+            const Icon(
+              Icons.calendar_today_rounded,
+              size: 20,
+              color: Color(0xFF004E92),
             ),
-            const SizedBox(height: 24),
-            
-            // Select Group
-            _buildLabel('PILIH REGU KELOMPOK'),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE5EEF5)),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _selectedGroup,
-                  isExpanded: true,
-                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF004E92)),
-                  items: _groups.map((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value, style: GoogleFonts.plusJakartaSans(fontSize: 14, color: const Color(0xFF0D1B2A))),
-                    );
-                  }).toList(),
-                  onChanged: (val) => setState(() => _selectedGroup = val!),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            
-            // Member List
-            _buildLabel('DAFTAR PESERTA: $_selectedGroup'),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _members.map((member) => _buildMemberChip(member)).toList(),
-            ),
-            const SizedBox(height: 16),
-            InkWell(
-              onTap: () {},
-              child: Row(
-                children: [
-                  const Icon(Icons.person_add_alt_1_rounded, size: 20, color: Color(0xFF004E92)),
-                  const SizedBox(width: 8),
-                  Text(
-                    '+ Tambah Orang Lain',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF004E92),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            
-            // Coordinator Selection
-            _buildLabel('PILIH KOORDINATOR REGU'),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE6F2FD),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF004E92).withOpacity(0.5)),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _selectedCoordinator,
-                  hint: Text('Pilih Koordinator', style: GoogleFonts.plusJakartaSans(fontSize: 14)),
-                  isExpanded: true,
-                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF004E92)),
-                  items: _members.map((member) {
-                    return DropdownMenuItem<String>(
-                      value: member['name'],
-                      child: Text(member['name']!, style: GoogleFonts.plusJakartaSans(fontSize: 14)),
-                    );
-                  }).toList(),
-                  onChanged: (val) => setState(() => _selectedCoordinator = val!),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            
-            // Checkpoints
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildLabel('PILIH CHECKPOINT / WILAYAH'),
-                TextButton(
-                  onPressed: () {
-                    // Navigate to the beautiful drag & drop EditCheckpointsScreen!
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const EditCheckpointsScreen()),
-                    );
-                  },
-                  child: Text(
-                    'Edit Checkpoint',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12, 
-                      fontWeight: FontWeight.bold, 
-                      color: const Color(0xFF004E92),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            ..._checkpoints.map((cp) => _buildCheckpointTile(cp)).toList(),
-            const SizedBox(height: 24),
-            
-            // Special Notes
-            _buildLabel('CATATAN KHUSUS (OPSIONAL)'),
-            const SizedBox(height: 12),
-            Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0F5F9),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: TextField(
-                maxLines: 4,
-                decoration: InputDecoration(
-                  hintText: 'Fokus patroli area belakang...',
-                  hintStyle: GoogleFonts.plusJakartaSans(fontSize: 14, color: Colors.grey[500]),
-                  contentPadding: const EdgeInsets.all(16),
-                  border: InputBorder.none,
-                ),
-              ),
-            ),
-            const SizedBox(height: 32),
-            
-            // Submit Button
-            SizedBox(
-              width: double.infinity,
-              height: 55,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.pop(context, {
-                    'groupId': _selectedGroup,
-                    'coordinatorId': _selectedCoordinator,
-                    'dateStr': _dateStr,
-                  });
-                },
-                icon: const Icon(Icons.check_circle_outline_rounded, color: Colors.white, size: 20),
-                label: Text(
-                  'Simpan Perubahan',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF004E92),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  elevation: 4,
-                  shadowColor: const Color(0xFF004E92).withOpacity(0.4),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildTimePicker(
+    String label,
+    TimeOfDay value,
+    ValueChanged<TimeOfDay> onChanged,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildLabel(label),
+        const SizedBox(height: 12),
+        InkWell(
+          onTap: () async {
+            final picked = await showTimePicker(
+              context: context,
+              initialTime: value,
+            );
+            if (picked != null) onChanged(picked);
+          },
+          child: _fieldContainer(
+            Row(
+              children: [
+                Text(
+                  value.format(context),
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    color: const Color(0xFF0D1B2A),
+                  ),
+                ),
+                const Spacer(),
+                const Icon(
+                  Icons.access_time_rounded,
+                  size: 20,
+                  color: Color(0xFF004E92),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGroupDropdown() {
+    return _fieldContainer(
+      DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedGroupId,
+          isExpanded: true,
+          icon: const Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: Color(0xFF004E92),
+          ),
+          items: _groups.map((group) {
+            return DropdownMenuItem<String>(
+              value: group['group_id']?.toString(),
+              child: Text(
+                group['name']?.toString() ?? '-',
+                style: GoogleFonts.plusJakartaSans(fontSize: 14),
+              ),
+            );
+          }).toList(),
+          onChanged: (val) => setState(() {
+            _selectedGroupId = val;
+            _syncMembers();
+          }),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCoordinatorDropdown() {
+    return _fieldContainer(
+      DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedCoordinatorId,
+          hint: Text(
+            'Pilih Koordinator',
+            style: GoogleFonts.plusJakartaSans(fontSize: 14),
+          ),
+          isExpanded: true,
+          icon: const Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: Color(0xFF004E92),
+          ),
+          items: _members.map((member) {
+            return DropdownMenuItem<String>(
+              value: member['user_id']?.toString(),
+              child: Text(
+                member['full_name']?.toString() ?? '-',
+                style: GoogleFonts.plusJakartaSans(fontSize: 14),
+              ),
+            );
+          }).toList(),
+          onChanged: (val) => setState(() => _selectedCoordinatorId = val),
+        ),
+      ),
+      backgroundColor: const Color(0xFFE6F2FD),
+    );
+  }
+
+  Widget _buildStatusDropdown() {
+    const statuses = ['SCHEDULED', 'ONGOING', 'COMPLETED', 'MISSED'];
+    return _fieldContainer(
+      DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedStatus,
+          isExpanded: true,
+          items: statuses
+              .map(
+                (status) => DropdownMenuItem<String>(
+                  value: status,
+                  child: Text(
+                    status,
+                    style: GoogleFonts.plusJakartaSans(fontSize: 14),
+                  ),
+                ),
+              )
+              .toList(),
+          onChanged: (val) => setState(() => _selectedStatus = val!),
+        ),
+      ),
+    );
+  }
+
+  Widget _fieldContainer(Widget child, {Color backgroundColor = Colors.white}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5EEF5)),
+      ),
+      child: child,
     );
   }
 
@@ -374,7 +499,7 @@ class _EditRondaScreenState extends State<EditRondaScreen> {
     );
   }
 
-  Widget _buildMemberChip(Map<String, String> member) {
+  Widget _buildMemberChip(Map<String, dynamic> member) {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
@@ -384,15 +509,22 @@ class _EditRondaScreenState extends State<EditRondaScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          CircleAvatar(radius: 14, backgroundImage: NetworkImage(member['avatar']!)),
+          CircleAvatar(
+            radius: 14,
+            backgroundImage: NetworkImage(
+              'https://ui-avatars.com/api/?name=${Uri.encodeComponent(member['full_name']?.toString() ?? 'Warga')}&background=00468B&color=fff',
+            ),
+          ),
           const SizedBox(width: 8),
           Text(
-            member['name']!,
-            style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF0D1B2A)),
+            member['full_name']?.toString() ?? '-',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF0D1B2A),
+            ),
           ),
-          const SizedBox(width: 4),
-          Icon(Icons.close_rounded, size: 14, color: Colors.grey[600]),
-          const SizedBox(width: 4),
+          const SizedBox(width: 8),
         ],
       ),
     );
@@ -406,12 +538,24 @@ class _EditRondaScreenState extends State<EditRondaScreen> {
         borderRadius: BorderRadius.circular(12),
       ),
       child: CheckboxListTile(
-        value: cp['checked'],
+        value: cp['checked'] == true,
         onChanged: (val) => setState(() => cp['checked'] = val),
-        title: Text(cp['name'], style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600)),
+        title: Text(
+          cp['name']?.toString() ?? '-',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        subtitle: Text(
+          cp['qr_code_data']?.toString() ?? '',
+          style: GoogleFonts.plusJakartaSans(fontSize: 11),
+        ),
         controlAffinity: ListTileControlAffinity.leading,
         activeColor: const Color(0xFF004E92),
-        checkboxShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+        checkboxShape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(4),
+        ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 8),
       ),
     );

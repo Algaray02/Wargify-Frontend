@@ -1,17 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:wargify/core/constants/colors.dart';
+import 'package:wargify/core/constants/api_endpoints.dart';
 import 'package:wargify/widgets/common/sos_card.dart';
 import 'package:wargify/widgets/common/lapor_fasilitas_card.dart';
 import 'package:wargify/widgets/warga/warga_header.dart';
 import 'package:wargify/widgets/warga/warga_bottom_nav.dart';
 import 'package:wargify/screens/warga/iuran/iuran_screen.dart';
 import 'package:wargify/screens/warga/gallery/gallery_screen.dart';
+import 'package:wargify/screens/warga/laporan/laporan_fasilitas_screen.dart';
 import 'package:wargify/screens/warga/ronda/ronda_screen.dart';
 import 'package:wargify/screens/common/qr/qr_scanner_screen.dart';
 import 'package:wargify/services/auth/auth_service.dart';
 import 'package:wargify/models/user_model.dart';
 import 'package:wargify/screens/common/notifikasi/notifikasi_log_screen.dart';
+import 'package:wargify/screens/rt/sos/sos_trigger_screen.dart';
+import 'package:wargify/services/api_service.dart';
+
 class WargaHomeScreen extends StatefulWidget {
   const WargaHomeScreen({super.key});
 
@@ -22,13 +27,14 @@ class WargaHomeScreen extends StatefulWidget {
 class _WargaHomeScreenState extends State<WargaHomeScreen> {
   int _currentNavIndex = 0;
   final _authService = AuthService();
+  final _apiService = ApiService();
   UserModel? _currentUser;
-  bool _isLoadingProfile = true;
 
   @override
   void initState() {
     super.initState();
     _fetchProfile();
+    _fetchDashboardData();
   }
 
   Future<void> _fetchProfile() async {
@@ -37,7 +43,6 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
       if (mounted) {
         setState(() {
           _currentUser = user;
-          _isLoadingProfile = false;
         });
       }
     } catch (e) {
@@ -46,7 +51,6 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
       if (mounted) {
         setState(() {
           _currentUser = cachedUser;
-          _isLoadingProfile = false;
         });
       }
     }
@@ -55,11 +59,11 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
   final String _rtRw = 'RT 004 / RW 012';
   final bool _isVerified = true;
 
-  final String _iuranBulan = 'September 2023';
-  final String _statusIuran = 'LUNAS';
-  final String _totalTagihan = 'Rp 0';
+  String _iuranBulan = 'Memuat...';
+  String _statusIuran = '-';
+  String _totalTagihan = 'Rp 0';
 
-  final List<Map<String, String>> _kegiatanTerbaru = [
+  List<Map<String, String>> _kegiatanTerbaru = [
     {
       'kategori': 'LINGKUNGAN',
       'judul': 'Minggu Bersih: Kerja Bakti Massal RT 04',
@@ -121,6 +125,70 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
     if (hour < 15) return 'Selamat Siang,';
     if (hour < 18) return 'Selamat Sore,';
     return 'Selamat Malam,';
+  }
+
+  Future<void> _fetchDashboardData() async {
+    try {
+      final results = await Future.wait([
+        _apiService.getList(ApiEndpoints.myIuran),
+        _apiService.getList(ApiEndpoints.activities),
+      ]);
+      final iuranRows = results[0].whereType<Map>().toList();
+      final activityRows = results[1].whereType<Map>().toList();
+
+      if (!mounted) return;
+      setState(() {
+        if (iuranRows.isNotEmpty) {
+          final latest = Map<String, dynamic>.from(iuranRows.first);
+          final period = latest['period'] is Map
+              ? Map<String, dynamic>.from(latest['period'] as Map)
+              : <String, dynamic>{};
+          _iuranBulan = period['period_name']?.toString() ?? 'Iuran Terbaru';
+          _statusIuran =
+              (double.tryParse('${latest['amount_paid'] ?? 0}') ?? 0) > 0
+              ? 'LUNAS'
+              : 'BELUM LUNAS';
+          _totalTagihan = _formatCurrency(latest['amount_paid']);
+        } else {
+          _iuranBulan = 'Belum ada riwayat';
+          _statusIuran = 'BELUM LUNAS';
+          _totalTagihan = 'Rp 0';
+        }
+
+        if (activityRows.isNotEmpty) {
+          _kegiatanTerbaru = activityRows.take(5).map((row) {
+            final item = Map<String, dynamic>.from(row);
+            return {
+              'kategori': _activityTypeLabel(item['type']?.toString()),
+              'judul': item['title']?.toString() ?? 'Kegiatan',
+              'color': item['type'] == 'RAPAT' ? 'blue' : 'green',
+            };
+          }).toList();
+        }
+      });
+    } catch (_) {}
+  }
+
+  String _activityTypeLabel(String? type) {
+    switch (type) {
+      case 'RAPAT':
+        return 'RAPAT';
+      case 'KEGIATAN_UMUM':
+        return 'LINGKUNGAN';
+      default:
+        return 'KEGIATAN';
+    }
+  }
+
+  String _formatCurrency(dynamic value) {
+    final amount = value is num
+        ? value.round()
+        : (double.tryParse(value?.toString() ?? '') ?? 0).round();
+    final number = amount.toString().replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (match) => '.',
+    );
+    return 'Rp $number';
   }
 
   Color _getCategoryColor(String color) {
@@ -417,11 +485,29 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
             const SizedBox(height: 16),
 
             // --- SOS Card ---
-            SosCard(onTap: () {}),
+            SosCard(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const SosTriggerScreen(),
+                  ),
+                );
+              },
+            ),
             const SizedBox(height: 12),
 
             // --- Lapor Fasilitas ---
-            LaporFasilitasCard(onTap: () {}),
+            LaporFasilitasCard(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const LaporanFasilitasScreen(),
+                  ),
+                );
+              },
+            ),
             const SizedBox(height: 24),
 
             // --- Kegiatan Terbaru ---
@@ -457,7 +543,7 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: _kegiatanTerbaru.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                separatorBuilder: (context, index) => const SizedBox(width: 12),
                 itemBuilder: (context, index) {
                   final item = _kegiatanTerbaru[index];
                   return _KegiatanCard(

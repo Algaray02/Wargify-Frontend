@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:wargify/core/constants/api_endpoints.dart';
 import 'package:wargify/core/constants/colors.dart';
 import 'package:wargify/services/auth/auth_service.dart';
+import 'package:wargify/services/api_service.dart';
 import 'package:wargify/models/user_model.dart';
 
 class QrScannerScreen extends StatefulWidget {
@@ -17,10 +20,12 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   final MobileScannerController controller = MobileScannerController();
   bool isFlashOn = false;
   bool isModeScan = true; // true = scan, false = tampil QR
+  bool _isProcessingScan = false;
 
   final _authService = AuthService();
+  final _apiService = ApiService();
   UserModel? _currentUser;
-  bool _isLoadingUser = true;
+  Map<String, dynamic>? _profileData;
 
   @override
   void initState() {
@@ -30,11 +35,12 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
 
   Future<void> _fetchUser() async {
     try {
-      final user = await _authService.getProfile();
+      final profile = await _apiService.getMap(ApiEndpoints.me);
+      final user = UserModel.fromJson(profile);
       if (mounted) {
         setState(() {
           _currentUser = user;
-          _isLoadingUser = false;
+          _profileData = profile;
         });
       }
     } catch (e) {
@@ -42,7 +48,6 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       if (mounted) {
         setState(() {
           _currentUser = cachedUser;
-          _isLoadingUser = false;
         });
       }
     }
@@ -57,7 +62,8 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black, // Match dark premium background of RT/Bendahara
+      backgroundColor:
+          Colors.black, // Match dark premium background of RT/Bendahara
       body: Stack(
         children: [
           // 1. Camera View (Only in Scan Mode)
@@ -69,7 +75,11 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.error_outline, color: Colors.white, size: 60),
+                      const Icon(
+                        Icons.error_outline,
+                        color: Colors.white,
+                        size: 60,
+                      ),
                       const SizedBox(height: 16),
                       Text(
                         'Kamera tidak dapat diakses.\nPastikan izin kamera sudah diberikan.',
@@ -81,9 +91,9 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                 );
               },
               onDetect: (capture) {
-                final List<Barcode> barcodes = capture.barcodes;
-                for (final barcode in barcodes) {
-                  _handleScannedCode(barcode.rawValue);
+                final barcodes = capture.barcodes;
+                if (barcodes.isNotEmpty) {
+                  _handleScannedCode(barcodes.first.rawValue);
                 }
               },
             ),
@@ -100,7 +110,10 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
               height: 300,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(color: Colors.white.withOpacity(0.05), width: 40),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.05),
+                  width: 40,
+                ),
               ),
             ),
           ),
@@ -111,7 +124,10 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
               children: [
                 // Header (Sama persis RT)
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   child: Row(
                     children: [
                       Container(
@@ -120,7 +136,11 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                           shape: BoxShape.circle,
                         ),
                         child: IconButton(
-                          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: Colors.white),
+                          icon: const Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            size: 20,
+                            color: Colors.white,
+                          ),
                           onPressed: () => Navigator.pop(context),
                         ),
                       ),
@@ -141,7 +161,10 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                   const Spacer(flex: 1),
                   // Attendance Mode Badge (Sama persis RT)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFC1F3AF).withOpacity(0.9),
                       borderRadius: BorderRadius.circular(20),
@@ -149,10 +172,14 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.check_circle_outline_rounded, size: 18, color: Color(0xFF2A6B2C)),
+                        const Icon(
+                          Icons.check_circle_outline_rounded,
+                          size: 18,
+                          color: Color(0xFF2A6B2C),
+                        ),
                         const SizedBox(width: 8),
                         Text(
-                          'ATTENDANCE MODE',
+                          'SCAN PRESENSI / IURAN',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
@@ -164,7 +191,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                   ),
                   const SizedBox(height: 24),
                   Text(
-                    'Scan QR Presensi',
+                    'Scan QR',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 28,
                       fontWeight: FontWeight.w800,
@@ -175,7 +202,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 40),
                     child: Text(
-                      'Scan kode QR Meeting untuk melakukan presensi secara cepat',
+                      'Scan QR presensi kegiatan atau QR family untuk mencatat iuran bulanan',
                       textAlign: TextAlign.center,
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 14,
@@ -192,7 +219,10 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                       width: 280,
                       height: 280,
                       decoration: BoxDecoration(
-                        border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.1),
+                          width: 1,
+                        ),
                         borderRadius: BorderRadius.circular(40),
                       ),
                       child: Stack(
@@ -211,7 +241,9 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 _buildControlButton(
-                                  isFlashOn ? Icons.flashlight_off_rounded : Icons.flashlight_on_rounded,
+                                  isFlashOn
+                                      ? Icons.flashlight_off_rounded
+                                      : Icons.flashlight_on_rounded,
                                   onTap: () {
                                     setState(() => isFlashOn = !isFlashOn);
                                     controller.toggleTorch();
@@ -232,13 +264,19 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
 
                 // Toggle Mode Selector (Glassmorphic & Premium)
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 30),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 40,
+                    vertical: 30,
+                  ),
                   child: Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.08),
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.white.withOpacity(0.12), width: 1),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.12),
+                        width: 1,
+                      ),
                     ),
                     child: Row(
                       children: [
@@ -248,7 +286,9 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                             child: Container(
                               height: 48,
                               decoration: BoxDecoration(
-                                color: isModeScan ? AppColors.primary : Colors.transparent,
+                                color: isModeScan
+                                    ? AppColors.primary
+                                    : Colors.transparent,
                                 borderRadius: BorderRadius.circular(16),
                               ),
                               child: Center(
@@ -271,7 +311,9 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                             child: Container(
                               height: 48,
                               decoration: BoxDecoration(
-                                color: !isModeScan ? AppColors.primary : Colors.transparent,
+                                color: !isModeScan
+                                    ? AppColors.primary
+                                    : Colors.transparent,
                                 borderRadius: BorderRadius.circular(16),
                               ),
                               child: Center(
@@ -302,7 +344,19 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   // View for Tampil Mode QR Code (Glassmorphic Profile Card)
   Widget _buildTampilQrScreen() {
     final displayName = _currentUser?.fullName ?? 'Memuat...';
-    final displayId = _currentUser?.userId ?? 'WRG-RT04-001';
+    final family = _asMap(_profileData?['family']);
+    final household = _asMap(family?['household']);
+    final familyQr = family?['qr_code_data']?.toString();
+    final displayCode = (familyQr != null && familyQr.isNotEmpty)
+        ? familyQr
+        : 'QR-FAMILY-BELUM-TERSEDIA';
+    final blockNumber = household?['block_number']?.toString();
+    final houseNumber = household?['house_number']?.toString();
+    final householdLabel = [
+      if (blockNumber != null && blockNumber.isNotEmpty) 'Blok $blockNumber',
+      if (houseNumber != null && houseNumber.isNotEmpty) 'No. $houseNumber',
+    ].join(' / ');
+    final hasFamilyQr = familyQr != null && familyQr.isNotEmpty;
 
     return SafeArea(
       child: Center(
@@ -313,7 +367,10 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
             children: [
               const SizedBox(height: 40),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.primary.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(20),
@@ -325,7 +382,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                     const Icon(Icons.qr_code_2, size: 18, color: Colors.blue),
                     const SizedBox(width: 8),
                     Text(
-                      'ID WARGA',
+                      'QR FAMILY',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
@@ -337,7 +394,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
               ),
               const SizedBox(height: 16),
               Text(
-                'QR Code Saya',
+                'QR Family',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 26,
                   fontWeight: FontWeight.w800,
@@ -346,7 +403,9 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                'Tunjukkan QR ini untuk verifikasi identitas\natau konfirmasi pembayaran iuran',
+                hasFamilyQr
+                    ? 'Tunjukkan QR ini ke pengurus RT untuk konfirmasi iuran bulanan'
+                    : 'Family belum terhubung, QR family belum tersedia',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 13,
@@ -377,7 +436,9 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'RT 004 / RW 012',
+                      householdLabel.isNotEmpty
+                          ? householdLabel
+                          : 'Data family belum lengkap',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 13,
                         color: Colors.white60,
@@ -393,7 +454,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                         borderRadius: BorderRadius.circular(24),
                       ),
                       child: QrImageView(
-                        data: displayId,
+                        data: displayCode,
                         version: QrVersions.auto,
                         size: 180,
                         eyeStyle: const QrEyeStyle(
@@ -410,13 +471,16 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
 
                     // Dynamic ID Badge
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.primary.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
-                        displayId,
+                        displayCode,
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -436,11 +500,16 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                           color: Colors.white38,
                         ),
                         const SizedBox(width: 6),
-                        Text(
-                          'QR berlaku untuk sesi ini saja',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11,
-                            color: Colors.white38,
+                        Expanded(
+                          child: Text(
+                            hasFamilyQr
+                                ? 'QR ini digunakan untuk verifikasi family dan iuran'
+                                : 'Lengkapi data family agar QR bisa digunakan',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11,
+                              color: Colors.white38,
+                            ),
                           ),
                         ),
                       ],
@@ -456,26 +525,136 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     );
   }
 
-  void _handleScannedCode(String? code) {
-    if (code == null) return;
-    controller.stop();
-    showDialog(
+  Future<void> _handleScannedCode(String? code) async {
+    final scannedCode = code?.trim();
+    if (scannedCode == null || scannedCode.isEmpty || _isProcessingScan) return;
+
+    setState(() => _isProcessingScan = true);
+    await controller.stop();
+
+    try {
+      final result = await _apiService.post(ApiEndpoints.qrScan, {
+        'code': scannedCode,
+      });
+
+      if (!mounted) return;
+      await _showScanResultDialog(result);
+    } on DioException catch (e) {
+      final message = e.response?.data is Map
+          ? (e.response?.data['message']?.toString() ?? 'QR gagal diproses.')
+          : 'QR gagal diproses.';
+
+      if (!mounted) return;
+      await _showScanErrorDialog(message);
+    } catch (_) {
+      if (!mounted) return;
+      await _showScanErrorDialog('Terjadi kesalahan saat memproses QR.');
+    } finally {
+      if (mounted) {
+        setState(() => _isProcessingScan = false);
+      }
+    }
+  }
+
+  Future<void> _showScanResultDialog(Map<String, dynamic> result) {
+    final type = result['type']?.toString();
+    final message = result['message']?.toString() ?? 'QR berhasil diproses.';
+    final isIuran = type == 'iuran';
+    final title = isIuran ? 'Iuran Tercatat' : 'Presensi Berhasil';
+    final icon = isIuran ? Icons.payments_rounded : Icons.check_circle;
+    final details = isIuran
+        ? [
+            _detailLine('Periode', result['period_name']),
+            _detailLine('Pembayar', result['payer_name']),
+            _detailLine('Nominal', _formatRupiah(result['amount_paid'])),
+          ]
+        : [
+            _detailLine('Kegiatan', result['activity_title']),
+            _detailLine('Peserta', result['attendee_name']),
+          ];
+
+    return showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            const Icon(Icons.check_circle, color: AppColors.success),
+            Icon(icon, color: AppColors.success),
             const SizedBox(width: 8),
-            Text(
-              'QR Terdeteksi',
+            Expanded(
+              child: Text(
+                title,
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(message, style: GoogleFonts.plusJakartaSans(fontSize: 13)),
+            const SizedBox(height: 14),
+            ...details,
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              controller.start();
+            },
+            child: Text(
+              'Scan Lagi',
+              style: GoogleFonts.plusJakartaSans(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: AppColors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              elevation: 0,
+            ),
+            child: Text(
+              'Selesai',
               style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showScanErrorDialog(String message) {
+    return showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.error_outline_rounded, color: AppColors.danger),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'QR Tidak Valid',
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold),
+              ),
             ),
           ],
         ),
         content: Text(
-          'Data: $code',
+          message,
           style: GoogleFonts.plusJakartaSans(fontSize: 13),
         ),
         actions: [
@@ -493,8 +672,8 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
           ),
           ElevatedButton(
             onPressed: () {
-              Navigator.pop(context); // Pop dialog
-              Navigator.pop(context); // Pop back to Home Screen safely
+              Navigator.pop(context);
+              Navigator.pop(context);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
@@ -505,7 +684,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
               elevation: 0,
             ),
             child: Text(
-              'OK',
+              'Selesai',
               style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold),
             ),
           ),
@@ -514,7 +693,67 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     );
   }
 
-  Widget _buildCorner({double? top, double? bottom, double? left, double? right, required double angle}) {
+  Widget _detailLine(String label, Object? value) {
+    final text = value?.toString();
+    if (text == null || text.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 72,
+            child: Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              text,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatRupiah(Object? value) {
+    final amount = value is num
+        ? value
+        : num.tryParse(value?.toString() ?? '') ?? 0;
+    final raw = amount.round().toString();
+    final buffer = StringBuffer();
+    for (var i = 0; i < raw.length; i++) {
+      final reverseIndex = raw.length - i;
+      buffer.write(raw[i]);
+      if (reverseIndex > 1 && reverseIndex % 3 == 1) {
+        buffer.write('.');
+      }
+    }
+    return 'Rp $buffer';
+  }
+
+  Map<String, dynamic>? _asMap(dynamic value) {
+    return value is Map<String, dynamic> ? value : null;
+  }
+
+  Widget _buildCorner({
+    double? top,
+    double? bottom,
+    double? left,
+    double? right,
+    required double angle,
+  }) {
     return Positioned(
       top: top,
       bottom: bottom,
@@ -537,7 +776,11 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     );
   }
 
-  Widget _buildControlButton(IconData icon, {VoidCallback? onTap, bool isActive = false}) {
+  Widget _buildControlButton(
+    IconData icon, {
+    VoidCallback? onTap,
+    bool isActive = false,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -548,9 +791,9 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
           borderRadius: BorderRadius.circular(16),
         ),
         child: Icon(
-          icon, 
-          color: isActive ? Colors.white : const Color(0xFF0D1B2A), 
-          size: 24
+          icon,
+          color: isActive ? Colors.white : const Color(0xFF0D1B2A),
+          size: 24,
         ),
       ),
     );

@@ -8,6 +8,7 @@ import 'package:wargify/widgets/warga/iuran/iuran_item_card.dart';
 import 'package:wargify/screens/warga/home/home_screen.dart';
 import 'package:wargify/screens/warga/gallery/gallery_screen.dart';
 import 'package:wargify/screens/warga/ronda/ronda_screen.dart';
+import 'package:wargify/screens/common/notifikasi/notifikasi_log_screen.dart';
 import 'package:wargify/screens/common/qr/qr_scanner_screen.dart';
 
 class IuranScreen extends StatefulWidget {
@@ -58,7 +59,14 @@ class _IuranScreenState extends State<IuranScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: WargaHeader(onNotificationTap: () {}),
+      appBar: WargaHeader(
+        onNotificationTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const NotifikasiLogScreen()),
+          );
+        },
+      ),
       bottomNavigationBar: WargaBottomNav(
         currentIndex: _currentNavIndex,
         onTap: (index) {
@@ -191,7 +199,7 @@ class _IuranScreenState extends State<IuranScreen> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: _daftarIuran.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              separatorBuilder: (context, index) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
                 final item = _daftarIuran[index];
                 return IuranItemCard(

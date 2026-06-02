@@ -1,14 +1,299 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import 'package:wargify/core/constants/api_endpoints.dart';
 import 'package:wargify/core/constants/colors.dart';
+import 'package:wargify/services/api_service.dart';
 import 'manage_ronda_screen.dart';
 import 'live_ronda_screen.dart';
 
-class RondaScreen extends StatelessWidget {
+class RondaScreen extends StatefulWidget {
   const RondaScreen({super.key});
 
   @override
+  State<RondaScreen> createState() => _RondaScreenState();
+}
+
+class _RondaScreenState extends State<RondaScreen> {
+  final ApiService _apiService = ApiService();
+  List<Map<String, dynamic>> _schedules = [];
+  List<Map<String, dynamic>> _facilityReports = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchRonda();
+  }
+
+  Future<void> _fetchRonda() async {
+    try {
+      final results = await Future.wait([
+        _apiService.getList(ApiEndpoints.rondaSchedules),
+        _apiService.getList(ApiEndpoints.facilityReports),
+      ]);
+      final rows = results[0];
+      final reports = results[1];
+      if (!mounted) return;
+      setState(() {
+        _schedules = rows
+            .map((row) => Map<String, dynamic>.from(row as Map))
+            .toList();
+        _facilityReports = reports
+            .map((row) => Map<String, dynamic>.from(row as Map))
+            .toList();
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Map<String, dynamic>? get _activeSchedule {
+    final ongoing = _schedules
+        .where((schedule) => schedule['status'] == 'ONGOING')
+        .toList();
+    if (ongoing.isNotEmpty) return ongoing.first;
+    return _schedules.isNotEmpty ? _schedules.first : null;
+  }
+
+  int get _activeMembers {
+    final schedule = _activeSchedule;
+    if (schedule == null) return 0;
+    final group = Map<String, dynamic>.from((schedule['group'] ?? {}) as Map);
+    final members = group['members'];
+    return members is List ? members.length : 0;
+  }
+
+  int get _totalCheckpoints {
+    final schedule = _activeSchedule;
+    final checkpoints = schedule?['checkpoints'];
+    return checkpoints is List ? checkpoints.length : 0;
+  }
+
+  int get _scannedCheckpoints {
+    final schedule = _activeSchedule;
+    final logs = schedule?['checkpoint_logs'];
+    return logs is List ? logs.length : 0;
+  }
+
+  String _formatScheduleDate(Map<String, dynamic> schedule) {
+    final date = DateTime.tryParse('${schedule['schedule_date']}');
+    return date == null ? '-' : DateFormat('EEEE, dd MMM yyyy').format(date);
+  }
+
+  String _formatShift(Map<String, dynamic> schedule) {
+    final start = DateTime.tryParse('${schedule['shift_start']}');
+    final end = DateTime.tryParse('${schedule['shift_end']}');
+    if (start == null || end == null) return '-';
+    final formatter = DateFormat('HH:mm');
+    return '${formatter.format(start)} - ${formatter.format(end)}';
+  }
+
+  List<Map<String, dynamic>> get _shiftFacilityReports {
+    final schedule = _activeSchedule;
+    if (schedule == null) return [];
+    final shiftStart = DateTime.tryParse('${schedule['shift_start']}');
+    final shiftEnd = DateTime.tryParse('${schedule['shift_end']}');
+    if (shiftStart == null || shiftEnd == null) return [];
+
+    return _facilityReports.where((report) {
+      final createdAt = DateTime.tryParse('${report['created_at']}');
+      if (createdAt == null) return false;
+      final afterStart =
+          createdAt.isAfter(shiftStart) ||
+          createdAt.isAtSameMomentAs(shiftStart);
+      final beforeEnd =
+          createdAt.isBefore(shiftEnd) || createdAt.isAtSameMomentAs(shiftEnd);
+      return afterStart && beforeEnd;
+    }).toList()..sort(
+      (a, b) => '${b['created_at']}'.compareTo('${a['created_at']}'),
+    );
+  }
+
+  String _relativeTime(DateTime time) {
+    final diff = DateTime.now().difference(time);
+    if (diff.inMinutes < 1) return 'Baru saja';
+    if (diff.inHours < 1) return '${diff.inMinutes} menit lalu';
+    if (diff.inDays < 1) return '${diff.inHours} jam lalu';
+    return DateFormat('dd MMM HH:mm').format(time);
+  }
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'IN_PROGRESS':
+        return 'DIPROSES';
+      case 'RESOLVED':
+        return 'SELESAI';
+      default:
+        return 'MENUNGGU';
+    }
+  }
+
+  Color _facilityStatusColor(String status) {
+    switch (status) {
+      case 'IN_PROGRESS':
+        return const Color(0xFFB45309);
+      case 'RESOLVED':
+        return AppColors.success;
+      default:
+        return AppColors.primary;
+    }
+  }
+
+  void _showSchedulePreview(Map<String, dynamic> schedule) {
+    final group = Map<String, dynamic>.from((schedule['group'] ?? {}) as Map);
+    final coordinator = Map<String, dynamic>.from(
+      (schedule['coordinator'] ?? {}) as Map,
+    );
+    final checkpoints = schedule['checkpoints'] is List
+        ? schedule['checkpoints'] as List
+        : const [];
+    final checkpointLogs = schedule['checkpoint_logs'] is List
+        ? schedule['checkpoint_logs'] as List
+        : const [];
+    final members = group['members'] is List
+        ? group['members'] as List
+        : const [];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.78,
+          ),
+          padding: const EdgeInsets.fromLTRB(24, 18, 24, 24),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(24),
+              topRight: Radius.circular(24),
+            ),
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        group['name']?.toString() ?? 'Jadwal Ronda',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF0D1B2A),
+                        ),
+                      ),
+                    ),
+                    _buildStatusBadge(schedule['status']?.toString() ?? '-'),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                _buildPreviewRow(
+                  Icons.calendar_today_rounded,
+                  'Tanggal',
+                  _formatScheduleDate(schedule),
+                ),
+                _buildPreviewRow(
+                  Icons.access_time_rounded,
+                  'Shift',
+                  _formatShift(schedule),
+                ),
+                _buildPreviewRow(
+                  Icons.person_pin_circle_rounded,
+                  'Koordinator',
+                  coordinator['full_name']?.toString() ?? '-',
+                ),
+                _buildPreviewRow(
+                  Icons.groups_rounded,
+                  'Anggota',
+                  '${members.length} orang',
+                ),
+                _buildPreviewRow(
+                  Icons.qr_code_scanner_rounded,
+                  'Checkpoint',
+                  '${checkpointLogs.length}/${checkpoints.length}',
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'Daftar Checkpoint',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF0D1B2A),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                if (checkpoints.isEmpty)
+                  Text(
+                    'Belum ada checkpoint pada jadwal ini.',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  )
+                else
+                  ...checkpoints.map((checkpoint) {
+                    final data = Map<String, dynamic>.from(checkpoint as Map);
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.place_rounded,
+                            size: 16,
+                            color: AppColors.primary,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              data['name']?.toString() ?? '-',
+                              style: GoogleFonts.plusJakartaSans(fontSize: 13),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final activeSchedule = _activeSchedule;
+    final activeGroup = activeSchedule == null
+        ? <String, dynamic>{}
+        : Map<String, dynamic>.from((activeSchedule['group'] ?? {}) as Map);
+    final coordinator = activeSchedule == null
+        ? <String, dynamic>{}
+        : Map<String, dynamic>.from(
+            (activeSchedule['coordinator'] ?? {}) as Map,
+          );
+    final checkpointLogs = activeSchedule?['checkpoint_logs'] is List
+        ? activeSchedule!['checkpoint_logs'] as List
+        : const [];
+
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
@@ -24,7 +309,7 @@ class RondaScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          
+
           // Security Status Card
           Container(
             width: double.infinity,
@@ -58,7 +343,9 @@ class RondaScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '3 Sektor Terpantau',
+                  _isLoading
+                      ? 'Memuat...'
+                      : '$_totalCheckpoints Titik Terpantau',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 28,
                     fontWeight: FontWeight.w800,
@@ -69,14 +356,14 @@ class RondaScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          
+
           // Stats Row
           Row(
             children: [
               Expanded(
                 child: _buildStatCard(
                   label: 'PETUGAS AKTIF',
-                  value: '4 Orang',
+                  value: '$_activeMembers Orang',
                   icon: Icons.groups_rounded,
                 ),
               ),
@@ -84,7 +371,7 @@ class RondaScreen extends StatelessWidget {
               Expanded(
                 child: _buildStatCard(
                   label: 'TITIK CEK',
-                  value: '3/15',
+                  value: '$_scannedCheckpoints/$_totalCheckpoints',
                   icon: Icons.check_circle_outline_rounded,
                   valueColor: Colors.green[700],
                 ),
@@ -92,7 +379,7 @@ class RondaScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 32),
-          
+
           // Recent Activity
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -122,7 +409,10 @@ class RondaScreen extends StatelessWidget {
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const LiveRondaScreen()),
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          LiveRondaScreen(schedule: activeSchedule),
+                    ),
                   );
                 },
                 child: Text(
@@ -137,14 +427,37 @@ class RondaScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          
+
           // Activity List
-          _buildActivityItem('Bpk. Ahmad Suhendar', 'Ketua koordinator', 'Scan QR Checkpoint 3', 'https://i.pravatar.cc/150?u=ahmad'),
-          _buildActivityItem('Ibu Rini Astuti', 'Petugas patroli', 'Melaporkan kondisi aman', 'https://i.pravatar.cc/150?u=rini'),
-          _buildActivityItem('Bpk. Bambang Pamungkas', 'Petugas pos', 'Menjaga portal utama', 'https://i.pravatar.cc/150?u=bambang'),
-          
+          if (_isLoading)
+            const Center(child: CircularProgressIndicator())
+          else if (checkpointLogs.isEmpty)
+            _buildIncidentCard(
+              title: 'Belum ada scan checkpoint',
+              description:
+                  'Aktivitas scan akan muncul ketika koordinator melakukan patroli.',
+              reporter: coordinator['full_name']?.toString() ?? '-',
+              time: 'Sekarang',
+              type: 'INFO',
+              icon: Icons.info_outline_rounded,
+              color: AppColors.primary,
+            )
+          else
+            ...checkpointLogs.take(3).map((log) {
+              final data = Map<String, dynamic>.from(log as Map);
+              final checkpoint = Map<String, dynamic>.from(
+                (data['checkpoint'] ?? {}) as Map,
+              );
+              return _buildActivityItem(
+                coordinator['full_name']?.toString() ?? 'Koordinator',
+                activeGroup['name']?.toString() ?? 'Regu ronda',
+                'Scan ${checkpoint['name'] ?? 'checkpoint'}',
+                'https://ui-avatars.com/api/?name=${Uri.encodeComponent(coordinator['full_name']?.toString() ?? 'Koordinator')}&background=00468B&color=fff',
+              );
+            }),
+
           const SizedBox(height: 32),
-          
+
           // Patrol Schedule Section
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -157,11 +470,13 @@ class RondaScreen extends StatelessWidget {
                   color: const Color(0xFF0D1B2A),
                 ),
               ),
-               ElevatedButton.icon(
+              ElevatedButton.icon(
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const ManageRondaScreen()),
+                    MaterialPageRoute(
+                      builder: (context) => const ManageRondaScreen(),
+                    ),
                   );
                 },
                 icon: const Icon(Icons.settings_rounded, size: 16),
@@ -169,9 +484,17 @@ class RondaScreen extends StatelessWidget {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF004E92),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  textStyle: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.bold),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  textStyle: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                 ),
               ),
             ],
@@ -180,98 +503,160 @@ class RondaScreen extends StatelessWidget {
           Row(
             children: [
               Text(
-                'Shift Malam Ini (22:00 - 04:00)',
-                style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey[600]),
+                activeSchedule == null
+                    ? 'Belum ada jadwal ronda'
+                    : 'Shift ${_formatShift(activeSchedule)}',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                ),
               ),
               const Spacer(),
-              const Icon(Icons.calendar_today_rounded, size: 16, color: Color(0xFF004E92)),
+              const Icon(
+                Icons.calendar_today_rounded,
+                size: 16,
+                color: Color(0xFF004E92),
+              ),
             ],
           ),
           const SizedBox(height: 16),
-          
+
           // Schedule Card
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.02),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE6F2FD),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Column(
-                        children: [
-                          Text('SEN', style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.primary)),
-                          Text('24', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.primary)),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'REGU ELANG (4 ORANG)',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green[800],
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              _buildAvatarGroup(['https://i.pravatar.cc/150?u=1', 'https://i.pravatar.cc/150?u=2', 'https://i.pravatar.cc/150?u=3']),
-                              const SizedBox(width: 8),
-                              Text('+1', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey[600])),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.green[50],
-                    borderRadius: BorderRadius.circular(12),
+          InkWell(
+            borderRadius: BorderRadius.circular(24),
+            onTap: activeSchedule == null
+                ? null
+                : () => _showSchedulePreview(activeSchedule),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.02),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                   ),
-                  child: Row(
+                ],
+              ),
+              child: Column(
+                children: [
+                  Row(
                     children: [
-                      const Icon(Icons.notifications_active_outlined, size: 16, color: Colors.green),
-                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE6F2FD),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Column(
+                          children: [
+                            Text(
+                              activeSchedule == null
+                                  ? '-'
+                                  : DateFormat('EEE')
+                                        .format(
+                                          DateTime.parse(
+                                            '${activeSchedule['schedule_date']}',
+                                          ),
+                                        )
+                                        .toUpperCase(),
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                            Text(
+                              activeSchedule == null
+                                  ? '-'
+                                  : DateFormat('dd').format(
+                                      DateTime.parse(
+                                        '${activeSchedule['schedule_date']}',
+                                      ),
+                                    ),
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16),
                       Expanded(
-                        child: Text(
-                          'Pengingat otomatis telah dikirim ke semua anggota.',
-                          style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.green[800]),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${activeGroup['name'] ?? 'Belum ada regu'} ($_activeMembers ORANG)',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green[800],
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                _buildAvatarGroup([
+                                  'https://i.pravatar.cc/150?u=1',
+                                  'https://i.pravatar.cc/150?u=2',
+                                  'https://i.pravatar.cc/150?u=3',
+                                ]),
+                                const SizedBox(width: 8),
+                                Text(
+                                  coordinator['full_name']?.toString() ?? '-',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0F5F9),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.visibility_outlined,
+                          size: 16,
+                          color: AppColors.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            activeSchedule == null
+                                ? 'Buat jadwal ronda baru untuk mulai monitoring.'
+                                : 'Ketuk kartu untuk melihat preview jadwal.',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          
+
           const SizedBox(height: 32),
-          
+
           // Incident Reports
           Text(
             'Laporan Kejadian',
@@ -282,32 +667,42 @@ class RondaScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          _buildIncidentCard(
-            title: 'Lampu Jalan Mati',
-            description: 'Tiang No. 14 Sektor B berkedip dan mulai padam. Mohon tindak lanjut.',
-            reporter: 'Bpk. Doni',
-            time: '2 Jam lalu',
-            type: 'URGENT',
-            icon: Icons.warning_amber_rounded,
-            color: Colors.red,
-          ),
-          const SizedBox(height: 16),
-          _buildIncidentCard(
-            title: 'Portal Rusak',
-            description: 'Engsel portal barat sedikit seret saat dibuka dini hari tadi.',
-            reporter: 'Ibu Rini',
-            time: '6 Jam lalu',
-            type: 'INFO',
-            icon: Icons.info_outline_rounded,
-            color: AppColors.primary,
-          ),
+          if (_shiftFacilityReports.isEmpty)
+            _buildEmptyIncidentCard()
+          else
+            ..._shiftFacilityReports.take(3).map((report) {
+              final reporter = report['reporter'] is Map
+                  ? Map<String, dynamic>.from(report['reporter'] as Map)
+                  : <String, dynamic>{};
+              final status = report['status']?.toString() ?? 'SUBMITTED';
+              final createdAt =
+                  DateTime.tryParse('${report['created_at']}') ??
+                  DateTime.now();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: _buildIncidentCard(
+                  title: report['title']?.toString() ?? 'Laporan fasilitas',
+                  description: report['description']?.toString() ?? '-',
+                  reporter: reporter['full_name']?.toString() ?? 'Warga',
+                  time: _relativeTime(createdAt),
+                  type: _statusLabel(status),
+                  icon: Icons.report_problem_outlined,
+                  color: _facilityStatusColor(status),
+                ),
+              );
+            }),
           const SizedBox(height: 100),
         ],
       ),
     );
   }
 
-  Widget _buildStatCard({required String label, required String value, required IconData icon, Color? valueColor}) {
+  Widget _buildStatCard({
+    required String label,
+    required String value,
+    required IconData icon,
+    Color? valueColor,
+  }) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -353,7 +748,69 @@ class RondaScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildActivityItem(String name, String role, String status, String avatarUrl) {
+  Widget _buildPreviewRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: AppColors.primary),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 92,
+            child: Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                color: Colors.grey[600],
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF0D1B2A),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge(String status) {
+    final color = switch (status) {
+      'ONGOING' => const Color(0xFF0284C7),
+      'COMPLETED' => AppColors.success,
+      'MISSED' => AppColors.danger,
+      _ => const Color(0xFF64748B),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        status,
+        style: GoogleFonts.plusJakartaSans(
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          color: color,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActivityItem(
+    String name,
+    String role,
+    String status,
+    String avatarUrl,
+  ) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -369,14 +826,36 @@ class RondaScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 14)),
-                Text(role, style: GoogleFonts.plusJakartaSans(color: Colors.grey[600], fontSize: 10)),
+                Text(
+                  name,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                Text(
+                  role,
+                  style: GoogleFonts.plusJakartaSans(
+                    color: Colors.grey[600],
+                    fontSize: 10,
+                  ),
+                ),
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    const Icon(Icons.qr_code_scanner_rounded, size: 12, color: Colors.grey),
+                    const Icon(
+                      Icons.qr_code_scanner_rounded,
+                      size: 12,
+                      color: Colors.grey,
+                    ),
                     const SizedBox(width: 4),
-                    Text(status, style: GoogleFonts.plusJakartaSans(color: Colors.grey[500], fontSize: 10)),
+                    Text(
+                      status,
+                      style: GoogleFonts.plusJakartaSans(
+                        color: Colors.grey[500],
+                        fontSize: 10,
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -408,7 +887,10 @@ class RondaScreen extends StatelessWidget {
                 shape: BoxShape.circle,
                 border: Border.all(color: Colors.white, width: 2),
               ),
-              child: CircleAvatar(radius: 10, backgroundImage: NetworkImage(urls[index])),
+              child: CircleAvatar(
+                radius: 10,
+                backgroundImage: NetworkImage(urls[index]),
+              ),
             ),
           );
         }),
@@ -450,9 +932,18 @@ class RondaScreen extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(title, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 15)),
+                    Text(
+                      title,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: color.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
@@ -471,20 +962,57 @@ class RondaScreen extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   description,
-                  style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey[600], height: 1.4),
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                    height: 1.4,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    const CircleAvatar(radius: 10, backgroundImage: NetworkImage('https://i.pravatar.cc/150?u=reporter')),
+                    const CircleAvatar(
+                      radius: 10,
+                      backgroundImage: NetworkImage(
+                        'https://i.pravatar.cc/150?u=reporter',
+                      ),
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       'Dilaporkan oleh $reporter • $time',
-                      style: GoogleFonts.plusJakartaSans(fontSize: 10, color: Colors.grey[500]),
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 10,
+                        color: Colors.grey[500],
+                      ),
                     ),
                   ],
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyIncidentCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0F5F9).withOpacity(0.5),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline_rounded, color: AppColors.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Belum ada laporan fasilitas yang masuk selama shift ronda ini.',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                color: Colors.grey[700],
+              ),
             ),
           ),
         ],
