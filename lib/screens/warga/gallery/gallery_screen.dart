@@ -3,16 +3,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:wargify/core/constants/api_endpoints.dart';
 import 'package:wargify/core/constants/colors.dart';
-import 'package:wargify/screens/warga/home/home_screen.dart';
-import 'package:wargify/screens/warga/iuran/iuran_screen.dart';
 import 'package:wargify/services/api_service.dart';
-import 'package:wargify/widgets/warga/warga_header.dart';
-import 'package:wargify/widgets/warga/warga_bottom_nav.dart';
 import 'package:wargify/widgets/common/gallery/gallery_filter_chip.dart';
 import 'package:wargify/widgets/common/gallery/gallery_group_section.dart';
-import 'package:wargify/screens/warga/ronda/ronda_screen.dart';
-import 'package:wargify/screens/common/qr/qr_scanner_screen.dart';
-import 'package:wargify/screens/common/notifikasi/notifikasi_log_screen.dart';
 
 class GalleryScreen extends StatefulWidget {
   const GalleryScreen({super.key});
@@ -23,7 +16,6 @@ class GalleryScreen extends StatefulWidget {
 
 class _GalleryScreenState extends State<GalleryScreen> {
   final ApiService _apiService = ApiService();
-  int _currentNavIndex = 3; // gallery = index 3
   String _activeFilter = 'Semua';
   final TextEditingController _searchController = TextEditingController();
   bool _isLoading = true;
@@ -168,52 +160,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: WargaHeader(
-        onNotificationTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const NotifikasiLogScreen()),
-          );
-        },
-      ),
-      bottomNavigationBar: WargaBottomNav(
-        currentIndex: _currentNavIndex,
-        onTap: (index) {
-          if (index == 0) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const WargaHomeScreen()),
-            );
-            return;
-          }
-          if (index == 1) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const IuranScreen()),
-            );
-            return;
-          }
-          if (index == 2) {
-            Navigator.push(
-              // ← push bukan pushReplacement
-              context,
-              MaterialPageRoute(builder: (_) => const QrScannerScreen()),
-            );
-            return;
-          }
-          if (index == 4) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const RondaScreen()),
-            );
-            return;
-          }
-          setState(() => _currentNavIndex = index);
-        },
-      ),
-      body: RefreshIndicator(
+    return RefreshIndicator(
         onRefresh: _fetchGalleries,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -295,8 +242,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
             const SizedBox(height: 24),
           ],
         ),
-      ),
-    );
+      );
   }
 
   Widget _buildEmptyState() {

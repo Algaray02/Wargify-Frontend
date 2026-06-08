@@ -250,6 +250,11 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                                   },
                                   isActive: isFlashOn,
                                 ),
+                                const SizedBox(width: 20),
+                                _buildControlButton(
+                                  Icons.image_rounded,
+                                  onTap: () {},
+                                ),
                               ],
                             ),
                           ),

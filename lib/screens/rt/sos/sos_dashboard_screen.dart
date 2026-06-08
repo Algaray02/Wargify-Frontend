@@ -267,7 +267,7 @@ class _SosDashboardScreenState extends State<SosDashboardScreen> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'CRITICAL ALERT LEVEL',
+                    'SISTEM EMERGENCY',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
@@ -289,7 +289,7 @@ class _SosDashboardScreenState extends State<SosDashboardScreen> {
               ),
               const SizedBox(height: 20),
               Text(
-                'Real-time surveillance for District 07. Immediate response required for active distress signals.',
+                'Pantau sinyal darurat warga secara real-time. Respon segera terhadap tanda bahaya yang aktif.',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 14,
                   color: Colors.grey[600],
@@ -304,7 +304,7 @@ class _SosDashboardScreenState extends State<SosDashboardScreen> {
                     child: _buildStatCard(
                       icon: Icons.emergency_share_rounded,
                       value: _activeAlerts.toString().padLeft(2, '0'),
-                      label: 'ACTIVE SOS',
+                      label: 'SOS AKTIF',
                       color: AppColors.danger,
                     ),
                   ),
@@ -313,7 +313,7 @@ class _SosDashboardScreenState extends State<SosDashboardScreen> {
                     child: _buildStatCard(
                       icon: Icons.check_circle_outline_rounded,
                       value: _resolvedAlerts.toString(),
-                      label: 'RESOLVED',
+                      label: 'SELESAI',
                       color: Colors.green,
                     ),
                   ),
@@ -325,7 +325,7 @@ class _SosDashboardScreenState extends State<SosDashboardScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Recent Alerts',
+                    'Riwayat SOS',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 24,
                       fontWeight: FontWeight.w800,
@@ -337,7 +337,7 @@ class _SosDashboardScreenState extends State<SosDashboardScreen> {
                     child: Row(
                       children: [
                         Text(
-                          'Refresh',
+                          'Perbarui',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
@@ -492,7 +492,7 @@ class _SosDashboardScreenState extends State<SosDashboardScreen> {
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
-                  isActive ? 'ACTIVE' : 'AMAN',
+                  isActive ? 'AKTIF' : 'AMAN',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 10,
                     fontWeight: FontWeight.w800,

@@ -92,11 +92,11 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
   Color _statusTextColor(String? status) {
     switch (status) {
       case 'SUBMITTED':
-        return const Color(0xFFA35B00);
+        return const Color(0xFFE65100);
       case 'IN_PROGRESS':
-        return AppColors.primary;
+        return const Color(0xFF0D47A1);
       case 'RESOLVED':
-        return AppColors.success;
+        return const Color(0xFF2E7D32);
       default:
         return AppColors.primary;
     }
@@ -105,11 +105,11 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
   Color _statusBgColor(String? status) {
     switch (status) {
       case 'SUBMITTED':
-        return const Color(0xFFFFE7A8);
+        return const Color(0xFFE65100).withOpacity(0.1);
       case 'IN_PROGRESS':
-        return const Color(0xFFD7E8FF);
+        return const Color(0xFF0D47A1).withOpacity(0.1);
       case 'RESOLVED':
-        return const Color(0xFFD9FBE4);
+        return const Color(0xFF2E7D32).withOpacity(0.1);
       default:
         return Colors.white;
     }
@@ -250,7 +250,7 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: const Color(0xFF0D1B2A),
+                color: label == 'Kategori' ? AppColors.primary : const Color(0xFF0D1B2A),
               ),
             ),
           ),
@@ -296,9 +296,9 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
     final reports = _filteredReports;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFD),
+      backgroundColor: const Color(0xFFF6F9FD),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFEAF4FF),
+        backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.primary),
@@ -351,11 +351,12 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
 
   Widget _buildSearchBar() {
     return Container(
-      height: 76,
+      height: 60,
       padding: const EdgeInsets.symmetric(horizontal: 18),
       decoration: BoxDecoration(
-        color: const Color(0xFFDDF0FB),
-        borderRadius: BorderRadius.circular(10),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE9F1F8)),
       ),
       child: TextField(
         controller: _searchController,
@@ -364,13 +365,13 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
           border: InputBorder.none,
           hintText: 'Cari laporan',
           hintStyle: GoogleFonts.plusJakartaSans(
-            fontSize: 17,
-            color: Colors.grey[500],
+            fontSize: 14,
+            color: Colors.grey[400],
           ),
           icon: const Icon(
             Icons.search_rounded,
-            size: 28,
-            color: Colors.black54,
+            size: 22,
+            color: Colors.grey,
           ),
         ),
       ),
@@ -398,9 +399,10 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
             child: InkWell(
               onTap: () => setState(() => _selectedStatus = entry.key),
               borderRadius: BorderRadius.circular(10),
-              child: Container(
+              child: AnimatedContainer(
                 height: 44,
                 alignment: Alignment.center,
+                duration: const Duration(milliseconds: 250),
                 decoration: BoxDecoration(
                   color: active ? Colors.white : Colors.transparent,
                   borderRadius: BorderRadius.circular(10),
@@ -480,8 +482,9 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
       margin: const EdgeInsets.only(bottom: 24),
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFFEAF4FF),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE9F1F8)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -490,10 +493,10 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 58,
-                height: 58,
+                width: 50,
+                height: 50,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: const Color(0xFFE6F0FA),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Icon(
@@ -543,9 +546,9 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
               style: OutlinedButton.styleFrom(
                 backgroundColor: Colors.white,
                 foregroundColor: AppColors.primary,
-                side: const BorderSide(color: Color(0xFFD7E8FF)),
+                side: const BorderSide(color: Color(0xFFE9F1F8)),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(14),
                 ),
               ),
               child: Text(
