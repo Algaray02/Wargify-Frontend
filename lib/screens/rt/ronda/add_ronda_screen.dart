@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 import 'package:wargify/core/constants/api_endpoints.dart';
 import 'package:wargify/core/constants/colors.dart';
 import 'package:wargify/services/api_service.dart';
-import 'edit_checkpoints_screen.dart';
 
 class AddRondaScreen extends StatefulWidget {
   const AddRondaScreen({super.key});
@@ -16,7 +15,7 @@ class AddRondaScreen extends StatefulWidget {
 class _AddRondaScreenState extends State<AddRondaScreen> {
   final ApiService _apiService = ApiService();
   final TextEditingController _groupNameController = TextEditingController();
-  DateTime _selectedDate = DateTime.now();
+  int _selectedWeekday = DateTime.now().weekday;
   TimeOfDay _startTime = const TimeOfDay(hour: 22, minute: 0);
   TimeOfDay _endTime = const TimeOfDay(hour: 2, minute: 0);
   String? _selectedGroupId;
@@ -26,7 +25,15 @@ class _AddRondaScreenState extends State<AddRondaScreen> {
   List<Map<String, dynamic>> _groups = [];
   List<Map<String, dynamic>> _users = [];
   List<Map<String, dynamic>> _members = [];
-  List<Map<String, dynamic>> _checkpoints = [];
+  static const List<String> _weekdayLabels = [
+    'Senin',
+    'Selasa',
+    'Rabu',
+    'Kamis',
+    'Jumat',
+    'Sabtu',
+    'Minggu',
+  ];
 
   @override
   void dispose() {
@@ -44,18 +51,12 @@ class _AddRondaScreenState extends State<AddRondaScreen> {
     try {
       final results = await Future.wait([
         _apiService.getList(ApiEndpoints.rondaGroups),
-        _apiService.getList(ApiEndpoints.rondaCheckpoints),
         _apiService.getList(ApiEndpoints.users),
       ]);
       final groups = (results[0])
           .map((row) => Map<String, dynamic>.from(row as Map))
           .toList();
-      final checkpoints = (results[1]).map((row) {
-        final data = Map<String, dynamic>.from(row as Map);
-        data['checked'] = true;
-        return data;
-      }).toList();
-      final users = (results[2])
+      final users = (results[1])
           .map((row) => Map<String, dynamic>.from(row as Map))
           .where((user) => user['role']?.toString() != 'BENDAHARA')
           .toList();
@@ -64,7 +65,6 @@ class _AddRondaScreenState extends State<AddRondaScreen> {
       setState(() {
         _groups = groups;
         _users = users;
-        _checkpoints = checkpoints;
         if (_selectedGroupId == null ||
             !_groups.any(
               (group) => group['group_id']?.toString() == _selectedGroupId,
@@ -122,6 +122,14 @@ class _AddRondaScreenState extends State<AddRondaScreen> {
     return result;
   }
 
+  DateTime _dateForWeekday(int weekday) {
+    final today = DateTime.now();
+    final daysUntilTarget = (weekday - today.weekday + 7) % 7;
+    final date = today.add(Duration(days: daysUntilTarget));
+
+    return DateTime(date.year, date.month, date.day);
+  }
+
   Future<void> _submit() async {
     if (_isSubmitting) {
       return;
@@ -136,23 +144,18 @@ class _AddRondaScreenState extends State<AddRondaScreen> {
     }
     setState(() => _isSubmitting = true);
     try {
-      final checkpointIds = _checkpoints
-          .where((checkpoint) => checkpoint['checked'] == true)
-          .map((checkpoint) => checkpoint['checkpoint_id']?.toString())
-          .whereType<String>()
-          .toList();
+      final scheduleDate = _dateForWeekday(_selectedWeekday);
       await _apiService.post(ApiEndpoints.rondaSchedules, {
         'group_id': _selectedGroupId,
         'coordinator_id': _selectedCoordinatorId,
-        'schedule_date': DateFormat('yyyy-MM-dd').format(_selectedDate),
-        'shift_start': _combine(_selectedDate, _startTime).toIso8601String(),
+        'schedule_date': DateFormat('yyyy-MM-dd').format(scheduleDate),
+        'shift_start': _combine(scheduleDate, _startTime).toIso8601String(),
         'shift_end': _combine(
-          _selectedDate,
+          scheduleDate,
           _endTime,
           nextDayIfEarlier: true,
         ).toIso8601String(),
         'status': 'SCHEDULED',
-        'checkpoint_ids': checkpointIds,
       });
       if (mounted) Navigator.pop(context, true);
     } catch (error) {
@@ -381,48 +384,44 @@ class _AddRondaScreenState extends State<AddRondaScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Select Date
-                  _buildLabel('PILIH TANGGAL'),
+                  // Select weekly day
+                  _buildLabel('PILIH HARI JADWAL'),
                   const SizedBox(height: 12),
-                  InkWell(
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: _selectedDate,
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(const Duration(days: 365)),
-                      );
-                      if (picked != null) {
-                        setState(() => _selectedDate = picked);
-                      }
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF0F5F9),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          Text(
-                            DateFormat(
-                              'EEEE, dd MMM yyyy',
-                            ).format(_selectedDate),
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 14,
-                              color: const Color(0xFF0D1B2A),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0F5F9),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<int>(
+                        value: _selectedWeekday,
+                        isExpanded: true,
+                        icon: const Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          color: Color(0xFF004E92),
+                        ),
+                        items: List.generate(7, (index) {
+                          final weekday = index + 1;
+                          return DropdownMenuItem<int>(
+                            value: weekday,
+                            child: Text(
+                              _weekdayLabels[index],
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 14,
+                                color: const Color(0xFF0D1B2A),
+                              ),
                             ),
-                          ),
-                          const Spacer(),
-                          const Icon(
-                            Icons.calendar_today_rounded,
-                            size: 20,
-                            color: Color(0xFF004E92),
-                          ),
-                        ],
+                          );
+                        }),
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() => _selectedWeekday = value);
+                          }
+                        },
                       ),
                     ),
                   ),
@@ -630,7 +629,7 @@ class _AddRondaScreenState extends State<AddRondaScreen> {
                       color: const Color(0xFFE6F2FD),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: const Color(0xFF004E92).withOpacity(0.5),
+                        color: const Color(0xFF004E92).withValues(alpha: 0.5),
                       ),
                     ),
                     child: DropdownButtonHideUnderline(
@@ -661,37 +660,6 @@ class _AddRondaScreenState extends State<AddRondaScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  // Checkpoints
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _buildLabel('PILIH CHECKPOINT / WILAYAH'),
-                      TextButton(
-                        onPressed: () async {
-                          await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  const EditCheckpointsScreen(),
-                            ),
-                          );
-                          _loadOptions();
-                        },
-                        child: Text(
-                          'Edit Checkpoint',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFF004E92),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  ..._checkpoints.map((cp) => _buildCheckpointTile(cp)),
-                  const SizedBox(height: 32),
-
                   // Submit Button
                   SizedBox(
                     width: double.infinity,
@@ -717,7 +685,9 @@ class _AddRondaScreenState extends State<AddRondaScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         elevation: 4,
-                        shadowColor: const Color(0xFF004E92).withOpacity(0.4),
+                        shadowColor: const Color(
+                          0xFF004E92,
+                        ).withValues(alpha: 0.4),
                       ),
                     ),
                   ),
@@ -769,33 +739,6 @@ class _AddRondaScreenState extends State<AddRondaScreen> {
           Icon(Icons.close_rounded, size: 14, color: Colors.grey[600]),
           const SizedBox(width: 4),
         ],
-      ),
-    );
-  }
-
-  Widget _buildCheckpointTile(Map<String, dynamic> cp) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF0F5F9).withOpacity(0.5),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: CheckboxListTile(
-        value: cp['checked'],
-        onChanged: (val) => setState(() => cp['checked'] = val),
-        title: Text(
-          cp['name']?.toString() ?? '-',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        controlAffinity: ListTileControlAffinity.leading,
-        activeColor: const Color(0xFF004E92),
-        checkboxShape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(4),
-        ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 8),
       ),
     );
   }

@@ -5,7 +5,6 @@ import 'package:wargify/core/constants/api_endpoints.dart';
 import 'package:wargify/services/api_service.dart';
 
 import '../../../core/constants/colors.dart';
-import 'edit_checkpoints_screen.dart';
 
 class EditRondaScreen extends StatefulWidget {
   final Map<String, dynamic> schedule;
@@ -19,7 +18,7 @@ class EditRondaScreen extends StatefulWidget {
 class _EditRondaScreenState extends State<EditRondaScreen> {
   final ApiService _apiService = ApiService();
 
-  DateTime _selectedDate = DateTime.now();
+  int _selectedWeekday = DateTime.now().weekday;
   TimeOfDay _startTime = const TimeOfDay(hour: 22, minute: 0);
   TimeOfDay _endTime = const TimeOfDay(hour: 2, minute: 0);
   String? _selectedGroupId;
@@ -29,7 +28,15 @@ class _EditRondaScreenState extends State<EditRondaScreen> {
   bool _isSubmitting = false;
   List<Map<String, dynamic>> _groups = [];
   List<Map<String, dynamic>> _members = [];
-  List<Map<String, dynamic>> _checkpoints = [];
+  static const List<String> _weekdayLabels = [
+    'Senin',
+    'Selasa',
+    'Rabu',
+    'Kamis',
+    'Jumat',
+    'Sabtu',
+    'Minggu',
+  ];
 
   @override
   void initState() {
@@ -43,8 +50,9 @@ class _EditRondaScreenState extends State<EditRondaScreen> {
     _selectedGroupId = schedule['group_id']?.toString();
     _selectedCoordinatorId = schedule['coordinator_id']?.toString();
     _selectedStatus = schedule['status']?.toString() ?? 'SCHEDULED';
-    _selectedDate =
+    final scheduleDate =
         DateTime.tryParse('${schedule['schedule_date']}') ?? DateTime.now();
+    _selectedWeekday = scheduleDate.weekday;
 
     final start = DateTime.tryParse('${schedule['shift_start']}');
     final end = DateTime.tryParse('${schedule['shift_end']}');
@@ -60,30 +68,14 @@ class _EditRondaScreenState extends State<EditRondaScreen> {
     try {
       final results = await Future.wait([
         _apiService.getList(ApiEndpoints.rondaGroups),
-        _apiService.getList(ApiEndpoints.rondaCheckpoints),
       ]);
       final groups = (results[0])
           .map((row) => Map<String, dynamic>.from(row as Map))
           .toList();
-      final selectedCheckpointIds = widget.schedule['checkpoints'] is List
-          ? (widget.schedule['checkpoints'] as List)
-                .map((row) => Map<String, dynamic>.from(row as Map))
-                .map((row) => row['checkpoint_id']?.toString())
-                .whereType<String>()
-                .toSet()
-          : <String>{};
-      final checkpoints = (results[1]).map((row) {
-        final data = Map<String, dynamic>.from(row as Map);
-        data['checked'] = selectedCheckpointIds.contains(
-          data['checkpoint_id']?.toString(),
-        );
-        return data;
-      }).toList();
 
       if (!mounted) return;
       setState(() {
         _groups = groups;
-        _checkpoints = checkpoints;
         _syncMembers(keepCoordinator: true);
         _isLoading = false;
       });
@@ -138,6 +130,14 @@ class _EditRondaScreenState extends State<EditRondaScreen> {
     return result;
   }
 
+  DateTime _dateForWeekday(int weekday) {
+    final today = DateTime.now();
+    final daysUntilTarget = (weekday - today.weekday + 7) % 7;
+    final date = today.add(Duration(days: daysUntilTarget));
+
+    return DateTime(date.year, date.month, date.day);
+  }
+
   Future<void> _submit() async {
     final scheduleId = widget.schedule['schedule_id']?.toString();
     if (scheduleId == null ||
@@ -150,23 +150,18 @@ class _EditRondaScreenState extends State<EditRondaScreen> {
 
     setState(() => _isSubmitting = true);
     try {
-      final checkpointIds = _checkpoints
-          .where((checkpoint) => checkpoint['checked'] == true)
-          .map((checkpoint) => checkpoint['checkpoint_id']?.toString())
-          .whereType<String>()
-          .toList();
+      final scheduleDate = _dateForWeekday(_selectedWeekday);
       await _apiService.patch('${ApiEndpoints.rondaSchedules}/$scheduleId', {
         'group_id': _selectedGroupId,
         'coordinator_id': _selectedCoordinatorId,
-        'schedule_date': DateFormat('yyyy-MM-dd').format(_selectedDate),
-        'shift_start': _combine(_selectedDate, _startTime).toIso8601String(),
+        'schedule_date': DateFormat('yyyy-MM-dd').format(scheduleDate),
+        'shift_start': _combine(scheduleDate, _startTime).toIso8601String(),
         'shift_end': _combine(
-          _selectedDate,
+          scheduleDate,
           _endTime,
           nextDayIfEarlier: true,
         ).toIso8601String(),
         'status': _selectedStatus,
-        'checkpoint_ids': checkpointIds,
       });
       if (mounted) Navigator.pop(context, true);
     } catch (error) {
@@ -212,9 +207,9 @@ class _EditRondaScreenState extends State<EditRondaScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildLabel('PILIH TANGGAL'),
+                  _buildLabel('PILIH HARI JADWAL'),
                   const SizedBox(height: 12),
-                  _buildDatePicker(),
+                  _buildWeekdayPicker(),
                   const SizedBox(height: 24),
                   Row(
                     children: [
@@ -255,35 +250,6 @@ class _EditRondaScreenState extends State<EditRondaScreen> {
                   _buildLabel('STATUS JADWAL'),
                   const SizedBox(height: 12),
                   _buildStatusDropdown(),
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _buildLabel('PILIH CHECKPOINT / WILAYAH'),
-                      TextButton(
-                        onPressed: () async {
-                          await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  const EditCheckpointsScreen(),
-                            ),
-                          );
-                          _loadOptions();
-                        },
-                        child: Text(
-                          'Edit Checkpoint',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFF004E92),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  ..._checkpoints.map(_buildCheckpointTile),
                   const SizedBox(height: 32),
                   SizedBox(
                     width: double.infinity,
@@ -318,36 +284,37 @@ class _EditRondaScreenState extends State<EditRondaScreen> {
     );
   }
 
-  Widget _buildDatePicker() {
-    return InkWell(
-      onTap: () async {
-        final picked = await showDatePicker(
-          context: context,
-          initialDate: _selectedDate,
-          firstDate: DateTime.now().subtract(const Duration(days: 365)),
-          lastDate: DateTime.now().add(const Duration(days: 365)),
-        );
-        if (picked != null) setState(() => _selectedDate = picked);
-      },
-      child: _fieldContainer(
-        Row(
-          children: [
-            Text(
-              DateFormat('EEEE, dd MMM yyyy').format(_selectedDate),
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 14,
-                color: const Color(0xFF0D1B2A),
+  Widget _buildWeekdayPicker() {
+    return _fieldContainer(
+      DropdownButtonHideUnderline(
+        child: DropdownButton<int>(
+          value: _selectedWeekday,
+          isExpanded: true,
+          icon: const Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: Color(0xFF004E92),
+          ),
+          items: List.generate(7, (index) {
+            final weekday = index + 1;
+            return DropdownMenuItem<int>(
+              value: weekday,
+              child: Text(
+                _weekdayLabels[index],
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  color: const Color(0xFF0D1B2A),
+                ),
               ),
-            ),
-            const Spacer(),
-            const Icon(
-              Icons.calendar_today_rounded,
-              size: 20,
-              color: Color(0xFF004E92),
-            ),
-          ],
+            );
+          }),
+          onChanged: (value) {
+            if (value != null) {
+              setState(() => _selectedWeekday = value);
+            }
+          },
         ),
       ),
+      backgroundColor: const Color(0xFFF0F5F9),
     );
   }
 
@@ -526,37 +493,6 @@ class _EditRondaScreenState extends State<EditRondaScreen> {
           ),
           const SizedBox(width: 8),
         ],
-      ),
-    );
-  }
-
-  Widget _buildCheckpointTile(Map<String, dynamic> cp) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF0F5F9).withOpacity(0.5),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: CheckboxListTile(
-        value: cp['checked'] == true,
-        onChanged: (val) => setState(() => cp['checked'] = val),
-        title: Text(
-          cp['name']?.toString() ?? '-',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        subtitle: Text(
-          cp['qr_code_data']?.toString() ?? '',
-          style: GoogleFonts.plusJakartaSans(fontSize: 11),
-        ),
-        controlAffinity: ListTileControlAffinity.leading,
-        activeColor: const Color(0xFF004E92),
-        checkboxShape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(4),
-        ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 8),
       ),
     );
   }
