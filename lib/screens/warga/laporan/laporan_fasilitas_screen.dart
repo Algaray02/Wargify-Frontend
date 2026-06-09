@@ -23,6 +23,7 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
   String _selectedStatus = 'ALL';
   String _search = '';
   bool _isLoading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -37,7 +38,10 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
   }
 
   Future<void> _fetchReports() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     try {
       final rows = await _apiService.getList(ApiEndpoints.facilityReports);
       if (!mounted) return;
@@ -47,9 +51,17 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
             .map((row) => Map<String, dynamic>.from(row))
             .toList();
         _isLoading = false;
+        _errorMessage = null;
       });
-    } catch (_) {
-      if (mounted) setState(() => _isLoading = false);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Gagal memuat laporan. Silakan coba lagi.';
+        });
+      }
+      // Logging untuk debugging
+      debugPrint('Error fetching reports: $e');
     }
   }
 
@@ -337,6 +349,8 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
                 padding: EdgeInsets.symmetric(vertical: 48),
                 child: Center(child: CircularProgressIndicator()),
               )
+            else if (_errorMessage != null)
+              _buildErrorState()
             else if (reports.isEmpty)
               _buildEmptyState()
             else
@@ -588,6 +602,44 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
             fontWeight: FontWeight.w800,
             color: Colors.grey[600],
           ),
+        ),
+      ),
+    );
+  }
+
+   Widget _buildErrorState() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 48),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline_rounded,
+              size: 48,
+              color: Colors.red[400],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _errorMessage ?? 'Terjadi kesalahan',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w800,
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _fetchReports,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Coba Lagi'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
         ),
       ),
     );

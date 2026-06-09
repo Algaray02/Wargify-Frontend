@@ -8,7 +8,9 @@ import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart' as latlong2;
 import 'package:wargify/core/constants/api_endpoints.dart';
 import 'package:wargify/core/constants/colors.dart';
+import 'package:wargify/models/user_model.dart';
 import 'package:wargify/services/api_service.dart';
+import 'package:wargify/services/auth/auth_service.dart';
 import 'package:wargify/widgets/common/ronda/ronda_timer_card.dart';
 import 'package:wargify/widgets/common/ronda/ronda_persiapan_card.dart';
 import 'package:wargify/widgets/common/ronda/jadwal_ronda_card.dart';
@@ -23,7 +25,11 @@ class RondaScreen extends StatefulWidget {
 
 class _RondaScreenState extends State<RondaScreen> {
   final ApiService _apiService = ApiService();
+  final AuthService _authService = AuthService();
 
+  // --- User Data ---
+  UserModel? _currentUser;
+  
   // --- State Ronda ---
   bool _sudahScan = false;
   bool _rondaBerjalan = false;
@@ -50,6 +56,7 @@ class _RondaScreenState extends State<RondaScreen> {
   @override
   void initState() {
     super.initState();
+    _loadCurrentUser();
     _fetchSchedules();
   }
 
@@ -86,6 +93,54 @@ class _RondaScreenState extends State<RondaScreen> {
     }
 
     return 'Pos Ronda';
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  //  PERMISSION & HELPER METHODS
+  // ─────────────────────────────────────────────────────────────
+
+  Future<void> _loadCurrentUser() async {
+    try {
+      final user = await _authService.getCurrentUser();
+      if (mounted) {
+        setState(() => _currentUser = user);
+      }
+    } catch (e) {
+      debugPrint('Error loading current user: $e');
+    }
+  }
+
+  /// Check if current user is a member of the group in the schedule
+  bool _isUserMemberOfGroup(Map<String, dynamic>? schedule) {
+    if (schedule == null || _currentUser == null) return false;
+
+    final group = schedule['group'];
+    if (group is! Map) return false;
+
+    final members = group['members'];
+    if (members is! List) return false;
+
+    final userId = _currentUser!.userId;
+    return members.any(
+      (member) => (member is Map) && member['user_id']?.toString() == userId,
+    );
+  }
+
+  /// Check if current user is the coordinator of the schedule
+  bool _isUserCoordinator(Map<String, dynamic>? schedule) {
+    if (schedule == null || _currentUser == null) return false;
+
+    final coordinator = schedule['coordinator'];
+    if (coordinator is! Map) return false;
+
+    return coordinator['user_id']?.toString() == _currentUser!.userId;
+  }
+
+  /// Check if schedule is currently active (ONGOING status)
+  bool _isScheduleActive(Map<String, dynamic>? schedule) {
+    if (schedule == null) return false;
+    final status = schedule['status']?.toString() ?? '';
+    return status == 'ONGOING';
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -294,10 +349,43 @@ class _RondaScreenState extends State<RondaScreen> {
       );
       return;
     }
+
+    // Check if user is coordinator
+    if (!_isUserCoordinator(_selectedSchedule)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Hanya koordinator ronda yang bisa scan QR checkpoint.',
+            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: AppColors.danger,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+      return;
+    }
+
     await _markAttendance();
   }
 
   Future<void> _handleMulaiRonda() async {
+    // Check if user is a member of the group
+    if (!_isUserMemberOfGroup(_selectedSchedule)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Anda bukan anggota grup ronda ini.',
+            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: AppColors.danger,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+      return;
+    }
+
     await _initGps();
     if (!_gpsReady) return;
 
@@ -785,15 +873,17 @@ class _RondaScreenState extends State<RondaScreen> {
                     isMulai: _rondaBerjalan,
                     onLokasiTap: _openMap,
                   ),
-                  const SizedBox(height: 16),
+                   const SizedBox(height: 16),
 
-                  // --- Persiapan Card (hanya kalau belum mulai) ---
-                  if (!_rondaBerjalan)
-                    RondaPersiapanCard(
-                      sudahScan: _sudahScan,
-                      onScanTap: _handleScanQr,
-                      onMulaiTap: _handleMulaiRonda,
-                    ),
+                   // --- Persiapan Card (hanya kalau belum mulai) ---
+                   if (!_rondaBerjalan)
+                     RondaPersiapanCard(
+                       sudahScan: _sudahScan,
+                       onScanTap: _handleScanQr,
+                       onMulaiTap: _handleMulaiRonda,
+                       isUserMember: _isUserMemberOfGroup(_selectedSchedule),
+                       isUserCoordinator: _isUserCoordinator(_selectedSchedule),
+                     ),
 
                   // --- Tombol Selesai Ronda ---
                   if (_rondaBerjalan) ...[

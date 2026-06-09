@@ -65,6 +65,25 @@ class KegiatanDetailScreen extends StatelessWidget {
     }
   }
 
+  String _formatDate(DateTime? date) {
+    if (date == null) return '-';
+    try {
+      return DateFormat('EEEE, dd MMMM yyyy', 'id').format(date);
+    } catch (e) {
+      // Fallback jika locale tidak tersedia
+      return DateFormat('dd MMM yyyy').format(date);
+    }
+  }
+
+  String _formatTime(DateTime? date) {
+    if (date == null) return '-';
+    try {
+      return DateFormat('HH:mm').format(date);
+    } catch (e) {
+      return '-';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final type = activity['type']?.toString() ?? '';
@@ -170,10 +189,10 @@ class KegiatanDetailScreen extends StatelessWidget {
 
             // --- Info Cards ---
             if (date != null) _infoRow(Icons.calendar_today, 'Tanggal',
-                DateFormat('EEEE, dd MMMM yyyy', 'id').format(date)),
+                _formatDate(date)),
             if (date != null)
               _infoRow(
-                  Icons.access_time, 'Waktu', DateFormat('HH:mm').format(date)),
+                  Icons.access_time, 'Waktu', _formatTime(date)),
             if (location.isNotEmpty)
               _infoRow(Icons.location_on_outlined, 'Lokasi', location),
             if (address.isNotEmpty)
