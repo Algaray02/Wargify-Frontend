@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:wargify/core/constants/colors.dart';
+import 'package:wargify/services/api_service.dart';
+import '../../../core/constants/api_endpoints.dart';
 
 class ActivityScreen extends StatefulWidget {
   const ActivityScreen({super.key});
@@ -10,9 +12,15 @@ class ActivityScreen extends StatefulWidget {
 }
 
 class _ActivityScreenState extends State<ActivityScreen> {
+  final ApiService _apiService = ApiService();
+
   String _selectedStatus = 'Semua';
+  bool _isLoading = true;
+  String _errorMessage = '';
   
-  // Date State
+  List<Map<String, dynamic>> _activities = [];
+  String _totalBulanan = 'Rp 0';
+
   int _day = DateTime.now().day;
   int _month = DateTime.now().month;
   int _year = DateTime.now().year;
@@ -23,14 +31,46 @@ class _ActivityScreenState extends State<ActivityScreen> {
     'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
   ];
 
-  // Mock data untuk simulasi filter
-  final List<Map<String, dynamic>> _allActivities = [
-    {'title': 'Agus Setiawan', 'category': 'Iuran bulanan: Maret', 'date': '24 Oct, 09:42', 'amount': 'Rp 150.000', 'isLunas': true, 'isExpense': false},
-    {'title': 'Perbaikan lampu', 'category': 'Maintenance', 'date': '23 Oct, 14:15', 'amount': '-Rp 2.4jt', 'isLunas': false, 'isExpense': true},
-    {'title': 'Budi Pratama', 'category': 'Iuran bulanan: Maret', 'date': '23 Oct, 11:02', 'amount': 'Rp 75.000', 'isLunas': true, 'isExpense': false},
-    {'title': 'Siti Aminah', 'category': 'Iuran bulanan: Maret', 'date': '22 Oct, 16:30', 'amount': 'Rp 500.000', 'isLunas': true, 'isExpense': false},
-    {'title': 'Potong pohon', 'category': 'Operasional', 'date': '21 Oct, 10:20', 'amount': '-Rp 425k', 'isLunas': false, 'isExpense': true},
-  ];
+  String _formatNumber(dynamic value) {
+    if (value == null) return '0';
+    String cleanStr = value.toString().split('.')[0]; 
+    int? numValue = int.tryParse(cleanStr);
+    if (numValue == null) return value.toString();
+    
+    RegExp reg = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
+    return numValue.toString().replaceAllMapped(reg, (Match match) => '${match[1]}.');
+  }
+  
+  @override
+  void initState() {
+    super.initState();
+    _fetchDataAktivitas();
+  }
+
+  Future<void> _fetchDataAktivitas() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = '';
+    });
+    
+    try {
+      final summary = await _apiService.getMap(ApiEndpoints.treasurySummary);
+      final logs = await _apiService.getList(ApiEndpoints.treasuryLogs);
+      
+      setState(() {
+        _activities = List<Map<String, dynamic>>.from(logs);
+        
+        final balance = summary['current_balance'] ?? '0';
+        _totalBulanan = 'Rp ${_formatNumber(balance)}';
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = "Gagal memuat data dari server";
+        _isLoading = false;
+      });
+    }
+  }
 
   void _showStatusFilter() {
     showModalBottomSheet(
@@ -56,7 +96,6 @@ class _ActivityScreenState extends State<ActivityScreen> {
               const SizedBox(height: 20),
               _buildStatusItem('Semua'),
               _buildStatusItem('Lunas'),
-              _buildStatusItem('Belum Lunas'),
               _buildStatusItem('Keluar'),
               const SizedBox(height: 20),
             ],
@@ -210,10 +249,8 @@ class _ActivityScreenState extends State<ActivityScreen> {
                     ),
                     const SizedBox(height: 24),
                     
-                    // Selection Cards
                     Row(
                       children: [
-                        // Day
                         Expanded(
                           flex: 2,
                           child: _buildPickerCard(
@@ -229,7 +266,6 @@ class _ActivityScreenState extends State<ActivityScreen> {
                           ),
                         ),
                         const SizedBox(width: 12),
-                        // Month
                         Expanded(
                           flex: 3,
                           child: _buildPickerCard(
@@ -245,7 +281,6 @@ class _ActivityScreenState extends State<ActivityScreen> {
                           ),
                         ),
                         const SizedBox(width: 12),
-                        // Year
                         Expanded(
                           flex: 2,
                           child: _buildPickerCard(
@@ -265,7 +300,6 @@ class _ActivityScreenState extends State<ActivityScreen> {
                     
                     const SizedBox(height: 32),
                     
-                    // Action Buttons
                     Row(
                       children: [
                         Expanded(
@@ -445,215 +479,257 @@ class _ActivityScreenState extends State<ActivityScreen> {
   Widget build(BuildContext context) {
     String dateDisplay = _isDateFiltered ? '$_day ${_months[_month-1].substring(0,3)} $_year' : 'Date';
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: const Color(0xFFE5EEF5)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Riwayat Aktivitas',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: const Color(0xFF0D1B2A),
+    List<Map<String, dynamic>> filteredActivities = _activities.where((item) {
+      final bool isExpense = item['type'] == 'EXPENSE';
+      String itemStatus = isExpense ? 'Keluar' : 'Lunas';
+
+      if (_selectedStatus == 'Lunas' && itemStatus != 'Lunas') return false;
+      if (_selectedStatus == 'Keluar' && itemStatus != 'Keluar') return false;
+      
+      return true;
+    }).toList();
+
+    return RefreshIndicator(
+      onRefresh: _fetchDataAktivitas,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(), 
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: const Color(0xFFE5EEF5)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Riwayat Aktivitas',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF0D1B2A),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Catatan real-time seluruh arus keluar masuk keuangan warga.',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                    height: 1.5,
+                  const SizedBox(height: 8),
+                  Text(
+                    'Catatan real-time seluruh arus keluar masuk keuangan warga.',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                      height: 1.5,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildHeaderStat(
-                        label: 'TOTAL BULANAN',
-                        value: 'Rp 12.45jt',
-                        color: AppColors.primary,
-                        isPrimary: true,
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildHeaderStat(
+                          label: 'TOTAL BULANAN',
+                          value: _totalBulanan, 
+                          color: AppColors.primary,
+                          isPrimary: true,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _buildHeaderStat(
-                        label: 'PERTUMBUHAN',
-                        value: '+4.2%',
-                        color: const Color(0xFFE5EEF5),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildHeaderStat(
+                          label: 'PERTUMBUHAN',
+                          value: '+4.2%',
+                          color: const Color(0xFFE5EEF5),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          
-          // Quick Filters
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: const Color(0xFFE5EEF5)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Quick Filters',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF0D1B2A),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildFilterButton(
-                        Icons.tune_rounded, 
-                        _selectedStatus == 'Semua' ? 'Status' : _selectedStatus,
-                        onTap: _showStatusFilter,
-                        isActive: _selectedStatus != 'Semua',
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildFilterButton(
-                        Icons.calendar_month_outlined, 
-                        dateDisplay,
-                        onTap: _showDateFilter,
-                        isActive: _isDateFiltered,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          
-          // Search Bar
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE5EEF5)),
-            ),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Search records...',
-                hintStyle: GoogleFonts.plusJakartaSans(color: Colors.grey[400], fontSize: 14),
-                prefixIcon: const Icon(Icons.search_rounded, color: Colors.grey),
-                border: InputBorder.none,
+                ],
               ),
             ),
-          ),
-          const SizedBox(height: 24),
-          
-          // Ledger List
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: const Color(0xFFE5EEF5)),
-            ),
-            child: Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFF8FBFE),
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            const SizedBox(height: 24),
+            
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: const Color(0xFFE5EEF5)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Quick Filters',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF0D1B2A),
+                    ),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  const SizedBox(height: 16),
+                  Row(
                     children: [
-                      Text(
-                        'RESIDENT / CAT',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey[600],
-                          letterSpacing: 1.1,
+                      Expanded(
+                        child: _buildFilterButton(
+                          Icons.tune_rounded, 
+                          _selectedStatus == 'Semua' ? 'Status' : _selectedStatus,
+                          onTap: _showStatusFilter,
+                          isActive: _selectedStatus != 'Semua',
                         ),
                       ),
-                      Text(
-                        'AMOUNT',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey[600],
-                          letterSpacing: 1.1,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildFilterButton(
+                          Icons.calendar_month_outlined, 
+                          dateDisplay,
+                          onTap: _showDateFilter,
+                          isActive: _isDateFiltered,
                         ),
                       ),
                     ],
                   ),
-                ),
-                ...List.generate(_allActivities.length, (index) {
-                  final item = _allActivities[index];
-                  return Column(
-                    children: [
-                      _buildLedgerItem(
-                        item['title'], 
-                        item['category'], 
-                        item['date'], 
-                        item['amount'], 
-                        item['isLunas'], 
-                        isExpense: item['isExpense']
-                      ),
-                      if (index < _allActivities.length - 1) _buildDivider(),
-                    ],
-                  );
-                }),
-                
-                // Pagination Footer
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFF8FBFE),
-                    borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        '5 of 128',
-                        style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.grey[600]),
-                      ),
-                      Row(
-                        children: [
-                          _buildPageNavButton(Icons.chevron_left_rounded),
-                          const SizedBox(width: 8),
-                          _buildPageNavButton(Icons.chevron_right_rounded),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 24),
-        ],
+            const SizedBox(height: 24),
+            
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE5EEF5)),
+              ),
+              child: TextField(
+                decoration: InputDecoration(
+                  hintText: 'Search records...',
+                  hintStyle: GoogleFonts.plusJakartaSans(color: Colors.grey[400], fontSize: 14),
+                  prefixIcon: const Icon(Icons.search_rounded, color: Colors.grey),
+                  border: InputBorder.none,
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: const Color(0xFFE5EEF5)),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFF8FBFE),
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'RESIDENT / CAT',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey[600],
+                            letterSpacing: 1.1,
+                          ),
+                        ),
+                        Text(
+                          'AMOUNT',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey[600],
+                            letterSpacing: 1.1,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _isLoading
+                      ? const Padding(
+                          padding: EdgeInsets.all(32.0),
+                          child: Center(child: CircularProgressIndicator()),
+                        )
+                      : filteredActivities.isEmpty
+                          ? Padding(
+                              padding: const EdgeInsets.all(32.0),
+                              child: Center(
+                                child: Text(
+                                  'Belum ada riwayat aktivitas.',
+                                  style: GoogleFonts.plusJakartaSans(color: Colors.grey),
+                                ),
+                              ),
+                            )
+                          : Column(
+                              children: [
+                                ...List.generate(filteredActivities.length, (index) {
+                                  final item = filteredActivities[index];
+                                  
+                                  final String rawSource = item['source'] ?? 'IURAN';
+                                  final String title = rawSource.replaceAll('_', ' '); 
+                                  final String category = item['description'] ?? 'Catatan kas warga';
+                                  
+                                  final String rawDate = item['created_at'] ?? '';
+                                  final String date = rawDate.length > 10 ? rawDate.substring(0, 10) : rawDate;
+                                  
+                                  final bool isExpense = item['type'] == 'EXPENSE';
+                                  final String amount = '${isExpense ? '-' : ''}Rp ${_formatNumber(item['amount'])}';
+                                  
+                                  String itemStatusText = isExpense ? 'Keluar' : 'Lunas';
+
+                                  return Column(
+                                    children: [
+                                      _buildLedgerItem(
+                                        title, 
+                                        category, 
+                                        date, 
+                                        amount, 
+                                        itemStatusText == 'Lunas', 
+                                        isExpense: isExpense
+                                      ),
+                                      if (index < filteredActivities.length - 1) _buildDivider(),
+                                    ],
+                                  );
+                                }),
+                              ],
+                            ),
+                  
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFF8FBFE),
+                      borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Show records',
+                          style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.grey[600]),
+                        ),
+                        Row(
+                          children: [
+                            _buildPageNavButton(Icons.chevron_left_rounded),
+                            const SizedBox(width: 8),
+                            _buildPageNavButton(Icons.chevron_right_rounded),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+        ),
       ),
     );
   }
@@ -767,11 +843,11 @@ class _ActivityScreenState extends State<ActivityScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: isLunas ? const Color(0xFFE8F5E9) : (isExpense ? const Color(0xFFFFEBEE) : const Color(0xFFFFEBEE)),
+                  color: isLunas ? const Color(0xFFE8F5E9) : const Color(0xFFFFEBEE),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  isLunas ? 'Lunas' : (isExpense ? 'Keluar' : 'Belum Bayar'),
+                  isLunas ? 'Lunas' : 'Keluar',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 9,
                     fontWeight: FontWeight.bold,

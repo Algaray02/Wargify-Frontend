@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../services/app_notification_service.dart';
 import '../../../core/constants/colors.dart';
 import '../../../services/auth/auth_service.dart';
 import '../../../models/user_model.dart';
@@ -48,10 +49,18 @@ class _BendaharaMainScreenState extends State<BendaharaMainScreen> {
   }
 
   Future<void> _handleLogout() async {
+    try {
+      await AppNotificationService().initialize(registerToken: false);
+    } catch (e) {
+      debugPrint("Gagal mencabut token FCM di server: $e");
+    }
+
     await _authService.logout();
+    
     if (mounted) {
-      Navigator.of(context).pushReplacement(
+      Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (context) => const LoginScreen()),
+        (route) => false,
       );
     }
   }

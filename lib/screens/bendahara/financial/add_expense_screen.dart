@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:wargify/core/constants/colors.dart';
+import 'package:wargify/services/api_service.dart';
+import 'package:dio/dio.dart';
 
 class AddExpenseScreen extends StatefulWidget {
   const AddExpenseScreen({super.key});
@@ -11,9 +13,73 @@ class AddExpenseScreen extends StatefulWidget {
 
 class _AddExpenseScreenState extends State<AddExpenseScreen> {
   final TextEditingController _amountController = TextEditingController();
-  final TextEditingController _categoryController = TextEditingController();
+  String? _selectedCategory;
+  final List<String> _categoryOptions = [
+    'PENGELUARAN_RUTIN', 
+    'PENGELUARAN_DARURAT', 
+    'LAINNYA'
+  ];
   final TextEditingController _dateController = TextEditingController();
-  final TextEditingController _noteController = TextEditingController();
+  final TextEditingController _descriptionController = TextEditingController();
+
+  final ApiService _apiService = ApiService();
+  bool _isSaving = false;
+  String? _categoryErrorText;
+
+  Future<void> _saveExpense() async {
+    if (_amountController.text.isEmpty || _selectedCategory == null || _descriptionController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nominal, Kategori, dan Keterangan wajib diisi!')),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    try {
+      // Bersihkan format titik/koma dari input nominal angka agar tidak crash
+      String cleanAmount = _amountController.text.replaceAll('.', '').replaceAll(',', '');
+
+      final Map<String, dynamic> requestBody = {
+        'type': 'EXPENSE',                     // Menandakan jenis mutasi keluar
+        'source': _selectedCategory,           // Dikirim ke key 'source' sesuai struktur database Laravelmu
+        'amount': double.tryParse(cleanAmount) ?? 0,
+        'description': _descriptionController.text.trim(), // Catatan masuk ke kolom 'description'
+      };
+
+      // Menembak POST request ke endpoint /treasury-logs
+      await _apiService.post('/treasury-logs', requestBody);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Catatan pengeluaran kas berhasil disimpan!')),
+      );
+
+      // Setelah sukses, dipaksa mental balik langsung ke Halaman Utama (HomeScreen)
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    } catch (e) {
+      if (!mounted) return;
+      String errorMessage = e.toString();
+      if (e is DioException && e.response != null) {
+        errorMessage = "Eror ${e.response?.statusCode}: ${e.response?.data['message'] ?? e.response?.data.toString()}";
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal menyimpan: $errorMessage')),
+      );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    // Membersihkan memori controller saat screen ditutup
+    _amountController.dispose();
+    _dateController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -140,9 +206,37 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
               // Form Fields
               _buildFieldLabel('KATEGORI / TUJUAN'),
-              _buildTextField(
-                controller: _categoryController,
-                hint: 'Contoh: Perbaikan Lampu Blok C',
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFE0E6ED)),
+                ),
+                child: DropdownButtonFormField<String>(
+                  value: _selectedCategory,
+                  items: _categoryOptions.map((category) {
+                    return DropdownMenuItem<String>(
+                      value: category,
+                      child: Text(
+                        category.replaceAll('_', ' '),
+                        style: GoogleFonts.plusJakartaSans(fontSize: 14),
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedCategory = value;
+                      _categoryErrorText = null;
+                    });
+                  },
+                  decoration: InputDecoration(
+                    hintText: 'Pilih kategori pengeluaran',
+                    hintStyle: TextStyle(color: Colors.grey[400]),
+                    border: InputBorder.none,
+                    errorText: _categoryErrorText,
+                  ),
+                ),
               ),
               const SizedBox(height: 24),
 
@@ -155,7 +249,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
               _buildFieldLabel('KETERANGAN TAMBAHAN'),
               _buildTextAreaField(
-                controller: _noteController,
+                controller: _descriptionController,
                 hint: 'Detailkan rincian pengeluaran di sini...',
               ),
               const SizedBox(height: 24),
@@ -204,9 +298,15 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: ElevatedButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.save_outlined),
-            label: const Text('Simpan Pengeluaran'),
+            onPressed: _isSaving ? null : _saveExpense,
+            icon: _isSaving 
+                ? const SizedBox(
+                    width: 20, 
+                    height: 20, 
+                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
+                  )
+                : const Icon(Icons.save_outlined),
+            label: Text(_isSaving ? 'Menyimpan...' : 'Simpan Pengeluaran'),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFD32F2F),
               foregroundColor: Colors.white,

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:wargify/core/constants/colors.dart';
+import 'package:wargify/services/api_service.dart';
+import 'package:dio/dio.dart';
 
 class AddIncomeScreen extends StatefulWidget {
   const AddIncomeScreen({super.key});
@@ -11,9 +13,74 @@ class AddIncomeScreen extends StatefulWidget {
 
 class _AddIncomeScreenState extends State<AddIncomeScreen> {
   final TextEditingController _amountController = TextEditingController();
-  final TextEditingController _sourceController = TextEditingController();
+  String? _selectedSource;
+  final List<String> _sourceOptions = [
+    'IURAN_WARGA', 
+    'DONASI_SPONSOR', 
+    'DANA_DESA_PEMERINTAH', 
+    'PENGELUARAN_RUTIN', 
+    'PENGELUARAN_DARURAT', 
+    'LAINNYA'
+  ];
   final TextEditingController _dateController = TextEditingController();
-  final TextEditingController _noteController = TextEditingController();
+  final TextEditingController _descriptionController = TextEditingController();
+
+  final ApiService _apiService = ApiService();
+  bool _isSaving = false;
+  String? _sourceErrorText;
+
+  Future<void> _saveIncome() async {
+    if (_amountController.text.isEmpty || _selectedSource == null || _descriptionController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nominal, Sumber Dana, dan Keterangan wajib diisi!')),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    try {
+      String cleanAmount = _amountController.text.replaceAll('.', '').replaceAll(',', '');
+
+      final Map<String, dynamic> requestBody = {
+        'type': 'INCOME',
+        'source': _selectedSource,
+        'amount': double.tryParse(cleanAmount) ?? 0,
+        'description': _descriptionController.text.trim(),
+      };
+
+      // Mengirim POST request ke endpoint /incomes di Laravel kamu
+      await _apiService.post('/treasury-logs', requestBody);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pemasukan non-iuran berhasil dicatat!')),
+      );
+
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    } catch (e) {
+      if (!mounted) return;
+      String errorMessage = e.toString();
+      if (e is DioException && e.response != null) {
+        errorMessage = "Eror ${e.response?.statusCode}: ${e.response?.data['message'] ?? e.response?.data.toString()}";
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal menyimpan: $errorMessage')),
+      );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    // Membersihkan memori controller saat screen ditutup
+    _amountController.dispose();
+    _dateController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -140,9 +207,37 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
 
               // Form Fields
               _buildFieldLabel('SUMBER DANA'),
-              _buildTextField(
-                controller: _sourceController,
-                hint: 'Contoh: Sponsorship Lomba 17an',
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFE0E6ED)),
+                ),
+                child: DropdownButtonFormField<String>(
+                  value: _selectedSource,
+                  items: _sourceOptions.map((source) {
+                    return DropdownMenuItem<String>(
+                      value: source,
+                      child: Text(
+                        source.replaceAll('_', ' '),
+                        style: GoogleFonts.plusJakartaSans(fontSize: 14),
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedSource = value;
+                      _sourceErrorText = null;
+                    });
+                  },
+                  decoration: InputDecoration(
+                    hintText: 'Pilih sumber dana',
+                    hintStyle: TextStyle(color: Colors.grey[400]),
+                    border: InputBorder.none,
+                    errorText: _sourceErrorText,
+                  ),
+                ),
               ),
               const SizedBox(height: 24),
 
@@ -155,7 +250,7 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
 
               _buildFieldLabel('KETERANGAN TAMBAHAN'),
               _buildTextAreaField(
-                controller: _noteController,
+                controller: _descriptionController,
                 hint: 'Tambahkan catatan detail mengenai transaksi ini untuk mempermudah pelaporan...',
               ),
               const SizedBox(height: 24),
@@ -205,7 +300,7 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: ElevatedButton.icon(
-            onPressed: () {},
+            onPressed: _isSaving ? null : _saveIncome,
             icon: const Icon(Icons.save_outlined),
             label: const Text('Simpan Pemasukan'),
             style: ElevatedButton.styleFrom(

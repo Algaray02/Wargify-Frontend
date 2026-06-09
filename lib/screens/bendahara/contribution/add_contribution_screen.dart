@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../../core/constants/colors.dart';
+import 'package:wargify/services/api_service.dart';
+import 'package:wargify/core/constants/api_endpoints.dart';
+import 'package:dio/dio.dart';
 
 class AddContributionScreen extends StatefulWidget {
   const AddContributionScreen({super.key});
@@ -10,6 +13,67 @@ class AddContributionScreen extends StatefulWidget {
 }
 
 class _AddContributionScreenState extends State<AddContributionScreen> {
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _amountController = TextEditingController();
+  final ApiService _apiService = ApiService();
+  bool _isSaving = false;
+
+  Future<void> _saveContributionPeriod() async {
+    if (_nameController.text.isEmpty || _amountController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nama Iuran dan Nominal tidak boleh kosong!')),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    try {
+      final int currentMonth = DateTime.now().month;
+      final int currentYear = DateTime.now().year;
+
+      final Map<String, dynamic> requestBody = {
+        'period_name': _nameController.text,
+        'month': currentMonth,
+        'year': currentYear,
+        'amount_per_family': double.parse(_amountController.text),
+      };
+
+      // Mengirim POST request ke endpoint /iuran-periods Laravel
+      final response = await _apiService.post('/iuran-periods', requestBody);
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(response['message'] ?? 'Iuran baru berhasil dibuka!')),
+        );
+        Navigator.of(context).popUntil((route) => route.isFirst); 
+
+    } catch (e) {
+      if (!mounted) return;
+      String pesanEror = e.toString();
+      if (e is DioException && e.response != null) {
+        pesanEror = "Eror ${e.response?.statusCode}: ${e.response?.data['message'] ?? e.response?.data.toString()}";
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal menyimpan iuran: $pesanEror'),
+          duration: const Duration(seconds: 5), // Agak lama biar sempat dibaca
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    // Membersihkan memori controller saat screen ditutup
+    _nameController.dispose();
+    _amountController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -75,7 +139,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
             const SizedBox(height: 32),
             
             _buildLabel('Nama Iuran'),
-            _buildTextField('contoh: Iuran Oktober 2026'),
+            _buildTextField('contoh: Iuran Oktober 2026', controller: _nameController),
             const SizedBox(height: 24),
             
             _buildLabel('Nominal Iuran'),
@@ -96,6 +160,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                   ),
                   Expanded(
                     child: TextField(
+                      controller: _amountController,
                       keyboardType: TextInputType.number,
                       decoration: InputDecoration(
                         hintText: '0',
@@ -161,7 +226,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
             const SizedBox(height: 40),
             
             ElevatedButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed:_isSaving ? null : _saveContributionPeriod,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF004E92),
                 foregroundColor: Colors.white,
@@ -200,7 +265,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
     );
   }
 
-  Widget _buildTextField(String hint, {int maxLines = 1}) {
+  Widget _buildTextField(String hint, {int maxLines = 1, TextEditingController? controller}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
@@ -209,6 +274,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
         border: Border.all(color: const Color(0xFFE0E6ED)),
       ),
       child: TextField(
+        controller: controller,
         maxLines: maxLines,
         decoration: InputDecoration(
           hintText: hint,
