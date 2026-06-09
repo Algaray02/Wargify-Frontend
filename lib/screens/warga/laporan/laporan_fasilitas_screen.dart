@@ -116,20 +116,18 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
   }
 
   IconData _categoryIcon(String? category) {
-    final value = category?.toLowerCase() ?? '';
-    if (value.contains('lampu') || value.contains('jalan')) {
-      return Icons.lightbulb_outline_rounded;
+    switch (category) {
+      case 'Listrik':
+        return Icons.lightbulb_outline_rounded;
+      case 'Air':
+        return Icons.water_drop_outlined;
+      case 'Jalan':
+        return Icons.map_outlined;
+      case 'Kebersihan':
+        return Icons.delete_outline_rounded;
+      default:
+        return Icons.construction_rounded;
     }
-    if (value.contains('air') || value.contains('pipa')) {
-      return Icons.water_drop_outlined;
-    }
-    if (value.contains('sampah') || value.contains('tps')) {
-      return Icons.delete_outline_rounded;
-    }
-    if (value.contains('taman') || value.contains('pohon')) {
-      return Icons.park_outlined;
-    }
-    return Icons.construction_rounded;
   }
 
   Future<void> _openAddReportSheet() async {
@@ -612,15 +610,31 @@ class _AddFacilityReportSheet extends StatefulWidget {
 
 class _AddFacilityReportSheetState extends State<_AddFacilityReportSheet> {
   final _titleController = TextEditingController();
-  final _categoryController = TextEditingController();
   final _descriptionController = TextEditingController();
+  String? _selectedCategory;
   XFile? _image;
   bool _isSaving = false;
+
+  static const _categoryValues = ['Listrik', 'Air', 'Jalan', 'Kebersihan', 'Lainnya'];
+
+  IconData _categoryIconFromValue(String value) {
+    switch (value) {
+      case 'Listrik':
+        return Icons.lightbulb_outline_rounded;
+      case 'Air':
+        return Icons.water_drop_outlined;
+      case 'Jalan':
+        return Icons.map_outlined;
+      case 'Kebersihan':
+        return Icons.delete_outline_rounded;
+      default:
+        return Icons.construction_rounded;
+    }
+  }
 
   @override
   void dispose() {
     _titleController.dispose();
-    _categoryController.dispose();
     _descriptionController.dispose();
     super.dispose();
   }
@@ -634,9 +648,134 @@ class _AddFacilityReportSheetState extends State<_AddFacilityReportSheet> {
     if (image != null) setState(() => _image = image);
   }
 
+  Widget _buildCategoryPicker() {
+    final hasValue = _selectedCategory != null;
+
+    return InkWell(
+      onTap: _showCategoryPicker,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF4F8FC),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFD7E8FF)),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              hasValue
+                  ? _categoryIconFromValue(_selectedCategory!)
+                  : Icons.category_outlined,
+              color: AppColors.primary,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                hasValue ? _selectedCategory! : 'Pilih Kategori',
+                style: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.w800,
+                  color: hasValue
+                      ? const Color(0xFF0D1B2A)
+                      : Colors.grey[400],
+                ),
+              ),
+            ),
+            const Icon(Icons.arrow_drop_down, color: AppColors.primary),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showCategoryPicker() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Pilih Kategori',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  color: const Color(0xFF0D1B2A),
+                ),
+              ),
+              const SizedBox(height: 16),
+              ..._categoryValues.map((value) {
+                final active = value == _selectedCategory;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: InkWell(
+                    onTap: () {
+                      setState(() => _selectedCategory = value);
+                      Navigator.pop(ctx);
+                    },
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        color: active
+                            ? AppColors.primary.withOpacity(0.08)
+                            : const Color(0xFFF4F8FC),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: active ? AppColors.primary : const Color(0xFFE9F1F8),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            _categoryIconFromValue(value),
+                            color: active ? AppColors.primary : Colors.grey[600],
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            value,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: active
+                                  ? AppColors.primary
+                                  : const Color(0xFF0D1B2A),
+                            ),
+                          ),
+                          const Spacer(),
+                          if (active)
+                            const Icon(
+                              Icons.check_circle_rounded,
+                              color: AppColors.primary,
+                              size: 22,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _submit() async {
     if (_titleController.text.trim().isEmpty ||
-        _categoryController.text.trim().isEmpty ||
+        _selectedCategory == null ||
         _descriptionController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -649,7 +788,7 @@ class _AddFacilityReportSheetState extends State<_AddFacilityReportSheet> {
     setState(() => _isSaving = true);
     final formData = FormData.fromMap({
       'title': _titleController.text.trim(),
-      'category': _categoryController.text.trim(),
+      'category': _selectedCategory,
       'description': _descriptionController.text.trim(),
     });
 
@@ -709,11 +848,7 @@ class _AddFacilityReportSheetState extends State<_AddFacilityReportSheet> {
             const SizedBox(height: 18),
             _textField(_titleController, 'Judul Laporan'),
             const SizedBox(height: 12),
-            _textField(
-              _categoryController,
-              'Kategori',
-              hint: 'Lampu, Jalan, Air, Sampah',
-            ),
+            _buildCategoryPicker(),
             const SizedBox(height: 12),
             _textField(_descriptionController, 'Deskripsi', maxLines: 4),
             const SizedBox(height: 14),

@@ -81,8 +81,7 @@ class ApiService {
     String path,
     FormData data,
   ) async {
-    data.fields.add(const MapEntry('_method', 'PATCH'));
-    final response = await _dio.post(path, data: data);
+    final response = await _dio.patch(path, data: data);
     final payload = _unwrap(response.data);
 
     if (payload is Map<String, dynamic>) return payload;

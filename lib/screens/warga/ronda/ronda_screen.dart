@@ -841,24 +841,25 @@ class _RondaScreenState extends State<RondaScreen> {
                       ],
                     ),
                     const SizedBox(height: 10),
-                    ..._jadwalMendatang.map(
-                      (s) => Padding(
+                    ..._jadwalMendatang.map((s) {
+                      final card = _jadwalToCard(s);
+                      return Padding(
                         padding: const EdgeInsets.only(bottom: 10),
                         child: JadwalRondaCard(
-                          bulan: _jadwalToCard(s)['bulan'] ?? '',
-                          tanggal: _jadwalToCard(s)['tanggal'] ?? '',
-                          hariNama: _jadwalToCard(s)['hariNama'] ?? '',
-                          namaTempat: _jadwalToCard(s)['namaTempat'] ?? '',
-                          waktu: _jadwalToCard(s)['waktu'] ?? '',
-                          status: _jadwalToCard(s)['status'] ?? '',
-                          jumlahAnggota: _jadwalToCard(s)['jumlahAnggota'] ?? 0,
+                          bulan: card['bulan'] ?? '',
+                          tanggal: card['tanggal'] ?? '',
+                          hariNama: card['hariNama'] ?? '',
+                          namaTempat: card['namaTempat'] ?? '',
+                          waktu: card['waktu'] ?? '',
+                          status: card['status'] ?? '',
+                          jumlahAnggota: card['jumlahAnggota'] ?? 0,
                           onTap: () {
                             setState(() => _selectedSchedule = s);
                             _openMap();
                           },
                         ),
-                      ),
-                    ),
+                      );
+                    }),
                     const SizedBox(height: 20),
                   ],
 
@@ -879,19 +880,20 @@ class _RondaScreenState extends State<RondaScreen> {
                       ],
                     ),
                     const SizedBox(height: 10),
-                    ..._riwayatRonda.map(
-                      (s) => Padding(
+                    ..._riwayatRonda.map((s) {
+                      final card = _riwayatToCard(s);
+                      return Padding(
                         padding: const EdgeInsets.only(bottom: 10),
                         child: RiwayatRondaItem(
-                          namaTempat: _riwayatToCard(s)['namaTempat'] ?? '',
-                          shift: _riwayatToCard(s)['shift'] ?? '',
-                          durasi: _riwayatToCard(s)['durasi'] ?? '',
-                          tanggal: _riwayatToCard(s)['tanggal'] ?? '',
-                          status: _riwayatToCard(s)['status'] ?? '',
+                          namaTempat: card['namaTempat'] ?? '',
+                          shift: card['shift'] ?? '',
+                          durasi: card['durasi'] ?? '',
+                          tanggal: card['tanggal'] ?? '',
+                          status: card['status'] ?? '',
                           onTap: () => _openMap(),
                         ),
-                      ),
-                    ),
+                      );
+                    }),
                     const SizedBox(height: 20),
                   ],
                 ],
