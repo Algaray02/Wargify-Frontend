@@ -250,11 +250,6 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                                   },
                                   isActive: isFlashOn,
                                 ),
-                                const SizedBox(width: 20),
-                                _buildControlButton(
-                                  Icons.image_rounded,
-                                  onTap: () {},
-                                ),
                               ],
                             ),
                           ),
@@ -351,9 +346,10 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     final displayName = _currentUser?.fullName ?? 'Memuat...';
     final family = _asMap(_profileData?['family']);
     final household = _asMap(family?['household']);
-    final familyQr = family?['qr_code_data']?.toString();
-    final displayCode = (familyQr != null && familyQr.isNotEmpty)
-        ? familyQr
+    final familyId =
+        family?['family_id']?.toString() ?? family?['id']?.toString();
+    final displayCode = (familyId != null && familyId.isNotEmpty)
+        ? 'Wargify-Family-ID:$familyId'
         : 'QR-FAMILY-BELUM-TERSEDIA';
     final blockNumber = household?['block_number']?.toString();
     final houseNumber = household?['house_number']?.toString();
@@ -361,7 +357,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       if (blockNumber != null && blockNumber.isNotEmpty) 'Blok $blockNumber',
       if (houseNumber != null && houseNumber.isNotEmpty) 'No. $houseNumber',
     ].join(' / ');
-    final hasFamilyQr = familyQr != null && familyQr.isNotEmpty;
+    final hasFamilyQr = familyId != null && familyId.isNotEmpty;
 
     return SafeArea(
       child: Center(
