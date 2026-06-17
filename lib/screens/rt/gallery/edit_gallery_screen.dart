@@ -119,7 +119,10 @@ class _EditGalleryScreenState extends State<EditGalleryScreen> {
       Navigator.pop(context, true);
     } catch (error) {
       if (!mounted) return;
-      _showSnack('Gagal memperbarui galeri: $error', isError: true);
+      _showSnack(
+        'Gagal menyimpan perubahan galeri: ${_errorMessage(error)}',
+        isError: true,
+      );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -140,6 +143,31 @@ class _EditGalleryScreenState extends State<EditGalleryScreen> {
       '${ApiEndpoints.galleries}/$_galleryId/images',
       formData,
     );
+  }
+
+  String _errorMessage(Object error) {
+    if (error is DioException) {
+      final data = error.response?.data;
+      if (data is Map) {
+        final errors = data['errors'];
+        if (errors is Map) {
+          final messages = errors.values
+              .whereType<List>()
+              .expand((items) => items)
+              .map((item) => item.toString())
+              .where((message) => message.isNotEmpty)
+              .toList();
+          if (messages.isNotEmpty) return messages.join('\n');
+        }
+
+        final message = data['message']?.toString();
+        if (message != null && message.isNotEmpty) return message;
+      }
+
+      return 'Server menolak foto yang dipilih.';
+    }
+
+    return error.toString();
   }
 
   Future<void> _deleteImage(Map<String, dynamic> image) async {

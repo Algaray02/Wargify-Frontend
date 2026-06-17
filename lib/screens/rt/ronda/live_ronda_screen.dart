@@ -24,6 +24,7 @@ class _LiveRondaScreenState extends State<LiveRondaScreen> {
   Timer? _pollingTimer;
   Map<String, dynamic> _scheduleData = {};
   List<Map<String, dynamic>> _facilityReports = [];
+  Map<String, dynamic> _rondaLog = {};
 
   @override
   void initState() {
@@ -46,20 +47,38 @@ class _LiveRondaScreenState extends State<LiveRondaScreen> {
 
   Future<void> _refreshLiveData() async {
     try {
-      final results = await Future.wait([
-        _apiService.getList(ApiEndpoints.rondaSchedules),
-        _apiService.getList(ApiEndpoints.facilityReports),
-      ]);
-      final schedules = results[0]
-          .whereType<Map>()
-          .map((row) => Map<String, dynamic>.from(row))
-          .toList();
-      final reports = results[1]
-          .whereType<Map>()
-          .map((row) => Map<String, dynamic>.from(row))
-          .toList();
-
       final scheduleId = _schedule['schedule_id']?.toString();
+
+      final schedulesResult = await _apiService.getList(
+        ApiEndpoints.rondaSchedules,
+      );
+      final reportsResult = await _apiService.getList(
+        ApiEndpoints.facilityReports,
+      );
+      Map<String, dynamic> rondaLogData = {};
+
+      if (scheduleId != null) {
+        try {
+          final logResult = await _apiService.getMap(
+            '${ApiEndpoints.rondaSchedules}/$scheduleId/logs',
+          );
+          rondaLogData = Map<String, dynamic>.from(logResult as Map? ?? {});
+        } catch (_) {
+          // Ronda log endpoint might not exist yet
+        }
+      }
+
+      final schedules =
+          (schedulesResult as List?)
+              ?.map((row) => Map<String, dynamic>.from(row as Map? ?? {}))
+              .toList() ??
+          [];
+      final reports =
+          (reportsResult as List?)
+              ?.map((row) => Map<String, dynamic>.from(row as Map? ?? {}))
+              .toList() ??
+          [];
+
       final refreshedSchedule = scheduleId == null
           ? schedules.firstWhere(
               (item) => item['status'] == 'ONGOING',
@@ -74,6 +93,7 @@ class _LiveRondaScreenState extends State<LiveRondaScreen> {
       setState(() {
         _scheduleData = refreshedSchedule;
         _facilityReports = reports;
+        _rondaLog = rondaLogData;
       });
     } catch (_) {
       // Keep the last visible live data when polling fails.
@@ -183,6 +203,31 @@ class _LiveRondaScreenState extends State<LiveRondaScreen> {
     }
   }
 
+  List<LatLng> get _trackingPath {
+    final pathData = _rondaLog['path_data'];
+    if (pathData is! List) return [];
+    return pathData
+        .whereType<Map>()
+        .map((point) {
+          final lat = double.tryParse('${point['latitude'] ?? point['lat']}');
+          final lng = double.tryParse('${point['longitude'] ?? point['lng']}');
+          return lat != null && lng != null ? LatLng(lat, lng) : null;
+        })
+        .whereType<LatLng>()
+        .toList();
+  }
+
+  String get _trackingStats {
+    final distance = _rondaLog['distance_covered'] ?? 0.0;
+    final duration = _rondaLog['duration'] ?? 0;
+    final hours = (duration / 3600).floor();
+    final minutes = ((duration % 3600) / 60).floor();
+    final durationText = hours > 0
+        ? '$hours jam $minutes menit'
+        : '$minutes menit';
+    return 'Jarak: ${distance.toStringAsFixed(2)} km • Durasi: $durationText';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -204,6 +249,14 @@ class _LiveRondaScreenState extends State<LiveRondaScreen> {
               ),
               PolylineLayer(
                 polylines: [
+                  // Riwayat tracking path (jika ada)
+                  if (_trackingPath.isNotEmpty)
+                    Polyline(
+                      points: _trackingPath,
+                      color: Colors.orange.withOpacity(0.7),
+                      strokeWidth: 3.0,
+                    ),
+                  // Route checkpoint (dashed line)
                   Polyline(
                     points: _checkpoints
                         .map((c) => c['location'] as LatLng)
@@ -440,6 +493,49 @@ class _LiveRondaScreenState extends State<LiveRondaScreen> {
                             ),
                           ),
                           const SizedBox(height: 20),
+                          const Divider(height: 1, thickness: 1),
+                          const SizedBox(height: 16),
+                          if (_trackingPath.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24.0,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Riwayat Tracking',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 12,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                  Text(
+                                    _trackingStats,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFF0D1B2A),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          else
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24.0,
+                              ),
+                              child: Text(
+                                'Belum ada riwayat tracking',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  color: Colors.grey[500],
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ),
+                          const SizedBox(height: 16),
                           const Divider(height: 1, thickness: 1),
                           const SizedBox(height: 16),
                           Padding(
