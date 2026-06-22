@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:wargify/core/constants/api_endpoints.dart';
@@ -16,10 +17,10 @@ class IuranScreen extends StatefulWidget {
 
 class _IuranScreenState extends State<IuranScreen> {
   final ApiService _apiService = ApiService();
-  final String _totalDana = 'Rp 42.500.000';
+  String _totalDana = 'Rp 42.500.000';
 
-  List<Map<String, String>> _daftarIuran = [];
-  List<Map<String, String>> _filteredIuran = [];
+  List<Map<String, dynamic>> _daftarIuran = [];
+  List<Map<String, dynamic>> _filteredIuran = [];
   String _filterStatus = 'Semua';
   bool _semuaLunas = false;
   bool _isLoading = true;
@@ -43,25 +44,53 @@ class _IuranScreenState extends State<IuranScreen> {
     });
 
     try {
+      // Fetch both history iuran and treasury summary (with graceful fallback for treasury summary)
       final rows = await _apiService.getList(ApiEndpoints.myIuran);
+      
+      try {
+        final treasuryData = await _apiService.getMap(ApiEndpoints.treasuryAuditSummary);
+        if (treasuryData.containsKey('summary')) {
+          final summary = Map<String, dynamic>.from(treasuryData['summary'] as Map);
+          final currentBalance = double.tryParse('${summary['current_balance']}') ?? 0.0;
+          _totalDana = _formatCurrency(currentBalance.toInt());
+        }
+      } catch (_) {
+        // Fallback to default mock or calculate locally if desired
+        _totalDana = 'Rp 42.500.000';
+      }
+
       final timeFormatter = DateFormat('dd');
       final items = rows.map((row) {
         final data = Map<String, dynamic>.from(row as Map);
         final period = Map<String, dynamic>.from(
           (data['period'] ?? {}) as Map,
         );
+        final category = Map<String, dynamic>.from(
+          (period['category'] ?? {}) as Map,
+        );
 
-        final isPaid = data['status']?.toString() == 'paid';
         final month = int.tryParse('${period['month']}') ?? 1;
-        final amount = int.tryParse('${data['amount_paid'] ?? 0}') ?? 0;
+        final amountPaidDouble = double.tryParse('${data['amount_paid']}') ?? 0.0;
+        final amountPaid = amountPaidDouble.toInt();
         final paidAt = DateTime.tryParse('${data['paid_at']}');
 
-        return <String, String>{
+        // Formatted full date & time (e.g. 09 Juni 2026, 14:21 WIB)
+        String formattedFullPaidAt = '-';
+        if (paidAt != null) {
+          formattedFullPaidAt = DateFormat("dd MMMM yyyy, HH:mm 'WIB'", 'id').format(paidAt);
+        }
+
+        return <String, dynamic>{
+          'payment_id': data['payment_id']?.toString() ?? '-',
+          'period_name': period['period_name']?.toString() ?? 'Iuran',
+          'category_name': category['name']?.toString() ?? 'Umum',
+          'amount_paid': amountPaid,
+          'paid_at_formatted': formattedFullPaidAt,
           'bulan': _monthAbbr[month.clamp(1, 12)],
           'tanggal': paidAt != null ? timeFormatter.format(paidAt) : '-',
           'judul': period['period_name']?.toString() ?? 'Iuran',
-          'status': isPaid ? 'Lunas' : 'Belum Lunas',
-          'jumlah': _formatCurrency(amount),
+          'status': 'Lunas', // Since these records come from /me/iuran, they are already paid
+          'jumlah': _formatCurrency(amountPaid),
         };
       }).toList();
 
@@ -81,7 +110,7 @@ class _IuranScreenState extends State<IuranScreen> {
     }
   }
 
-  List<Map<String, String>> _applyFilter(List<Map<String, String>> items) {
+  List<Map<String, dynamic>> _applyFilter(List<Map<String, dynamic>> items) {
     if (_filterStatus == 'Semua') return items;
     return items.where((item) {
       if (_filterStatus == 'Lunas') return item['status'] == 'Lunas';
@@ -209,98 +238,200 @@ class _IuranScreenState extends State<IuranScreen> {
     );
   }
 
-  void _showIuranDetail(Map<String, String> item) {
-    final isLunas = item['status'] == 'Lunas';
+  void _showIuranDetail(Map<String, dynamic> item) {
+    final paymentId = item['payment_id'] ?? '-';
+    
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(24),
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Center(
-                child: Container(
-                  width: 40, height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+              // Handle indicator
+              Container(
+                width: 48,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: isLunas ? const Color(0xFFD4EDDA) : const Color(0xFFFFE5E5),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      item['status'] ?? '',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: isLunas ? AppColors.success : AppColors.danger,
-                      ),
-                    ),
-                  ),
-                ],
+              const SizedBox(height: 24),
+              
+              // Status & Verified Icon
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.verified_rounded,
+                  size: 54,
+                  color: AppColors.success,
+                ),
               ),
               const SizedBox(height: 12),
               Text(
-                item['judul'] ?? '',
+                'Pembayaran Berhasil',
                 style: GoogleFonts.plusJakartaSans(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.success,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                item['jumlah'] ?? '',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 32,
+                  fontWeight: FontWeight.w800,
                   color: AppColors.textPrimary,
                 ),
               ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(Icons.calendar_today, size: 14, color: Colors.grey[500]),
-                  const SizedBox(width: 6),
-                  Text(
-                    '${item['bulan'] ?? ''} ${item['tanggal'] ?? ''}',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13,
-                      color: Colors.grey[600],
+              const SizedBox(height: 24),
+              
+              // Receipt Container
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.grey[200]!),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildReceiptRow('Kategori', item['category_name'] ?? '-'),
+                    const Divider(height: 24),
+                    _buildReceiptRow('Periode', item['period_name'] ?? '-'),
+                    const Divider(height: 24),
+                    _buildReceiptRow('Waktu Bayar', item['paid_at_formatted'] ?? '-'),
+                    const Divider(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'No. Referensi',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  paymentId,
+                                  textAlign: TextAlign.end,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              GestureDetector(
+                                onTap: () {
+                                  Clipboard.setData(ClipboardData(text: paymentId));
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Nomor referensi berhasil disalin'),
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+                                },
+                                child: const Icon(
+                                  Icons.copy_rounded,
+                                  size: 16,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Jumlah',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14,
-                      color: Colors.grey[600],
+              const SizedBox(height: 32),
+              
+              // Close Button
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
                     ),
+                    elevation: 0,
                   ),
-                  Text(
-                    item['jumlah'] ?? '',
+                  child: Text(
+                    'Selesai',
                     style: GoogleFonts.plusJakartaSans(
-                      fontSize: 18,
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+                      color: Colors.white,
                     ),
                   ),
-                ],
+                ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
             ],
           ),
         );
       },
+    );
+  }
+
+  Widget _buildReceiptRow(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 13,
+            color: AppColors.textSecondary,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(width: 24),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+        ),
+      ],
     );
   }
 

@@ -15,6 +15,7 @@ class ApiEndpoints {
   static const String households = '/households';
   static const String treasuryLogs = '/treasury-logs';
   static const String treasurySummary = '/treasury-summary';
+  static const String treasuryAuditSummary = '/treasury-audit-summary';
   static const String announcements = '/announcements';
   static const String activities = '/activities';
   static const String galleries = '/galleries';
