@@ -62,22 +62,23 @@ class RondaTimerCard extends StatelessWidget {
                 ),
               ),
               // Lokasi icon
-              GestureDetector(
-                onTap: onLokasiTap,
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: AppColors.white.withOpacity(0.15),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.gps_fixed,
-                    color: AppColors.white,
-                    size: 20,
+              if (onLokasiTap != null)
+                GestureDetector(
+                  onTap: onLokasiTap,
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppColors.white.withOpacity(0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.gps_fixed,
+                      color: AppColors.white,
+                      size: 20,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: 16),

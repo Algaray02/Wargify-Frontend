@@ -462,9 +462,6 @@ class _RondaScreenState extends State<RondaScreen> {
 
     try {
       await _createCheckpointLog(checkpoint);
-      if (isMainPos && !_sudahScan) {
-        await _markAttendance();
-      }
       if (!mounted) return;
       _appendCheckpointLog(checkpoint);
       setState(() {
@@ -527,6 +524,8 @@ class _RondaScreenState extends State<RondaScreen> {
     await _initGps();
     if (!_gpsReady) return;
 
+    await _markAttendance();
+
     setState(() {
       _rondaBerjalan = true;
       _pathPoints = [];
@@ -554,6 +553,23 @@ class _RondaScreenState extends State<RondaScreen> {
   }
 
   Future<void> _handleSelesaiRonda({bool force = false}) async {
+    if (!force && !_isUserCoordinator(_selectedSchedule)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Hanya koordinator yang dapat menyelesaikan ronda.',
+            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: AppColors.danger,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+      return;
+    }
+
     if (!force && !_areAllCheckpointsScanned(_selectedSchedule)) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1221,7 +1237,6 @@ class _RondaScreenState extends State<RondaScreen> {
                     timer: _timerDisplay,
                     lokasi: _lokasiDisplay,
                     isMulai: _rondaBerjalan,
-                    onLokasiTap: _openMap,
                   ),
                   const SizedBox(height: 16),
 
@@ -1238,59 +1253,228 @@ class _RondaScreenState extends State<RondaScreen> {
 
                   // --- Tombol Selesai Ronda ---
                   if (_rondaBerjalan) ...[
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: ElevatedButton.icon(
-                        onPressed: _isUserCoordinator(_selectedSchedule)
-                            ? _handleScanQr
-                            : null,
-                        icon: const Icon(
-                          Icons.qr_code_scanner_rounded,
-                          size: 20,
-                        ),
-                        label: Text(
-                          'SCAN CHECKPOINT',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1,
+                    if (_isUserCoordinator(_selectedSchedule)) ...[
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton.icon(
+                          onPressed: _handleScanQr,
+                          icon: const Icon(
+                            Icons.qr_code_scanner_rounded,
+                            size: 20,
                           ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: AppColors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                          label: Text(
+                            'SCAN CHECKPOINT',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1,
+                            ),
                           ),
-                          elevation: 0,
-                          disabledBackgroundColor: Colors.grey.shade300,
-                          disabledForegroundColor: Colors.grey.shade500,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: AppColors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 0,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: ElevatedButton.icon(
-                        onPressed: _handleSelesaiRonda,
-                        icon: const Icon(Icons.stop_circle_outlined, size: 20),
-                        label: Text(
-                          'SELESAI RONDA',
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton.icon(
+                          onPressed: _handleSelesaiRonda,
+                          icon: const Icon(Icons.stop_circle_outlined, size: 20),
+                          label: Text(
+                            'SELESAI RONDA',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.danger,
+                            foregroundColor: AppColors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 0,
+                          ),
+                        ),
+                      ),
+                    ] else ...[
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.amber.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              color: Colors.amber.shade700,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Hanya koordinator regu ronda yang dapat memindai checkpoint dan mengakhiri ronda.',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.amber.shade800,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+
+                  // --- Live Location & Checkpoints List ---
+                  if (_selectedSchedule != null) ...[
+                    const SizedBox(height: 20),
+                    // Row/Header with "Live Location" Button
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'CHECKPOINT RONDA',
                           style: GoogleFonts.plusJakartaSans(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textSecondary,
                             letterSpacing: 1,
                           ),
                         ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.danger,
-                          foregroundColor: AppColors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                        // Live Location Button (pindah dari pojok kanan atas)
+                        OutlinedButton.icon(
+                          onPressed: _openMap,
+                          icon: const Icon(Icons.map_outlined, size: 16),
+                          label: Text(
+                            'Live Location',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                          elevation: 0,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.primary,
+                            side: const BorderSide(color: AppColors.primary),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    // List of Checkpoints
+                    Card(
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(color: Colors.grey.shade200),
+                      ),
+                      color: Colors.white,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          children: [
+                            if (_checkpointsForSchedule(_selectedSchedule).isEmpty)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 20),
+                                child: Text(
+                                  'Belum ada data checkpoint.',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              )
+                            else
+                              ..._checkpointsForSchedule(_selectedSchedule).map((checkpoint) {
+                                final cpId = checkpoint['checkpoint_id']?.toString();
+                                final name = checkpoint['name']?.toString() ?? 'Checkpoint';
+                                final isMain = checkpoint['is_main_pos'] == true ||
+                                    checkpoint['is_main_pos'] == 1 ||
+                                    checkpoint['is_main_pos'] == '1';
+                                final isScanned = cpId != null &&
+                                    _scannedCheckpointIds(_selectedSchedule).contains(cpId);
+
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  decoration: BoxDecoration(
+                                    border: checkpoint == _checkpointsForSchedule(_selectedSchedule).last
+                                        ? null
+                                        : Border(bottom: BorderSide(color: Colors.grey.shade100)),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      // Status indicator (checked/unchecked)
+                                      Icon(
+                                        isScanned ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                                        color: isScanned ? AppColors.success : Colors.grey.shade400,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              name,
+                                              style: GoogleFonts.plusJakartaSans(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w600,
+                                                color: AppColors.textPrimary,
+                                              ),
+                                            ),
+                                            if (isMain)
+                                              Padding(
+                                                padding: const EdgeInsets.only(top: 2),
+                                                child: Text(
+                                                  'Pos Utama',
+                                                  style: GoogleFonts.plusJakartaSans(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: AppColors.primary,
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                      // Scanned status label
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: isScanned ? AppColors.success.withValues(alpha: 0.1) : Colors.grey.shade100,
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Text(
+                                          isScanned ? 'TERSCAN' : 'BELUM SCAN',
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: isScanned ? AppColors.success : Colors.grey.shade600,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                          ],
                         ),
                       ),
                     ),
