@@ -342,220 +342,218 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   }
 
   // View for Tampil Mode QR Code (Glassmorphic Profile Card)
-  Widget _buildTampilQrScreen() {
-    final displayName = _currentUser?.fullName ?? 'Memuat...';
-    final family = _asMap(_profileData?['family']);
-    final household = _asMap(family?['household']);
-    final familyId =
-        family?['family_id']?.toString() ?? family?['id']?.toString();
-    final displayCode = (familyId != null && familyId.isNotEmpty)
-        ? 'Wargify-Family-ID:$familyId'
-        : 'QR-FAMILY-BELUM-TERSEDIA';
-    final blockNumber = household?['block_number']?.toString();
-    final houseNumber = household?['house_number']?.toString();
-    final householdLabel = [
-      if (blockNumber != null && blockNumber.isNotEmpty) 'Blok $blockNumber',
-      if (houseNumber != null && houseNumber.isNotEmpty) 'No. $houseNumber',
-    ].join(' / ');
-    final hasFamilyQr = familyId != null && familyId.isNotEmpty;
+  // =========================================================================
+// METHOD 1: GENERATE & TAMPILKAN QR CODE WARGA (ANTI MULTILINE BREAKDOWN)
+// =========================================================================
+Widget _buildTampilQrScreen() {
+  final displayName = _currentUser?.fullName ?? 'Memuat...';
+  final family = _asMap(_profileData?['family']);
+  final household = _asMap(family?['household']);
 
-    return SafeArea(
-      child: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 30),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const SizedBox(height: 40),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.primary.withOpacity(0.3)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.qr_code_2, size: 18, color: Colors.blue),
-                    const SizedBox(width: 8),
-                    Text(
-                      'QR FAMILY',
+  // 🌟 PERBAIKAN 1: Ambil family_id, ubah ke String, lalu bersihkan secara total dari spasi, tab, enter (\n)
+  final rawFamilyId = family?['family_id']?.toString() ?? family?['id']?.toString();
+  final familyId = rawFamilyId?.replaceAll(RegExp(r'\s+'), '').trim();
+
+  // 🌟 PERBAIKAN 2: QR Code kini murni berisi nilai family_id (UUID) saja
+  final displayCode = (familyId != null && familyId.isNotEmpty)
+      ? familyId
+      : 'QR-FAMILY-BELUM-TERSEDIA';
+
+  final blockNumber = household?['block_number']?.toString();
+  final houseNumber = household?['house_number']?.toString();
+  final householdLabel = [
+    if (blockNumber != null && blockNumber.isNotEmpty) 'Blok $blockNumber',
+    if (houseNumber != null && houseNumber.isNotEmpty) 'No. $houseNumber',
+  ].join(' / ');
+  final hasFamilyQr = familyId != null && familyId.isNotEmpty;
+
+  return SafeArea(
+    child: Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 30),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const SizedBox(height: 40),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.qr_code_2, size: 18, color: Colors.blue),
+                  const SizedBox(width: 8),
+                  Text(
+                    'QR FAMILY',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue[300],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'QR Family',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              hasFamilyQr
+                  ? 'Tunjukkan QR ini ke pengurus RT untuk konfirmasi iuran bulanan'
+                  : 'Family belum terhubung, QR family belum tersedia',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13,
+                color: Colors.white70,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 30),
+            // Premium QR Glass Card
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.06),
+                borderRadius: BorderRadius.circular(30),
+                border: Border.all(color: Colors.white.withOpacity(0.1)),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    displayName,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    householdLabel.isNotEmpty
+                        ? householdLabel
+                        : 'Data family belum lengkap',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      color: Colors.white60,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  // QR Image Box
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: QrImageView(
+                      data: displayCode,
+                      version: QrVersions.auto,
+                      size: 180,
+                      eyeStyle: const QrEyeStyle(
+                        eyeShape: QrEyeShape.square,
+                        color: AppColors.primary,
+                      ),
+                      dataModuleStyle: const QrDataModuleStyle(
+                        dataModuleShape: QrDataModuleShape.square,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  // Dynamic ID Badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      displayCode,
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue[300],
+                        fontWeight: FontWeight.w600,
+                        color: Colors.blue[100],
+                        letterSpacing: 1,
                       ),
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'QR Family',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                hasFamilyQr
-                    ? 'Tunjukkan QR ini ke pengurus RT untuk konfirmasi iuran bulanan'
-                    : 'Family belum terhubung, QR family belum tersedia',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 13,
-                  color: Colors.white70,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 30),
-
-              // Premium QR Glass Card
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.06),
-                  borderRadius: BorderRadius.circular(30),
-                  border: Border.all(color: Colors.white.withOpacity(0.1)),
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      displayName,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      householdLabel.isNotEmpty
-                          ? householdLabel
-                          : 'Data family belum lengkap',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13,
-                        color: Colors.white60,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // QR Image Box
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                      child: QrImageView(
-                        data: displayCode,
-                        version: QrVersions.auto,
-                        size: 180,
-                        eyeStyle: const QrEyeStyle(
-                          eyeShape: QrEyeShape.square,
-                          color: AppColors.primary,
-                        ),
-                        dataModuleStyle: const QrDataModuleStyle(
-                          dataModuleShape: QrDataModuleShape.square,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Dynamic ID Badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        displayCode,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.blue[100],
-                          letterSpacing: 1,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.info_outline,
-                          size: 13,
-                          color: Colors.white38,
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            hasFamilyQr
-                                ? 'QR ini digunakan untuk verifikasi family dan iuran'
-                                : 'Lengkapi data family agar QR bisa digunakan',
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11,
-                              color: Colors.white38,
-                            ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.info_outline, size: 13, color: Colors.white38),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          hasFamilyQr
+                              ? 'QR ini digunakan untuk verifikasi family dan iuran'
+                              : 'Lengkapi data family agar QR bisa digunakan',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            color: Colors.white38,
                           ),
                         ),
-                      ],
-                    ),
-                  ],
-                ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              const SizedBox(height: 40),
-            ],
-          ),
+            ),
+            const SizedBox(height: 40),
+          ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
-  Future<void> _handleScannedCode(String? code) async {
-    final scannedCode = code?.trim();
-    if (scannedCode == null || scannedCode.isEmpty || _isProcessingScan) return;
+// =========================================================================
+// METHOD 2: HANDLER PEMINDAIAN KAMERA (CLEAN & ANTI ERROR)
+// =========================================================================
+Future<void> _handleScannedCode(String? code) async {
+  // 🌟 PERBAIKAN 3: Bersihkan teks hasil scan kamera dari spasi/enter sebelum dikirim ke Laravel
+  final scannedCode = code?.replaceAll(RegExp(r'\s+'), '').trim();
+  if (scannedCode == null || scannedCode.isEmpty || _isProcessingScan) return;
 
-    setState(() => _isProcessingScan = true);
-    await controller.stop();
+  setState(() => _isProcessingScan = true);
+  await controller.stop();
 
-    try {
-      final result = await _apiService.post(ApiEndpoints.qrScan, {
-        'code': scannedCode,
-      });
+  try {
+    final result = await _apiService.post(ApiEndpoints.qrScan, {
+      'code': scannedCode,
+    });
 
-      if (!mounted) return;
-      await _showScanResultDialog(result);
-    } on DioException catch (e) {
-      final message = e.response?.data is Map
-          ? (e.response?.data['message']?.toString() ?? 'QR gagal diproses.')
-          : 'QR gagal diproses.';
+    if (!mounted) return;
+    await _showScanResultDialog(result);
+  } on DioException catch (e) {
+    final message = e.response?.data is Map
+        ? (e.response?.data['message']?.toString() ?? 'QR gagal diproses.')
+        : 'QR gagal diproses.';
 
-      if (!mounted) return;
-      await _showScanErrorDialog(message);
-    } catch (_) {
-      if (!mounted) return;
-      await _showScanErrorDialog('Terjadi kesalahan saat memproses QR.');
-    } finally {
-      if (mounted) {
-        setState(() => _isProcessingScan = false);
-      }
+    if (!mounted) return;
+    await _showScanErrorDialog(message);
+  } catch (_) {
+    if (!mounted) return;
+    await _showScanErrorDialog('Terjadi kesalahan saat memproses QR.');
+  } finally {
+    if (mounted) {
+      setState(() => _isProcessingScan = false);
     }
   }
+}
 
   Future<void> _showScanResultDialog(Map<String, dynamic> result) {
     final type = result['type']?.toString();

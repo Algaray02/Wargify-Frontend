@@ -8,7 +8,9 @@ import 'home/home_screen.dart';
 import 'iuran/iuran_screen.dart';
 import 'gallery/gallery_screen.dart';
 import 'ronda/ronda_screen.dart';
-import 'package:wargify/screens/common/qr/qr_scanner_screen.dart';
+import 'package:wargify/screens/warga/qr/warga_qr_scan_screen.dart';
+import 'package:wargify/screens/warga/qr/warga_qr_tampil_screen.dart';
+
 import 'package:wargify/screens/profile/profile_screen.dart';
 import 'package:wargify/screens/common/notifikasi/notifikasi_log_screen.dart';
 
@@ -175,10 +177,114 @@ class _WargaMainScreenState extends State<WargaMainScreen> {
         margin: const EdgeInsets.only(top: 30),
         child: FloatingActionButton(
           onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const QrScannerScreen(),
+            showModalBottomSheet(
+              context: context,
+              backgroundColor: Colors.transparent,
+              builder: (context) => Container(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Menu QR Warga',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.qr_code_scanner_rounded,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      title: Text(
+                        'Scan QR Presensi / Iuran',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'Scan QR code kegiatan atau pembayaran iuran',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const WargaQrScanScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    const Divider(),
+                    const SizedBox(height: 8),
+                    ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.qr_code_2_rounded,
+                          color: Colors.blue,
+                        ),
+                      ),
+                      title: Text(
+                        'Tampilkan QR Family',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'Tunjukkan QR Anda ke pengurus RT untuk konfirmasi iuran',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const WargaQrTampilScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
               ),
             );
           },

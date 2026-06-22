@@ -2,7 +2,7 @@ class ApiEndpoints {
   // Ganti dengan IP Local Komputer kamu (Cek via 'hostname -I' atau 'ip addr')
   // PENTING: Pastikan IP ini adalah IP server di jaringan lokal yang SAMA dengan hape
   // static const String baseUrl = 'https://wargify.algaray.dev/api/v1';
-  static const String baseUrl = 'http://192.16.1.224:8081/api/v1';
+  static const String baseUrl = 'http://192.168.1.30:8000/api/v1';
 
   static const String login = '/login';
   static const String logout = '/logout';
@@ -21,6 +21,7 @@ class ApiEndpoints {
   static const String rondaGroups = '/ronda/groups';
   static const String rondaSchedules = '/ronda/schedules';
   static const String rondaCheckpoints = '/ronda/checkpoints';
+  static const String rondaCheckpointLogs = '/ronda/checkpoint-logs';
   static const String rondaAttendance = '/ronda/attendance';
   static const String facilityReports = '/facility-reports';
   static const String emergencyAlerts = '/emergency-alerts';

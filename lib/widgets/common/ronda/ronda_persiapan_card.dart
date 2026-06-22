@@ -8,6 +8,7 @@ class RondaPersiapanCard extends StatelessWidget {
   final VoidCallback onMulaiTap;
   final bool isUserMember;
   final bool isUserCoordinator;
+  final bool isOngoing;
 
   const RondaPersiapanCard({
     super.key,
@@ -16,6 +17,7 @@ class RondaPersiapanCard extends StatelessWidget {
     required this.onMulaiTap,
     this.isUserMember = false,
     this.isUserCoordinator = false,
+    this.isOngoing = false,
   });
 
   @override
@@ -53,36 +55,38 @@ class RondaPersiapanCard extends StatelessWidget {
 
            // Scan QR Button - Only for coordinators
            if (isUserCoordinator) ...[
-             GestureDetector(
-               onTap: onScanTap,
-               child: Container(
-                 width: double.infinity,
-                 padding: const EdgeInsets.symmetric(vertical: 24),
-                 decoration: BoxDecoration(
-                   color: AppColors.secondary,
-                   borderRadius: BorderRadius.circular(12),
-                 ),
-                 child: Column(
-                   children: [
-                     Icon(
-                       Icons.qr_code_scanner,
-                       size: 40,
-                       color: sudahScan ? AppColors.primary : AppColors.primary,
-                     ),
-                     const SizedBox(height: 8),
-                     Text(
-                       'Scan QR Pos',
-                       style: GoogleFonts.plusJakartaSans(
-                         fontSize: 14,
-                         fontWeight: FontWeight.w600,
-                         color: AppColors.textPrimary,
+             if (!sudahScan) ...[
+               GestureDetector(
+                 onTap: onScanTap,
+                 child: Container(
+                   width: double.infinity,
+                   padding: const EdgeInsets.symmetric(vertical: 24),
+                   decoration: BoxDecoration(
+                     color: AppColors.secondary,
+                     borderRadius: BorderRadius.circular(12),
+                   ),
+                   child: Column(
+                     children: [
+                       Icon(
+                         Icons.qr_code_scanner,
+                         size: 40,
+                         color: sudahScan ? AppColors.primary : AppColors.primary,
                        ),
-                     ),
-                   ],
+                       const SizedBox(height: 8),
+                       Text(
+                         'Scan QR Pos',
+                         style: GoogleFonts.plusJakartaSans(
+                           fontSize: 14,
+                           fontWeight: FontWeight.w600,
+                           color: AppColors.textPrimary,
+                         ),
+                       ),
+                     ],
+                   ),
                  ),
                ),
-             ),
-             const SizedBox(height: 12),
+               const SizedBox(height: 12),
+             ],
 
              // Status scan
              Row(
@@ -145,13 +149,17 @@ class RondaPersiapanCard extends StatelessWidget {
              width: double.infinity,
              height: 52,
              child: ElevatedButton.icon(
-               onPressed: (isUserMember && sudahScan) ? onMulaiTap : null,
+               onPressed: (isUserMember && sudahScan && isOngoing) ? onMulaiTap : null,
                icon: Icon(
-                 (isUserMember && sudahScan) ? Icons.play_arrow_rounded : Icons.lock_outline,
+                 (isUserMember && sudahScan && isOngoing) ? Icons.play_arrow_rounded : Icons.lock_outline,
                  size: 20,
                ),
                label: Text(
-                 isUserMember ? 'MULAI RONDA' : 'BUKAN ANGGOTA GRUP',
+                 !isUserMember
+                     ? 'BUKAN ANGGOTA GRUP'
+                     : !isOngoing
+                         ? 'JADWAL BELUM MULAI'
+                         : 'MULAI RONDA',
                  style: GoogleFonts.plusJakartaSans(
                    fontSize: 14,
                    fontWeight: FontWeight.bold,
@@ -159,8 +167,8 @@ class RondaPersiapanCard extends StatelessWidget {
                  ),
                ),
                style: ElevatedButton.styleFrom(
-                 backgroundColor: (isUserMember && sudahScan) ? AppColors.success : Colors.grey.shade300,
-                 foregroundColor: (isUserMember && sudahScan) ? AppColors.white : Colors.grey.shade500,
+                 backgroundColor: (isUserMember && sudahScan && isOngoing) ? AppColors.success : Colors.grey.shade300,
+                 foregroundColor: (isUserMember && sudahScan && isOngoing) ? AppColors.white : Colors.grey.shade500,
                  shape: RoundedRectangleBorder(
                    borderRadius: BorderRadius.circular(12),
                  ),

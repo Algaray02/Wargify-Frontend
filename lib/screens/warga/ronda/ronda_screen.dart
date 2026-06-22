@@ -1,11 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart' as latlong2;
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:wargify/core/constants/api_endpoints.dart';
 import 'package:wargify/core/constants/colors.dart';
 import 'package:wargify/models/user_model.dart';
@@ -29,7 +31,7 @@ class _RondaScreenState extends State<RondaScreen> {
 
   // --- User Data ---
   UserModel? _currentUser;
-  
+
   // --- State Ronda ---
   bool _sudahScan = false;
   bool _rondaBerjalan = false;
@@ -81,7 +83,7 @@ class _RondaScreenState extends State<RondaScreen> {
     final checkpoints = schedule['checkpoints'];
     if (checkpoints is List && checkpoints.isNotEmpty) {
       final mainPos = checkpoints.firstWhere(
-        (c) => c['is_main_pos'] == true,
+        (c) => c['is_main_pos'] == true || c['is_main_pos'] == 1 || c['is_main_pos'] == '1',
         orElse: () => checkpoints.first,
       );
       return mainPos['name']?.toString() ?? 'Pos Utama';
@@ -136,22 +138,17 @@ class _RondaScreenState extends State<RondaScreen> {
     return coordinator['user_id']?.toString() == _currentUser!.userId;
   }
 
-  /// Check if schedule is currently active (ONGOING status)
-  bool _isScheduleActive(Map<String, dynamic>? schedule) {
-    if (schedule == null) return false;
-    final status = schedule['status']?.toString() ?? '';
-    return status == 'ONGOING';
-  }
-
   // ─────────────────────────────────────────────────────────────
   //  API CALLS
   // ─────────────────────────────────────────────────────────────
 
-  Future<void> _fetchSchedules() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+  Future<void> _fetchSchedules({bool background = false}) async {
+    if (!background) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
 
     try {
       final raw = await _apiService.getList(ApiEndpoints.rondaSchedules);
@@ -160,16 +157,44 @@ class _RondaScreenState extends State<RondaScreen> {
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
 
+      if (_rondaBerjalan && _selectedSchedule != null) {
+        final currentScheduleId = _selectedSchedule!['schedule_id']?.toString();
+        final updatedSchedule = schedules.firstWhere(
+          (s) => s['schedule_id']?.toString() == currentScheduleId,
+          orElse: () => <String, dynamic>{},
+        );
+        final status = updatedSchedule['status']?.toString().toUpperCase();
+        if (status != null && status != 'ONGOING') {
+          _handleSelesaiRonda(force: true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Ronda diselesaikan otomatis karena jadwal telah berakhir.',
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
+              ),
+              backgroundColor: AppColors.primary,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          );
+          return;
+        }
+      }
+
       final now = DateTime.now();
       final mendatang = <Map<String, dynamic>>[];
       final riwayat = <Map<String, dynamic>>[];
 
       for (final s in schedules) {
         final dateStr = s['schedule_date']?.toString();
-        final scheduleDate = dateStr != null ? DateTime.tryParse(dateStr) : null;
+        final scheduleDate = dateStr != null
+            ? DateTime.tryParse(dateStr)
+            : null;
         final status = s['status']?.toString() ?? '';
 
-        if (status == 'SCHEDULED' &&
+        if ((status == 'SCHEDULED' || status == 'ONGOING') &&
             scheduleDate != null &&
             !scheduleDate.isBefore(DateTime(now.year, now.month, now.day))) {
           mendatang.add(s);
@@ -178,15 +203,25 @@ class _RondaScreenState extends State<RondaScreen> {
         }
       }
 
-      mendatang.sort((a, b) => (a['schedule_date'] ?? '').toString().compareTo(b['schedule_date'] ?? ''));
-      riwayat.sort((a, b) => (b['schedule_date'] ?? '').toString().compareTo(a['schedule_date'] ?? ''));
+      mendatang.sort(
+        (a, b) => (a['schedule_date'] ?? '').toString().compareTo(
+          b['schedule_date'] ?? '',
+        ),
+      );
+      riwayat.sort(
+        (a, b) => (b['schedule_date'] ?? '').toString().compareTo(
+          a['schedule_date'] ?? '',
+        ),
+      );
 
       if (!mounted) return;
+      final selected = mendatang.isNotEmpty ? mendatang.first : null;
       setState(() {
         _allSchedules = schedules;
         _jadwalMendatang = mendatang;
         _riwayatRonda = riwayat;
-        _selectedSchedule = mendatang.isNotEmpty ? mendatang.first : null;
+        _selectedSchedule = selected;
+        _sudahScan = _hasScannedMainPos(selected);
         _isLoading = false;
       });
     } catch (e) {
@@ -219,7 +254,9 @@ class _RondaScreenState extends State<RondaScreen> {
           ),
           backgroundColor: AppColors.primary,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
       );
     } catch (e) {
@@ -232,7 +269,9 @@ class _RondaScreenState extends State<RondaScreen> {
           ),
           backgroundColor: AppColors.danger,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
       );
     }
@@ -249,15 +288,35 @@ class _RondaScreenState extends State<RondaScreen> {
       await _apiService.post(
         '${ApiEndpoints.rondaSchedules}/$scheduleId/logs',
         {
-          'path_data': _pathPoints.map((p) => {
-            'lat': p.latitude,
-            'lng': p.longitude,
-            'time': DateTime.now().toIso8601String(),
-          }).toList(),
+          'path_data': _pathPoints
+              .map(
+                (p) => {
+                  'lat': p.latitude,
+                  'lng': p.longitude,
+                  'time': DateTime.now().toIso8601String(),
+                },
+              )
+              .toList(),
           'duration': _detikBerjalan,
         },
       );
     } catch (_) {}
+  }
+
+  Future<void> _createCheckpointLog(Map<String, dynamic> checkpoint) async {
+    final schedule = _selectedSchedule;
+    if (schedule == null) return;
+
+    final scheduleId = schedule['schedule_id']?.toString();
+    final checkpointId = checkpoint['checkpoint_id']?.toString();
+    if (scheduleId == null || checkpointId == null) return;
+
+    await _apiService.post(
+      '${ApiEndpoints.rondaSchedules}/$scheduleId/checkpoint-logs',
+      {
+        'checkpoint_id': checkpointId,
+      },
+    );
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -311,18 +370,19 @@ class _RondaScreenState extends State<RondaScreen> {
   }
 
   void _startGpsTracking() {
-    _gpsSubscription = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 3,
-      ),
-    ).listen((pos) {
-      if (!mounted) return;
-      setState(() {
-        _currentPosition = pos;
-        _pathPoints.add(latlong2.LatLng(pos.latitude, pos.longitude));
-      });
-    });
+    _gpsSubscription =
+        Geolocator.getPositionStream(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            distanceFilter: 3,
+          ),
+        ).listen((pos) {
+          if (!mounted) return;
+          setState(() {
+            _currentPosition = pos;
+            _pathPoints.add(latlong2.LatLng(pos.latitude, pos.longitude));
+          });
+        });
   }
 
   void _stopGpsTracking() {
@@ -336,37 +396,94 @@ class _RondaScreenState extends State<RondaScreen> {
 
   Future<void> _handleScanQr() async {
     if (_selectedSchedule == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Tidak ada jadwal ronda hari ini.',
-            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
-          ),
-          backgroundColor: Colors.orange,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
+      _showSnackBar(
+        'Tidak ada jadwal ronda hari ini.',
+        backgroundColor: Colors.orange,
       );
       return;
     }
 
     // Check if user is coordinator
     if (!_isUserCoordinator(_selectedSchedule)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Hanya koordinator ronda yang bisa scan QR checkpoint.',
-            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
-          ),
-          backgroundColor: AppColors.danger,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
+      _showSnackBar(
+        'Hanya koordinator ronda yang bisa scan QR checkpoint.',
+        backgroundColor: AppColors.danger,
       );
       return;
     }
 
-    await _markAttendance();
+    final checkpoints = _checkpointsForSchedule(_selectedSchedule);
+    if (checkpoints.isEmpty) {
+      _showSnackBar(
+        'Tidak ada checkpoint untuk jadwal ini.',
+        backgroundColor: Colors.orange,
+      );
+      return;
+    }
+
+    final scannedCode = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => const _CheckpointQrScannerScreen()),
+    );
+    if (!mounted || scannedCode == null || scannedCode.trim().isEmpty) return;
+
+    final checkpoint = _findCheckpointByQrCode(checkpoints, scannedCode);
+    if (checkpoint == null) {
+      _showSnackBar(
+        'QR checkpoint tidak sesuai dengan jadwal ronda ini.',
+        backgroundColor: AppColors.danger,
+      );
+      return;
+    }
+
+    final scannedIds = _scannedCheckpointIds(_selectedSchedule);
+    final checkpointId = checkpoint['checkpoint_id']?.toString();
+    if (checkpointId != null && scannedIds.contains(checkpointId)) {
+      _showSnackBar(
+        'Checkpoint ini sudah discan.',
+        backgroundColor: Colors.orange,
+      );
+      return;
+    }
+
+    final mainPos = _mainPosCheckpoint(_selectedSchedule);
+    final mainPosId = mainPos?['checkpoint_id']?.toString();
+    final isMainPos = checkpointId != null && checkpointId == mainPosId;
+    final hasScannedMainPos =
+        mainPosId != null && scannedIds.contains(mainPosId);
+
+    if (!hasScannedMainPos && !isMainPos) {
+      _showSnackBar(
+        'Scan Pos Utama terlebih dahulu sebelum checkpoint lain.',
+        backgroundColor: AppColors.danger,
+      );
+      return;
+    }
+
+    try {
+      await _createCheckpointLog(checkpoint);
+      if (isMainPos && !_sudahScan) {
+        await _markAttendance();
+      }
+      if (!mounted) return;
+      _appendCheckpointLog(checkpoint);
+      setState(() {
+        _sudahScan = _hasScannedMainPos(_selectedSchedule);
+      });
+      _showSnackBar(
+        isMainPos
+            ? 'Pos Utama berhasil discan. Ronda bisa dimulai.'
+            : 'Checkpoint berhasil discan.',
+        backgroundColor: AppColors.primary,
+      );
+      _fetchSchedules();
+    } catch (e) {
+      if (!mounted) return;
+      _showSnackBar(
+        'Gagal mencatat checkpoint: ${e.toString()}',
+        backgroundColor: AppColors.danger,
+      );
+    }
   }
 
   Future<void> _handleMulaiRonda() async {
@@ -380,7 +497,28 @@ class _RondaScreenState extends State<RondaScreen> {
           ),
           backgroundColor: AppColors.danger,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+      return;
+    }
+
+    // Check if the schedule is currently ongoing
+    final scheduleStatus = _selectedSchedule?['status']?.toString().toUpperCase();
+    if (scheduleStatus != 'ONGOING') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Ronda tidak dapat dimulai karena jadwal belum berlangsung.',
+            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: AppColors.danger,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
       );
       return;
@@ -395,24 +533,78 @@ class _RondaScreenState extends State<RondaScreen> {
     });
 
     if (_currentPosition != null) {
-      _pathPoints.add(latlong2.LatLng(
-        _currentPosition!.latitude,
-        _currentPosition!.longitude,
-      ));
+      _pathPoints.add(
+        latlong2.LatLng(
+          _currentPosition!.latitude,
+          _currentPosition!.longitude,
+        ),
+      );
     }
 
     _startGpsTracking();
 
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() => _detikBerjalan++);
+      if (mounted) {
+        setState(() => _detikBerjalan++);
+        if (_detikBerjalan % 10 == 0) {
+          _fetchSchedules(background: true);
+        }
+      }
     });
   }
 
-  Future<void> _handleSelesaiRonda() async {
+  Future<void> _handleSelesaiRonda({bool force = false}) async {
+    if (!force && !_areAllCheckpointsScanned(_selectedSchedule)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Ronda belum bisa diselesaikan. Harap scan semua checkpoint terlebih dahulu.',
+            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: AppColors.danger,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+      return;
+    }
+
     _timer?.cancel();
     _stopGpsTracking();
 
     if (_selectedSchedule != null) {
+      final scheduleId = _selectedSchedule!['schedule_id']?.toString();
+      if (scheduleId != null) {
+        try {
+          await _apiService.patch(
+            '${ApiEndpoints.rondaSchedules}/$scheduleId',
+            {
+              'status': 'COMPLETED',
+            },
+          );
+        } on DioException catch (e) {
+          final message = e.response?.data is Map
+              ? (e.response?.data['message']?.toString() ?? 'Gagal memperbarui status di server.')
+              : 'Gagal memperbarui status di server.';
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Error: $message',
+                  style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
+                ),
+                backgroundColor: AppColors.danger,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            );
+          }
+        } catch (_) {}
+      }
       await _uploadRondaLog();
     }
 
@@ -452,7 +644,9 @@ class _RondaScreenState extends State<RondaScreen> {
             style: GoogleFonts.plusJakartaSans(),
           ),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
       );
       return;
@@ -477,14 +671,17 @@ class _RondaScreenState extends State<RondaScreen> {
 
   Widget _buildMapSheet(ScrollController scrollController) {
     final checkpoints = (_selectedSchedule?['checkpoints'] as List?) ?? [];
-    final checkpointLogs = (_selectedSchedule?['checkpoint_logs'] as List?) ?? [];
+    final checkpointLogs =
+        (_selectedSchedule?['checkpoint_logs'] as List?) ?? [];
     final scannedIds = checkpointLogs
         .map((l) => (l is Map) ? l['checkpoint_id']?.toString() : null)
         .whereType<String>()
         .toSet();
 
     final checkpointMarkers = checkpoints.map((cp) {
-      final data = cp is Map ? Map<String, dynamic>.from(cp) : <String, dynamic>{};
+      final data = cp is Map
+          ? Map<String, dynamic>.from(cp)
+          : <String, dynamic>{};
       return {
         'id': data['checkpoint_id']?.toString(),
         'name': data['name']?.toString() ?? 'Checkpoint',
@@ -493,7 +690,7 @@ class _RondaScreenState extends State<RondaScreen> {
           double.tryParse('${data['longitude']}') ?? 0,
         ),
         'isScanned': scannedIds.contains(data['checkpoint_id']?.toString()),
-        'isMain': data['is_main_pos'] == true,
+        'isMain': data['is_main_pos'] == true || data['is_main_pos'] == 1 || data['is_main_pos'] == '1',
       };
     }).toList();
 
@@ -542,7 +739,9 @@ class _RondaScreenState extends State<RondaScreen> {
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: _rondaBerjalan ? AppColors.success : AppColors.textSecondary,
+                    color: _rondaBerjalan
+                        ? AppColors.success
+                        : AppColors.textSecondary,
                   ),
                 ),
               ],
@@ -563,7 +762,8 @@ class _RondaScreenState extends State<RondaScreen> {
                 ),
                 children: [
                   TileLayer(
-                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    urlTemplate:
+                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                     userAgentPackageName: 'com.example.wargify',
                   ),
                   if (_pathPoints.length >= 2)
@@ -571,7 +771,7 @@ class _RondaScreenState extends State<RondaScreen> {
                       polylines: [
                         Polyline(
                           points: _pathPoints,
-                          color: AppColors.primary.withOpacity(0.6),
+                          color: AppColors.primary.withValues(alpha: 0.6),
                           strokeWidth: 4.0,
                         ),
                       ],
@@ -583,7 +783,7 @@ class _RondaScreenState extends State<RondaScreen> {
                           points: checkpointMarkers
                               .map((m) => m['location'] as latlong2.LatLng)
                               .toList(),
-                          color: Colors.orange.withOpacity(0.4),
+                          color: Colors.orange.withValues(alpha: 0.4),
                           strokeWidth: 2.0,
                           pattern: StrokePattern.dashed(segments: [8.0, 6.0]),
                         ),
@@ -605,8 +805,13 @@ class _RondaScreenState extends State<RondaScreen> {
                                 shape: BoxShape.circle,
                                 color: isScanned
                                     ? AppColors.success
-                                    : (isMain ? AppColors.primary : Colors.blue),
-                                border: Border.all(color: Colors.white, width: 3),
+                                    : (isMain
+                                          ? AppColors.primary
+                                          : Colors.blue),
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 3,
+                                ),
                                 boxShadow: const [
                                   BoxShadow(
                                     color: Colors.black26,
@@ -681,12 +886,29 @@ class _RondaScreenState extends State<RondaScreen> {
   // ─────────────────────────────────────────────────────────────
 
   static const _bulanIndo = [
-    '', 'JAN', 'FEB', 'MAR', 'APR', 'MEI', 'JUN',
-    'JUL', 'AGT', 'SEP', 'OKT', 'NOV', 'DES',
+    '',
+    'JAN',
+    'FEB',
+    'MAR',
+    'APR',
+    'MEI',
+    'JUN',
+    'JUL',
+    'AGT',
+    'SEP',
+    'OKT',
+    'NOV',
+    'DES',
   ];
 
   static const _hariIndo = [
-    'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu',
+    'Senin',
+    'Selasa',
+    'Rabu',
+    'Kamis',
+    'Jumat',
+    'Sabtu',
+    'Minggu',
   ];
 
   Map<String, dynamic> _jadwalToCard(Map<String, dynamic> s) {
@@ -700,7 +922,8 @@ class _RondaScreenState extends State<RondaScreen> {
 
     String waktu = '-';
     if (startTime != null && endTime != null) {
-      waktu = '${DateFormat('HH:mm').format(startTime)} - ${DateFormat('HH:mm').format(endTime)}';
+      waktu =
+          '${DateFormat('HH:mm').format(startTime)} - ${DateFormat('HH:mm').format(endTime)}';
     } else if (startTime != null) {
       waktu = DateFormat('HH:mm').format(startTime);
     }
@@ -714,7 +937,9 @@ class _RondaScreenState extends State<RondaScreen> {
       hariNama = _hariIndo[date.weekday - 1];
     }
 
-    final group = s['group'] is Map ? Map<String, dynamic>.from(s['group'] as Map) : <String, dynamic>{};
+    final group = s['group'] is Map
+        ? Map<String, dynamic>.from(s['group'] as Map)
+        : <String, dynamic>{};
     final members = group['members'];
     final jumlahAnggota = members is List ? members.length : 0;
 
@@ -722,7 +947,7 @@ class _RondaScreenState extends State<RondaScreen> {
     String namaTempat = group['name']?.toString() ?? 'Pos Ronda';
     if (checkpoints is List && checkpoints.isNotEmpty) {
       final mainPos = checkpoints.firstWhere(
-        (c) => c['is_main_pos'] == true,
+        (c) => c['is_main_pos'] == true || c['is_main_pos'] == 1 || c['is_main_pos'] == '1',
         orElse: () => checkpoints.first,
       );
       namaTempat = mainPos['name']?.toString() ?? namaTempat;
@@ -747,17 +972,22 @@ class _RondaScreenState extends State<RondaScreen> {
       tanggal = '${DateFormat('dd').format(date)} ${_bulanIndo[date.month]}';
     }
 
-    final rondaLog = s['ronda_log'] is Map ? Map<String, dynamic>.from(s['ronda_log'] as Map) : null;
+    final rondaLog = s['ronda_log'] is Map
+        ? Map<String, dynamic>.from(s['ronda_log'] as Map)
+        : null;
     final duration = rondaLog?['duration'];
     String durasi = '-';
     if (duration is num) {
       final jam = duration ~/ 3600;
       final menit = (duration % 3600) ~/ 60;
       final detik = duration % 60;
-      durasi = '${jam.toString().padLeft(2, '0')}:${menit.toString().padLeft(2, '0')}:${detik.toString().padLeft(2, '0')}';
+      durasi =
+          '${jam.toString().padLeft(2, '0')}:${menit.toString().padLeft(2, '0')}:${detik.toString().padLeft(2, '0')}';
     }
 
-    final group = s['group'] is Map ? Map<String, dynamic>.from(s['group'] as Map) : <String, dynamic>{};
+    final group = s['group'] is Map
+        ? Map<String, dynamic>.from(s['group'] as Map)
+        : <String, dynamic>{};
     final namaTempat = group['name']?.toString() ?? 'Pos Ronda';
 
     final shiftStart = s['shift_start']?.toString();
@@ -766,7 +996,8 @@ class _RondaScreenState extends State<RondaScreen> {
     final endTime = shiftEnd != null ? DateTime.tryParse(shiftEnd) : null;
     String shift = '-';
     if (startTime != null && endTime != null) {
-      shift = '${DateFormat('HH:mm').format(startTime)} - ${DateFormat('HH:mm').format(endTime)}';
+      shift =
+          '${DateFormat('HH:mm').format(startTime)} - ${DateFormat('HH:mm').format(endTime)}';
     }
 
     return {
@@ -776,6 +1007,116 @@ class _RondaScreenState extends State<RondaScreen> {
       'tanggal': tanggal,
       'status': 'Selesai',
     };
+  }
+
+  List<Map<String, dynamic>> _checkpointsForSchedule(
+    Map<String, dynamic>? schedule,
+  ) {
+    final checkpoints = schedule?['checkpoints'];
+    if (checkpoints is! List) return [];
+    return checkpoints
+        .whereType<Map>()
+        .map((checkpoint) => Map<String, dynamic>.from(checkpoint))
+        .toList();
+  }
+
+  Map<String, dynamic>? _mainPosCheckpoint(Map<String, dynamic>? schedule) {
+    final checkpoints = _checkpointsForSchedule(schedule);
+    if (checkpoints.isEmpty) return null;
+    return checkpoints.firstWhere(
+      (checkpoint) => checkpoint['is_main_pos'] == true || checkpoint['is_main_pos'] == 1 || checkpoint['is_main_pos'] == '1',
+      orElse: () => checkpoints.first,
+    );
+  }
+
+  Set<String> _scannedCheckpointIds(Map<String, dynamic>? schedule) {
+    final logs = schedule?['checkpoint_logs'];
+    if (logs is! List) return {};
+    return logs
+        .map((log) => log is Map ? log['checkpoint_id']?.toString() : null)
+        .whereType<String>()
+        .toSet();
+  }
+
+  bool _hasScannedMainPos(Map<String, dynamic>? schedule) {
+    final mainPosId = _mainPosCheckpoint(
+      schedule,
+    )?['checkpoint_id']?.toString();
+    if (mainPosId == null) return false;
+    return _scannedCheckpointIds(schedule).contains(mainPosId);
+  }
+
+  bool _areAllCheckpointsScanned(Map<String, dynamic>? schedule) {
+    if (schedule == null) return false;
+    final checkpoints = _checkpointsForSchedule(schedule);
+    if (checkpoints.isEmpty) return false;
+    final scannedIds = _scannedCheckpointIds(schedule);
+    return checkpoints.every((cp) {
+      final cpId = cp['checkpoint_id']?.toString();
+      return cpId != null && scannedIds.contains(cpId);
+    });
+  }
+
+  Map<String, dynamic>? _findCheckpointByQrCode(
+    List<Map<String, dynamic>> checkpoints,
+    String rawCode,
+  ) {
+    final code = rawCode.trim();
+    for (final checkpoint in checkpoints) {
+      if (checkpoint['qr_code_data']?.toString().trim() == code) {
+        return checkpoint;
+      }
+    }
+    return null;
+  }
+
+  void _appendCheckpointLog(Map<String, dynamic> checkpoint) {
+    final schedule = _selectedSchedule;
+    if (schedule == null) return;
+
+    final logs = schedule['checkpoint_logs'] is List
+        ? List<dynamic>.from(schedule['checkpoint_logs'] as List)
+        : <dynamic>[];
+    final checkpointId = checkpoint['checkpoint_id']?.toString();
+    if (checkpointId == null ||
+        logs.any(
+          (log) =>
+              log is Map && log['checkpoint_id']?.toString() == checkpointId,
+        )) {
+      return;
+    }
+
+    logs.add({
+      'checkpoint_id': checkpointId,
+      'scanned_at': DateTime.now().toIso8601String(),
+    });
+    schedule['checkpoint_logs'] = logs;
+
+    final scheduleId = schedule['schedule_id']?.toString();
+    if (scheduleId == null) return;
+    void updateList(List<Map<String, dynamic>> rows) {
+      final index = rows.indexWhere(
+        (row) => row['schedule_id']?.toString() == scheduleId,
+      );
+      if (index >= 0) rows[index]['checkpoint_logs'] = logs;
+    }
+
+    updateList(_allSchedules);
+    updateList(_jadwalMendatang);
+  }
+
+  void _showSnackBar(String message, {Color? backgroundColor}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
+        ),
+        backgroundColor: backgroundColor ?? AppColors.primary,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -800,7 +1141,10 @@ class _RondaScreenState extends State<RondaScreen> {
               Text(
                 _errorMessage!,
                 textAlign: TextAlign.center,
-                style: GoogleFonts.plusJakartaSans(fontSize: 13, color: Colors.grey[600]),
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
+                  color: Colors.grey[600],
+                ),
               ),
               const SizedBox(height: 16),
               ElevatedButton.icon(
@@ -810,7 +1154,9 @@ class _RondaScreenState extends State<RondaScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: AppColors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                   elevation: 0,
                 ),
               ),
@@ -834,7 +1180,11 @@ class _RondaScreenState extends State<RondaScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.shield_outlined, size: 64, color: Colors.grey[300]),
+                        Icon(
+                          Icons.shield_outlined,
+                          size: 64,
+                          color: Colors.grey[300],
+                        ),
                         const SizedBox(height: 16),
                         Text(
                           'Belum ada jadwal ronda',
@@ -873,20 +1223,53 @@ class _RondaScreenState extends State<RondaScreen> {
                     isMulai: _rondaBerjalan,
                     onLokasiTap: _openMap,
                   ),
-                   const SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
-                   // --- Persiapan Card (hanya kalau belum mulai) ---
-                   if (!_rondaBerjalan)
-                     RondaPersiapanCard(
-                       sudahScan: _sudahScan,
-                       onScanTap: _handleScanQr,
-                       onMulaiTap: _handleMulaiRonda,
-                       isUserMember: _isUserMemberOfGroup(_selectedSchedule),
-                       isUserCoordinator: _isUserCoordinator(_selectedSchedule),
-                     ),
+                  // --- Persiapan Card (hanya kalau belum mulai) ---
+                  if (!_rondaBerjalan)
+                    RondaPersiapanCard(
+                      sudahScan: _sudahScan,
+                      onScanTap: _handleScanQr,
+                      onMulaiTap: _handleMulaiRonda,
+                      isUserMember: _isUserMemberOfGroup(_selectedSchedule),
+                      isUserCoordinator: _isUserCoordinator(_selectedSchedule),
+                      isOngoing: _selectedSchedule?['status']?.toString().toUpperCase() == 'ONGOING',
+                    ),
 
                   // --- Tombol Selesai Ronda ---
                   if (_rondaBerjalan) ...[
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton.icon(
+                        onPressed: _isUserCoordinator(_selectedSchedule)
+                            ? _handleScanQr
+                            : null,
+                        icon: const Icon(
+                          Icons.qr_code_scanner_rounded,
+                          size: 20,
+                        ),
+                        label: Text(
+                          'SCAN CHECKPOINT',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: AppColors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
+                          disabledBackgroundColor: Colors.grey.shade300,
+                          disabledForegroundColor: Colors.grey.shade500,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
                       height: 52,
@@ -944,7 +1327,10 @@ class _RondaScreenState extends State<RondaScreen> {
                           status: card['status'] ?? '',
                           jumlahAnggota: card['jumlahAnggota'] ?? 0,
                           onTap: () {
-                            setState(() => _selectedSchedule = s);
+                            setState(() {
+                              _selectedSchedule = s;
+                              _sudahScan = _hasScannedMainPos(s);
+                            });
                             _openMap();
                           },
                         ),
@@ -989,6 +1375,206 @@ class _RondaScreenState extends State<RondaScreen> {
                 ],
               ),
             ),
+    );
+  }
+}
+
+class _CheckpointQrScannerScreen extends StatefulWidget {
+  const _CheckpointQrScannerScreen();
+
+  @override
+  State<_CheckpointQrScannerScreen> createState() =>
+      _CheckpointQrScannerScreenState();
+}
+
+class _CheckpointQrScannerScreenState
+    extends State<_CheckpointQrScannerScreen> {
+  final MobileScannerController _controller = MobileScannerController();
+  bool _isFlashOn = false;
+  bool _isProcessing = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _handleDetect(BarcodeCapture capture) {
+    if (_isProcessing) return;
+    final code = capture.barcodes
+        .map((barcode) => barcode.rawValue)
+        .whereType<String>()
+        .firstWhere((value) => value.trim().isNotEmpty, orElse: () => '');
+    if (code.isEmpty) return;
+
+    _isProcessing = true;
+    _controller.stop();
+    Navigator.pop(context, code);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          MobileScanner(
+            controller: _controller,
+            onDetect: _handleDetect,
+            errorBuilder: (context, error, child) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Text(
+                    'Kamera tidak dapat diakses.\nPastikan izin kamera sudah diberikan.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.plusJakartaSans(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+          SafeArea(
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: IconButton(
+                          icon: const Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            size: 20,
+                            color: Colors.white,
+                          ),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Text(
+                        'Scan Checkpoint',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                Center(
+                  child: Container(
+                    width: 280,
+                    height: 280,
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.15),
+                        width: 1,
+                      ),
+                      borderRadius: BorderRadius.circular(40),
+                    ),
+                    child: Stack(
+                      children: [
+                        _buildCorner(top: 0, left: 0, angle: 0),
+                        _buildCorner(top: 0, right: 0, angle: 90),
+                        _buildCorner(bottom: 0, left: 0, angle: -90),
+                        _buildCorner(bottom: 0, right: 0, angle: 180),
+                        Positioned(
+                          bottom: 24,
+                          left: 0,
+                          right: 0,
+                          child: Center(
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() => _isFlashOn = !_isFlashOn);
+                                _controller.toggleTorch();
+                              },
+                              child: Container(
+                                width: 54,
+                                height: 54,
+                                decoration: BoxDecoration(
+                                  color: _isFlashOn
+                                      ? AppColors.primary
+                                      : Colors.white.withValues(alpha: 0.85),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Icon(
+                                  _isFlashOn
+                                      ? Icons.flashlight_off_rounded
+                                      : Icons.flashlight_on_rounded,
+                                  color: _isFlashOn
+                                      ? Colors.white
+                                      : const Color(0xFF0D1B2A),
+                                  size: 24,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 28),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40),
+                  child: Text(
+                    'Arahkan kamera ke QR checkpoint ronda.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      color: Colors.white.withValues(alpha: 0.82),
+                      height: 1.5,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCorner({
+    double? top,
+    double? bottom,
+    double? left,
+    double? right,
+    required double angle,
+  }) {
+    return Positioned(
+      top: top,
+      bottom: bottom,
+      left: left,
+      right: right,
+      child: Transform.rotate(
+        angle: angle * 3.14159 / 180,
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: const BoxDecoration(
+            border: Border(
+              top: BorderSide(color: AppColors.primary, width: 4),
+              left: BorderSide(color: AppColors.primary, width: 4),
+            ),
+            borderRadius: BorderRadius.only(topLeft: Radius.circular(12)),
+          ),
+        ),
+      ),
     );
   }
 }
