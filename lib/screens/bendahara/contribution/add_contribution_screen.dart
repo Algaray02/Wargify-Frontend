@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../../../../core/constants/colors.dart';
+import 'package:wargify/core/constants/colors.dart';
 import 'package:wargify/services/api_service.dart';
 import 'package:wargify/core/constants/api_endpoints.dart';
 import 'package:dio/dio.dart';
@@ -11,12 +11,14 @@ class AddContributionScreen extends StatefulWidget {
   @override
   State<AddContributionScreen> createState() => _AddContributionScreenState();
 }
-String _selectedDuration = '1';
 
 class _AddContributionScreenState extends State<AddContributionScreen> {
   final TextEditingController _nameController = TextEditingController();
   final ApiService _apiService = ApiService();
   bool _isSaving = false;
+  
+  // 🌟 PERBAIKAN 1: Pindahkan durasi ke dalam State sebagai tipe data int murni (Default 1 Bulan)
+  int _durationMonths = 1;
 
   // State untuk melacak kategori iuran yang dipilih dan nominalnya
   final Map<String, Map<String, dynamic>> _categories = {
@@ -91,7 +93,8 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
         'period_name': _nameController.text,
         'month': currentMonth,
         'year': currentYear,
-        'duration_months': int.parse(_selectedDuration), // Kirim durasi bulan (1 atau 12)
+        // 🌟 PERBAIKAN 2: Mengirimkan langsung nilai int murni dari SegmentedButton ke API
+        'duration_months': _durationMonths, 
         'categories': selectedCategories,
       };
 
@@ -253,39 +256,42 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
             const SizedBox(height: 32),
             
             _buildLabel('Durasi Tagihan'),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE0E6ED)),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _selectedDuration,
-                  isExpanded: true,
-                  icon: const Icon(Icons.arrow_drop_down_rounded, color: Colors.grey, size: 30),
-                  items: [
-                    DropdownMenuItem(
-                      value: '1',
-                      child: Text('Bulan Ini Saja', style: GoogleFonts.plusJakartaSans(fontSize: 14)),
-                    ),
-                    DropdownMenuItem(
-                      value: '3',
-                      child: Text('Bulan Ini s/d 3 bulan ke Depan (Triwulan)', style: GoogleFonts.plusJakartaSans(fontSize: 14)),
-                    ),
-                  ],
-                  onChanged: (String? newValue) {
-                    if (newValue != null) {
-                      setState(() {
-                        _selectedDuration = newValue;
-                      });
-                    }
-                  },
+            SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<int>(
+                style: SegmentedButton.styleFrom(
+                  selectedBackgroundColor: const Color(0xFF0D47A1),
+                  selectedForegroundColor: Colors.white,
+                  // unselectedForegroundColor: Colors.grey[700],
+                  backgroundColor: Colors.white,
+                  side: const BorderSide(color: Color(0xFFE0E6ED)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
+                segments: const [
+                  ButtonSegment(
+                    value: 1, 
+                    label: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 8),
+                      child: Text('1 Bulan', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    ),
+                    icon: Icon(Icons.calendar_today_rounded, size: 16),
+                  ),
+                  ButtonSegment(
+                    value: 3, 
+                    label: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 8),
+                      child: Text('3 Bulan (Triwulan)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    ),
+                    icon: Icon(Icons.date_range_rounded, size: 16),
+                  ),
+                ],
+                selected: {_durationMonths},
+                onSelectionChanged: (value) {
+                  setState(() => _durationMonths = value.first);
+                },
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
 
             ElevatedButton(
               onPressed: _isSaving ? null : _saveContributionPeriod,

@@ -1,8 +1,8 @@
 class ApiEndpoints {
   // Ganti dengan IP Local Komputer kamu (Cek via 'hostname -I' atau 'ip addr')
   // PENTING: Pastikan IP ini adalah IP server di jaringan lokal yang SAMA dengan hape 
-  static const String baseUrl = 'http://172.16.163.134:8081/api/v1';
-  // static const String baseUrl = 'https://wargify.algaray.dev/api/v1';
+  // static const String baseUrl = 'http://172.16.163.134:8081/api/v1';
+  static const String baseUrl = 'https://wargify.algaray.dev/api/v1';
 
   // MODUL AUTH & PROFIL
   static const String login = '/login';
