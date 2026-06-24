@@ -28,7 +28,6 @@ class _ResidentsScreenState extends State<ResidentsScreen> {
     _loadResidentsData();
   }
 
-  // 1. Ambil data gabungan status iuran warga dari Laravel Backend
   Future<void> _loadResidentsData() async {
     try {
       setState(() {
@@ -36,7 +35,6 @@ class _ResidentsScreenState extends State<ResidentsScreen> {
         _errorMsg = null;
       });
 
-      // Menggunakan ID default 'all' atau ID periode aktif untuk memicu data global periodPayments
       final url = '${ApiEndpoints.iuranPeriods}/active/payments';
       final response = await _apiService.getList(url);
 
@@ -64,7 +62,6 @@ class _ResidentsScreenState extends State<ResidentsScreen> {
     }
   }
 
-  // 2. Fungsi Filter Teks Pencarian Nama & Kategori Status Pembayaran
   void _applyFilterAndSearch() {
     List<dynamic> tempResults = List.from(_allResidents);
 
@@ -86,6 +83,18 @@ class _ResidentsScreenState extends State<ResidentsScreen> {
     setState(() {
       _filteredResidents = tempResults;
     });
+  }
+
+  // Helper merubah angka bulan (1-12) dari database menjadi Teks Bahasa Indonesia
+  String _getNamaBulanIndo(int monthNumber) {
+    const List<String> months = [
+      "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+      "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+    ];
+    if (monthNumber >= 1 && monthNumber <= 12) {
+      return months[monthNumber - 1];
+    }
+    return "Periode Lain";
   }
 
   String _formatRupiah(Object? value) {
@@ -227,7 +236,6 @@ class _ResidentsScreenState extends State<ResidentsScreen> {
               }(),
               const SizedBox(height: 24),
               
-              // Search Bar dengan Aksi OnChanged
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 decoration: BoxDecoration(
@@ -250,7 +258,6 @@ class _ResidentsScreenState extends State<ResidentsScreen> {
               ),
               const SizedBox(height: 16),
               
-              // Filters Row (Bisa Diklik Interaktif)
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
@@ -263,7 +270,6 @@ class _ResidentsScreenState extends State<ResidentsScreen> {
               ),
               const SizedBox(height: 24),
               
-              // MAIN BODY: Menangani Loading, Eror, Kosong, & List Data
               if (_isLoading)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 60.0),
@@ -352,7 +358,6 @@ class _ResidentsScreenState extends State<ResidentsScreen> {
     );
   }
 
-  // Dialog Kecil untuk Memilih Filter Status
   void _showStatusFilterDialog() {
     showDialog(
       context: context,
@@ -379,6 +384,29 @@ class _ResidentsScreenState extends State<ResidentsScreen> {
   }
 
   Widget _buildResidentItem(String name, String block, bool isLunas, List<dynamic> listTagihan) {
+    // 🌟 GROUPING DATA: Kelompokkan secara dinamis berdasar data 'month' & 'year' seperti di ManualPaymentSheet
+    final Map<String, List<dynamic>> groupedByMonth = {};
+    
+    for (var tagihan in listTagihan) {
+      final int monthVal = int.tryParse(tagihan['month'].toString()) ?? 0;
+      final int yearVal = int.tryParse(tagihan['year'].toString()) ?? 0;
+      
+      String headerKey = "";
+
+      if (monthVal >= 1 && monthVal <= 12 && yearVal > 0) {
+        // Gabungkan otomatis menjadi: "JUNI 2026", "JULI 2026", dll.
+        headerKey = "${_getNamaBulanIndo(monthVal)} $yearVal".toUpperCase();
+      } else {
+        final String rawPeriodName = tagihan['period_name'] ?? 'Periode Lain';
+        headerKey = rawPeriodName.toUpperCase();
+      }
+
+      if (!groupedByMonth.containsKey(headerKey)) {
+        groupedByMonth[headerKey] = [];
+      }
+      groupedByMonth[headerKey]!.add(tagihan);
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
@@ -393,7 +421,6 @@ class _ResidentsScreenState extends State<ResidentsScreen> {
           )
         ],
       ),
-      // 🌟 KUNCI DROPDOWN: Menghilangkan garis border bawaan ExpansionTile agar UI tetap bersih
       child: Theme(
         data: Theme.of(context).copyWith(
           dividerColor: Colors.transparent,
@@ -435,20 +462,17 @@ class _ResidentsScreenState extends State<ResidentsScreen> {
             style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey[500]),
           ),
           
-          // Icon panah dropdown diatur agar serasi dengan tema primer Wargify
           trailing: const Icon(
             Icons.keyboard_arrow_down_rounded, 
             color: AppColors.primary, 
             size: 24
           ),
 
-          // 2. ISI DROPDOWN (RINCIAN TAGIHAN KETIKA DIKLIK)
+          // 2. ISI DROPDOWN (RINCIAN TAGIHAN TERKELOMPOK BULAN REAL)
           children: [
-            // Garis pembatas tipis penanda batas area dropdown
             const Divider(height: 1, color: Color(0xFFF0F4F8)),
             const SizedBox(height: 12),
             
-            // Tampilkan status ringkasan global di dalam dropdown
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -484,54 +508,70 @@ class _ResidentsScreenState extends State<ResidentsScreen> {
                 ),
               )
             else
-              // Render list iuran bulanan warga
-              ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: listTagihan.length,
-                itemBuilder: (context, idx) {
-                  final tagihan = listTagihan[idx];
-                  final bool statusBayar = tagihan['is_paid'] == true;
-                  final double nominal = double.tryParse(tagihan['amount'].toString()) ?? 0.0;
-                  final String categoryName = tagihan['category_name'] ?? 'Iuran';
-                  
-                  final int m = int.tryParse(tagihan['month'].toString()) ?? 0;
-                  final int y = int.tryParse(tagihan['year'].toString()) ?? 0;
-                  const List<String> months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-                  final String labelPeriode = (m >= 1 && m <= 12) ? "${months[m - 1]} $y" : "Iuran";
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: groupedByMonth.entries.map((entry) {
+                  final String namaBulanHeader = entry.key; // "AGUSTUS 2026", dsb.
+                  final List<dynamic> tagihanList = entry.value;
 
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 5.0),
-                    child: Row(
-                      children: [
-                        Icon(
-                          statusBayar ? Icons.check_circle_rounded : Icons.error_outline_rounded,
-                          size: 16,
-                          color: statusBayar ? Colors.green[600] : Colors.red[400],
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            "$categoryName ($labelPeriode)",
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12,
-                              color: statusBayar ? Colors.grey[400] : Colors.black87,
-                              decoration: statusBayar ? TextDecoration.lineThrough : null,
-                            ),
-                          ),
-                        ),
-                        Text(
-                          "Rp ${nominal.toStringAsFixed(0)}",
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Sub-Header Nama Bulan Utama
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12.0, bottom: 4.0),
+                        child: Text(
+                          namaBulanHeader,
                           style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: statusBayar ? Colors.green[700] : Colors.red[700],
+                            fontSize: 12, 
+                            fontWeight: FontWeight.bold, 
+                            color: const Color(0xFF004E92),
+                            letterSpacing: 0.5,
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                      
+                      // List item tagihan kustom di bawah bulan tersebut
+                      ...tagihanList.map((tagihan) {
+                        final bool statusBayar = tagihan['is_paid'] == true;
+                        final double nominal = double.tryParse(tagihan['amount'].toString()) ?? 0.0;
+                        final String categoryName = tagihan['category_name'] ?? 'Iuran';
+
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 5.0),
+                          child: Row(
+                            children: [
+                              Icon(
+                                statusBayar ? Icons.check_circle_rounded : Icons.error_outline_rounded,
+                                size: 16,
+                                color: statusBayar ? Colors.green[600] : Colors.red[400],
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  categoryName,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 12,
+                                    color: statusBayar ? Colors.grey[400] : Colors.black87,
+                                    decoration: statusBayar ? TextDecoration.lineThrough : null,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                "Rp ${_formatRupiah(nominal.round())}",
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: statusBayar ? Colors.green[700] : Colors.red[700],
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                    ],
                   );
-                },
+                }).toList(),
               ),
           ],
         ),
