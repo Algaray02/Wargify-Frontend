@@ -14,11 +14,13 @@ class AddExpenseScreen extends StatefulWidget {
 class _AddExpenseScreenState extends State<AddExpenseScreen> {
   final TextEditingController _amountController = TextEditingController();
   String? _selectedCategory;
+
   final List<String> _categoryOptions = [
     'PENGELUARAN_RUTIN', 
     'PENGELUARAN_DARURAT', 
     'LAINNYA'
   ];
+
   final TextEditingController _dateController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
 
@@ -74,7 +76,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
   @override
   void dispose() {
-    // Membersihkan memori controller saat screen ditutup
+    // Membersihkan memori
     _amountController.dispose();
     _dateController.dispose();
     _descriptionController.dispose();
