@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../services/app_notification_service.dart';
 import '../../../core/constants/colors.dart';
 import '../../../services/auth/auth_service.dart';
 import '../../../models/user_model.dart';
@@ -8,7 +9,7 @@ import 'home/home_screen.dart';
 import 'activity/activity_screen.dart';
 import 'residents/residents_screen.dart';
 import 'audit/audit_screen.dart';
-import 'package:wargify/screens/common/scan/attendance_scanner_screen.dart';
+import 'qr/qr_scanner_screen.dart';
 import 'package:wargify/screens/profile/profile_screen.dart';
 import 'package:wargify/screens/common/notifikasi/notifikasi_log_screen.dart';
 
@@ -48,10 +49,18 @@ class _BendaharaMainScreenState extends State<BendaharaMainScreen> {
   }
 
   Future<void> _handleLogout() async {
+    try {
+      await AppNotificationService().initialize(registerToken: false);
+    } catch (e) {
+      debugPrint("Gagal mencabut token FCM di server: $e");
+    }
+
     await _authService.logout();
+
     if (mounted) {
-      Navigator.of(context).pushReplacement(
+      Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (context) => const LoginScreen()),
+        (route) => false,
       );
     }
   }
@@ -176,9 +185,7 @@ class _BendaharaMainScreenState extends State<BendaharaMainScreen> {
           onPressed: () {
             Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (context) => const AttendanceScannerScreen(),
-              ),
+              MaterialPageRoute(builder: (context) => const QrScannerScreen()),
             );
           },
           backgroundColor: AppColors.primary,
