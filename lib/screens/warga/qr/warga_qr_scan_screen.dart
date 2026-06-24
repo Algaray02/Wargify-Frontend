@@ -13,30 +13,54 @@ class WargaQrScanScreen extends StatefulWidget {
   State<WargaQrScanScreen> createState() => _WargaQrScanScreenState();
 }
 
-class _WargaQrScanScreenState extends State<WargaQrScanScreen> {
+class _WargaQrScanScreenState extends State<WargaQrScanScreen> with SingleTickerProviderStateMixin {
   final MobileScannerController controller = MobileScannerController();
   bool isFlashOn = false;
   bool _isProcessingScan = false;
+  late AnimationController _animationController;
+  late Animation<double> _animation;
 
   final _apiService = ApiService();
 
   @override
   void initState() {
     super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 2000),
+      vsync: this,
+    );
+    _animation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
+    _animationController.repeat(reverse: true);
   }
 
   @override
   void dispose() {
+    _animationController.dispose();
     controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    
+    // Viewfinder size
+    final double scanWindowSize = 260.0;
+    final scanWindow = Rect.fromLTWH(
+      (screenWidth - scanWindowSize) / 2,
+      (screenHeight - scanWindowSize) / 2 - 30,
+      scanWindowSize,
+      scanWindowSize,
+    );
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
+          // 1. Camera View
           MobileScanner(
             controller: controller,
             errorBuilder: (context, error, child) => Center(
@@ -58,28 +82,220 @@ class _WargaQrScanScreenState extends State<WargaQrScanScreen> {
               }
             },
           ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(
+
+          // 2. Custom Mask Overlay (darkens area outside viewfinder)
+          CustomPaint(
+            painter: ScannerOverlayPainter(scanWindow: scanWindow, borderRadius: 24),
+            child: const SizedBox.expand(),
+          ),
+
+          // 3. Viewfinder Outer Subtle Border
+          Positioned(
+            left: scanWindow.left,
+            top: scanWindow.top,
+            width: scanWindow.width,
+            height: scanWindow.height,
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.white.withOpacity(0.12), width: 1),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Stack(
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    icon: Icon(isFlashOn ? Icons.flashlight_off : Icons.flashlight_on, color: Colors.white),
-                    onPressed: () {
-                      setState(() => isFlashOn = !isFlashOn);
-                      controller.toggleTorch();
-                    },
-                  ),
+                  // Corner brackets
+                  _buildViewfinderCorner(top: 0, left: 0, isTop: true, isLeft: true),
+                  _buildViewfinderCorner(top: 0, right: 0, isTop: true, isLeft: false),
+                  _buildViewfinderCorner(bottom: 0, left: 0, isTop: false, isLeft: true),
+                  _buildViewfinderCorner(bottom: 0, right: 0, isTop: false, isLeft: false),
                 ],
               ),
             ),
           ),
+
+          // 4. Moving Glow Laser Line
+          AnimatedBuilder(
+            animation: _animation,
+            builder: (context, child) {
+              final topOffset = scanWindow.top + 16 + (_animation.value * (scanWindowSize - 36));
+              return Positioned(
+                top: topOffset,
+                left: scanWindow.left + 20,
+                width: scanWindow.width - 40,
+                height: 4,
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withOpacity(0.6),
+                        blurRadius: 8,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                    gradient: LinearGradient(
+                      colors: [
+                        AppColors.primary.withOpacity(0.01),
+                        AppColors.primary,
+                        AppColors.primary.withOpacity(0.01),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+
+          // 5. User Interface Floating Layer
+          SafeArea(
+            child: Column(
+              children: [
+                // Header Bar (Glassmorphic)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(30),
+                        child: Material(
+                          color: Colors.white.withOpacity(0.12),
+                          child: InkWell(
+                            onTap: () => Navigator.pop(context),
+                            child: const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: Icon(
+                                Icons.arrow_back_ios_new_rounded,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Text(
+                        'Scan QR Presensi',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const Spacer(),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(30),
+                        child: Material(
+                          color: isFlashOn ? AppColors.primary : Colors.white.withOpacity(0.12),
+                          child: InkWell(
+                            onTap: () {
+                              setState(() => isFlashOn = !isFlashOn);
+                              controller.toggleTorch();
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Icon(
+                                isFlashOn ? Icons.flashlight_off_rounded : Icons.flashlight_on_rounded,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const Spacer(),
+
+                // Bottom Instruction Banner
+                Padding(
+                  padding: const EdgeInsets.only(left: 32, right: 32, bottom: 48),
+                  child: Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.6),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.08),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withOpacity(0.2),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.qr_code_scanner_rounded,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Pindai QR Presensi',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Posisikan QR Code presensi kegiatan di dalam bingkai untuk memproses presensi otomatis.',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            color: Colors.white.withOpacity(0.7),
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildViewfinderCorner({
+    double? top,
+    double? bottom,
+    double? left,
+    double? right,
+    required bool isTop,
+    required bool isLeft,
+  }) {
+    return Positioned(
+      top: top,
+      bottom: bottom,
+      left: left,
+      right: right,
+      child: Container(
+        width: 30,
+        height: 30,
+        decoration: BoxDecoration(
+          border: Border(
+            top: isTop ? const BorderSide(color: AppColors.primary, width: 4) : BorderSide.none,
+            bottom: !isTop ? const BorderSide(color: AppColors.primary, width: 4) : BorderSide.none,
+            left: isLeft ? const BorderSide(color: AppColors.primary, width: 4) : BorderSide.none,
+            right: !isLeft ? const BorderSide(color: AppColors.primary, width: 4) : BorderSide.none,
+          ),
+          borderRadius: BorderRadius.only(
+            topLeft: isTop && isLeft ? const Radius.circular(12) : Radius.zero,
+            topRight: isTop && !isLeft ? const Radius.circular(12) : Radius.zero,
+            bottomLeft: !isTop && isLeft ? const Radius.circular(12) : Radius.zero,
+            bottomRight: !isTop && !isLeft ? const Radius.circular(12) : Radius.zero,
+          ),
+        ),
       ),
     );
   }
@@ -204,5 +420,39 @@ class _WargaQrScanScreenState extends State<WargaQrScanScreen> {
     }
     return 'Rp $buffer';
   }
+}
+
+class ScannerOverlayPainter extends CustomPainter {
+  final Rect scanWindow;
+  final double borderRadius;
+
+  ScannerOverlayPainter({required this.scanWindow, this.borderRadius = 24.0});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final backgroundPaint = Paint()
+      ..color = Colors.black.withOpacity(0.65)
+      ..style = PaintingStyle.fill;
+
+    final backgroundPath = Path()
+      ..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
+
+    final cutoutPath = Path()
+      ..addRRect(RRect.fromRectAndRadius(
+        scanWindow,
+        Radius.circular(borderRadius),
+      ));
+
+    final path = Path.combine(
+      PathOperation.difference,
+      backgroundPath,
+      cutoutPath,
+    );
+
+    canvas.drawPath(path, backgroundPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 

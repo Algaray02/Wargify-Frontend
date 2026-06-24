@@ -89,9 +89,20 @@ class _ManageRondaScreenState extends State<ManageRondaScreen> {
         final checkpoints = data['checkpoints'] is List
             ? data['checkpoints'] as List
             : const [];
-        final logs = data['checkpoint_logs'] is List
+        final now = DateTime.now();
+        final rawLogs = data['checkpoint_logs'] is List
             ? data['checkpoint_logs'] as List
             : const [];
+        final logs = rawLogs.whereType<Map>().where((log) {
+          final timestampStr = log['scanned_at'] ?? log['created_at'];
+          if (timestampStr == null) return true;
+          final date = DateTime.tryParse(timestampStr.toString());
+          if (date == null) return true;
+          final localDate = date.toLocal();
+          return localDate.year == now.year &&
+              localDate.month == now.month &&
+              localDate.day == now.day;
+        }).toList();
         final start = DateTime.tryParse('${data['shift_start']}');
         final end = DateTime.tryParse('${data['shift_end']}');
         final date =
@@ -192,9 +203,20 @@ class _ManageRondaScreenState extends State<ManageRondaScreen> {
     final checkpoints = data['checkpoints'] is List
         ? data['checkpoints'] as List
         : const [];
-    final logs = data['checkpoint_logs'] is List
+    final now = DateTime.now();
+    final rawLogs = data['checkpoint_logs'] is List
         ? data['checkpoint_logs'] as List
         : const [];
+    final logs = rawLogs.whereType<Map>().where((log) {
+      final timestampStr = log['scanned_at'] ?? log['created_at'];
+      if (timestampStr == null) return true;
+      final date = DateTime.tryParse(timestampStr.toString());
+      if (date == null) return true;
+      final localDate = date.toLocal();
+      return localDate.year == now.year &&
+          localDate.month == now.month &&
+          localDate.day == now.day;
+    }).toList();
     final members = group['members'] is List
         ? group['members'] as List
         : const [];

@@ -34,7 +34,14 @@ class _WargaMainScreenState extends State<WargaMainScreen> {
     super.initState();
     _currentUser = widget.user;
     _pages = [
-      WargaHomePage(user: _currentUser),
+      WargaHomePage(
+        user: _currentUser,
+        onNavigateToIuran: () {
+          setState(() {
+            _currentIndex = 1;
+          });
+        },
+      ),
       const IuranScreen(),
       const GalleryScreen(),
       const RondaScreen(),
@@ -220,14 +227,14 @@ class _WargaMainScreenState extends State<WargaMainScreen> {
                         ),
                       ),
                       title: Text(
-                        'Scan QR Presensi / Iuran',
+                        'Scan QR Presensi',
                         style: GoogleFonts.plusJakartaSans(
                           fontWeight: FontWeight.bold,
                           color: AppColors.textPrimary,
                         ),
                       ),
                       subtitle: Text(
-                        'Scan QR code kegiatan atau pembayaran iuran',
+                        'Scan QR code kegiatan presensi',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 12,
                           color: AppColors.textSecondary,
@@ -301,17 +308,20 @@ class _WargaMainScreenState extends State<WargaMainScreen> {
       bottomNavigationBar: BottomAppBar(
         color: const Color(0xFFF8FBFE),
         elevation: 10,
-        child: SizedBox(
-          height: 60,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildNavItem(Icons.home_rounded, 'Home', 0),
-              _buildNavItem(Icons.receipt_long_rounded, 'Iuran', 1),
-              const SizedBox(width: 40),
-              _buildNavItem(Icons.photo_library_rounded, 'Gallery', 2),
-              _buildNavItem(Icons.shield_rounded, 'Ronda', 3),
-            ],
+        padding: EdgeInsets.zero,
+        child: SafeArea(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            height: 60,
+            child: Row(
+              children: [
+                _buildNavItem(Icons.home_rounded, 'Home', 0),
+                _buildNavItem(Icons.receipt_long_rounded, 'Iuran', 1),
+                const SizedBox(width: 48),
+                _buildNavItem(Icons.photo_library_rounded, 'Gallery', 2),
+                _buildNavItem(Icons.shield_rounded, 'Ronda', 3),
+              ],
+            ),
           ),
         ),
       ),
@@ -320,30 +330,33 @@ class _WargaMainScreenState extends State<WargaMainScreen> {
 
   Widget _buildNavItem(IconData icon, String label, int index) {
     bool isSelected = _currentIndex == index;
-    return InkWell(
-      onTap: () {
-        setState(() {
-          _currentIndex = index;
-        });
-      },
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            color: isSelected ? AppColors.primary : Colors.grey[400],
-            size: 24,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
+    return Expanded(
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
               color: isSelected ? AppColors.primary : Colors.grey[400],
+              size: 24,
             ),
-          ),
-        ],
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: isSelected ? AppColors.primary : Colors.grey[400],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

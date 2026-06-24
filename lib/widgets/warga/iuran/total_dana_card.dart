@@ -20,7 +20,7 @@ class TotalDanaCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'TOTAL DANA IURAN WARGA',
+            'TOTAL DANA IURAN ANDA SAJA',
             style: GoogleFonts.plusJakartaSans(
               fontSize: 11,
               fontWeight: FontWeight.w600,

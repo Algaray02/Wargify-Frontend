@@ -43,6 +43,11 @@ class _RondaScreenState extends State<RondaScreen> {
   Position? _currentPosition;
   List<latlong2.LatLng> _pathPoints = [];
   StreamSubscription<Position>? _gpsSubscription;
+  Timer? _liveLocationTimer;
+  bool _isSendingLiveLocation = false;
+  bool _hasLiveLocationFix = false;
+  final ValueNotifier<Position?> _livePositionNotifier = ValueNotifier<Position?>(null);
+  bool _isLiveLocationPreviewActive = false;
 
   // --- Map ---
   final MapController _mapController = MapController();
@@ -65,7 +70,9 @@ class _RondaScreenState extends State<RondaScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _liveLocationTimer?.cancel();
     _gpsSubscription?.cancel();
+    _livePositionNotifier.dispose();
     super.dispose();
   }
 
@@ -95,6 +102,17 @@ class _RondaScreenState extends State<RondaScreen> {
     }
 
     return 'Pos Ronda';
+  }
+
+  bool _isValidCoordinate(double? value) {
+    return value != null && value.isFinite;
+  }
+
+  latlong2.LatLng? _safeLatLng(double? latitude, double? longitude) {
+    if (!_isValidCoordinate(latitude) || !_isValidCoordinate(longitude)) {
+      return null;
+    }
+    return latlong2.LatLng(latitude!, longitude!);
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -165,7 +183,8 @@ class _RondaScreenState extends State<RondaScreen> {
         );
         final status = updatedSchedule['status']?.toString().toUpperCase();
         if (status != null && status != 'ONGOING') {
-          _handleSelesaiRonda(force: true);
+          await _handleSelesaiRonda(force: true);
+          if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
@@ -350,10 +369,41 @@ class _RondaScreenState extends State<RondaScreen> {
       if (!mounted) return;
       setState(() {
         _currentPosition = pos;
+        _livePositionNotifier.value = pos;
         _gpsReady = true;
       });
     } catch (e) {
       _showGpsError('Gagal mengakses GPS.');
+    }
+  }
+
+  Future<void> _sendLiveLocation() async {
+    if (!_rondaBerjalan || _isSendingLiveLocation) return;
+
+    final schedule = _selectedSchedule;
+    final position = _currentPosition;
+    if (schedule == null || position == null) return;
+
+    final scheduleId = schedule['schedule_id']?.toString();
+    if (scheduleId == null) return;
+
+    final latLng = _safeLatLng(position.latitude, position.longitude);
+    if (latLng == null) return;
+
+    _isSendingLiveLocation = true;
+    try {
+      await _apiService.post(
+        '${ApiEndpoints.rondaSchedules}/$scheduleId/logs',
+        {
+          'lat': latLng.latitude,
+          'long': latLng.longitude,
+          'time': DateTime.now().toIso8601String(),
+        },
+      );
+    } catch (e) {
+      debugPrint('Failed to send live ronda location: $e');
+    } finally {
+      _isSendingLiveLocation = false;
     }
   }
 
@@ -369,7 +419,9 @@ class _RondaScreenState extends State<RondaScreen> {
     );
   }
 
-  void _startGpsTracking() {
+  void _startLiveLocationTracking({required bool allowRondaLogs}) {
+    _isLiveLocationPreviewActive = true;
+    _gpsSubscription?.cancel();
     _gpsSubscription =
         Geolocator.getPositionStream(
           locationSettings: const LocationSettings(
@@ -377,17 +429,37 @@ class _RondaScreenState extends State<RondaScreen> {
             distanceFilter: 3,
           ),
         ).listen((pos) {
+          final latLng = _safeLatLng(pos.latitude, pos.longitude);
+          if (latLng == null) return;
           if (!mounted) return;
           setState(() {
             _currentPosition = pos;
-            _pathPoints.add(latlong2.LatLng(pos.latitude, pos.longitude));
+            _livePositionNotifier.value = pos;
+            if (_rondaBerjalan) {
+              _pathPoints.add(latLng);
+            }
           });
+          if (allowRondaLogs && !_hasLiveLocationFix) {
+            _hasLiveLocationFix = true;
+            _sendLiveLocation();
+            _liveLocationTimer?.cancel();
+            _liveLocationTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+              _sendLiveLocation();
+            });
+          }
+          if (_rondaBerjalan || _isLiveLocationPreviewActive) {
+            _mapController.move(
+              latLng,
+              _mapController.camera.zoom,
+            );
+          }
         });
   }
 
   void _stopGpsTracking() {
     _gpsSubscription?.cancel();
     _gpsSubscription = null;
+    _isLiveLocationPreviewActive = false;
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -531,16 +603,14 @@ class _RondaScreenState extends State<RondaScreen> {
       _pathPoints = [];
     });
 
-    if (_currentPosition != null) {
-      _pathPoints.add(
-        latlong2.LatLng(
-          _currentPosition!.latitude,
-          _currentPosition!.longitude,
-        ),
-      );
+    final initialLatLng = _currentPosition == null
+        ? null
+        : _safeLatLng(_currentPosition!.latitude, _currentPosition!.longitude);
+    if (initialLatLng != null) {
+      _pathPoints.add(initialLatLng);
     }
 
-    _startGpsTracking();
+    _startLiveLocationTracking(allowRondaLogs: true);
 
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) {
@@ -588,6 +658,8 @@ class _RondaScreenState extends State<RondaScreen> {
     }
 
     _timer?.cancel();
+    _liveLocationTimer?.cancel();
+    _liveLocationTimer = null;
     _stopGpsTracking();
 
     if (_selectedSchedule != null) {
@@ -631,6 +703,7 @@ class _RondaScreenState extends State<RondaScreen> {
       _detikBerjalan = 0;
       _pathPoints = [];
       _gpsReady = false;
+      _hasLiveLocationFix = false;
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -648,7 +721,7 @@ class _RondaScreenState extends State<RondaScreen> {
     _fetchSchedules();
   }
 
-  void _openMap() {
+  Future<void> _openMap() async {
     if (_selectedSchedule == null) return;
 
     final checkpoints = _selectedSchedule!['checkpoints'];
@@ -668,7 +741,15 @@ class _RondaScreenState extends State<RondaScreen> {
       return;
     }
 
-    showModalBottomSheet(
+    if (!_gpsReady) {
+      await _initGps();
+      if (!mounted) return;
+      if (!_gpsReady) return;
+    }
+
+    _startLiveLocationTracking(allowRondaLogs: _rondaBerjalan);
+
+    await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -679,6 +760,12 @@ class _RondaScreenState extends State<RondaScreen> {
         builder: (ctx, scrollController) => _buildMapSheet(scrollController),
       ),
     );
+
+    if (!_rondaBerjalan) {
+      _liveLocationTimer?.cancel();
+      _liveLocationTimer = null;
+      _stopGpsTracking();
+    }
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -687,28 +774,25 @@ class _RondaScreenState extends State<RondaScreen> {
 
   Widget _buildMapSheet(ScrollController scrollController) {
     final checkpoints = (_selectedSchedule?['checkpoints'] as List?) ?? [];
-    final checkpointLogs =
-        (_selectedSchedule?['checkpoint_logs'] as List?) ?? [];
-    final scannedIds = checkpointLogs
-        .map((l) => (l is Map) ? l['checkpoint_id']?.toString() : null)
-        .whereType<String>()
-        .toSet();
+    final scannedIds = _scannedCheckpointIds(_selectedSchedule);
 
     final checkpointMarkers = checkpoints.map((cp) {
       final data = cp is Map
           ? Map<String, dynamic>.from(cp)
           : <String, dynamic>{};
+      final location = _safeLatLng(
+        double.tryParse('${data['latitude']}'),
+        double.tryParse('${data['longitude']}'),
+      );
+      if (location == null) return null;
       return {
         'id': data['checkpoint_id']?.toString(),
         'name': data['name']?.toString() ?? 'Checkpoint',
-        'location': latlong2.LatLng(
-          double.tryParse('${data['latitude']}') ?? 0,
-          double.tryParse('${data['longitude']}') ?? 0,
-        ),
+        'location': location,
         'isScanned': scannedIds.contains(data['checkpoint_id']?.toString()),
         'isMain': data['is_main_pos'] == true || data['is_main_pos'] == 1 || data['is_main_pos'] == '1',
       };
-    }).toList();
+    }).whereType<Map<String, dynamic>>().toList();
 
     final centerLat = checkpointMarkers.isNotEmpty
         ? (checkpointMarkers.first['location'] as latlong2.LatLng).latitude
@@ -743,7 +827,7 @@ class _RondaScreenState extends State<RondaScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'PETA RONDA',
+                  'PETA RONDAA',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -758,6 +842,58 @@ class _RondaScreenState extends State<RondaScreen> {
                     color: _rondaBerjalan
                         ? AppColors.success
                         : AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: ValueListenableBuilder<Position?>(
+                      valueListenable: _livePositionNotifier,
+                      builder: (context, position, _) {
+                        final text = position == null
+                            ? 'Lokasi live belum tersedia'
+                            : 'Lat: ${position.latitude.toStringAsFixed(6)}  |  Long: ${position.longitude.toStringAsFixed(6)}';
+                        return Text(
+                          text,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textSecondary,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                OutlinedButton.icon(
+                  onPressed: _centerMapToCurrentLocation,
+                  icon: const Icon(Icons.my_location_rounded, size: 16),
+                  label: Text(
+                    'Tengahkan',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    side: const BorderSide(color: AppColors.primary),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
                   ),
                 ),
               ],
@@ -782,16 +918,6 @@ class _RondaScreenState extends State<RondaScreen> {
                         'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                     userAgentPackageName: 'com.example.wargify',
                   ),
-                  if (_pathPoints.length >= 2)
-                    PolylineLayer(
-                      polylines: [
-                        Polyline(
-                          points: _pathPoints,
-                          color: AppColors.primary.withValues(alpha: 0.6),
-                          strokeWidth: 4.0,
-                        ),
-                      ],
-                    ),
                   if (checkpointMarkers.isNotEmpty)
                     PolylineLayer(
                       polylines: [
@@ -848,38 +974,40 @@ class _RondaScreenState extends State<RondaScreen> {
                         );
                       }),
                       if (_currentPosition != null)
-                        Marker(
-                          point: latlong2.LatLng(
-                            _currentPosition!.latitude,
-                            _currentPosition!.longitude,
-                          ),
-                          width: 30,
-                          height: 30,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.blue,
-                              border: Border.all(color: Colors.white, width: 3),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Colors.black26,
-                                  blurRadius: 4,
-                                  offset: Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Center(
-                              child: Container(
-                                width: 12,
-                                height: 12,
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.white,
+                        if (_safeLatLng(
+                              _currentPosition!.latitude,
+                              _currentPosition!.longitude,
+                            )
+                            case final latlong2.LatLng livePoint?)
+                          Marker(
+                            point: livePoint,
+                            width: 30,
+                            height: 30,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.blue,
+                                border: Border.all(color: Colors.white, width: 3),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Colors.black26,
+                                    blurRadius: 4,
+                                    offset: Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Center(
+                                child: Container(
+                                  width: 12,
+                                  height: 12,
+                                  decoration: const BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.white,
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
                     ],
                   ),
                 ],
@@ -895,6 +1023,19 @@ class _RondaScreenState extends State<RondaScreen> {
     if (_rondaBerjalan) return '● LIVE';
     if (_selectedSchedule != null) return 'TERJADWAL';
     return 'TIDAK ADA';
+  }
+
+  void _centerMapToCurrentLocation() {
+    final position = _livePositionNotifier.value;
+    final latLng = position == null
+        ? null
+        : _safeLatLng(position.latitude, position.longitude);
+    if (latLng == null) {
+      _showSnackBar('Lokasi live belum tersedia.', backgroundColor: Colors.orange);
+      return;
+    }
+
+    _mapController.move(latLng, 16.0);
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -1048,8 +1189,20 @@ class _RondaScreenState extends State<RondaScreen> {
   Set<String> _scannedCheckpointIds(Map<String, dynamic>? schedule) {
     final logs = schedule?['checkpoint_logs'];
     if (logs is! List) return {};
+    final now = DateTime.now();
     return logs
-        .map((log) => log is Map ? log['checkpoint_id']?.toString() : null)
+        .whereType<Map>()
+        .where((log) {
+          final timestampStr = log['scanned_at'] ?? log['created_at'];
+          if (timestampStr == null) return true;
+          final date = DateTime.tryParse(timestampStr.toString());
+          if (date == null) return true;
+          final localDate = date.toLocal();
+          return localDate.year == now.year &&
+              localDate.month == now.month &&
+              localDate.day == now.day;
+        })
+        .map((log) => log['checkpoint_id']?.toString())
         .whereType<String>()
         .toSet();
   }
@@ -1554,7 +1707,7 @@ class _RondaScreenState extends State<RondaScreen> {
                         ),
                       );
                     }),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 100),
                   ],
                 ],
               ),

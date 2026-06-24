@@ -192,17 +192,20 @@ class _RTMainScreenState extends State<RTMainScreen> {
       bottomNavigationBar: BottomAppBar(
         color: const Color(0xFFF8FBFE),
         elevation: 10,
-        child: SizedBox(
-          height: 60,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildNavItem(Icons.home_rounded, 'HOME', 0),
-              _buildNavItem(Icons.people_alt_rounded, 'KEGIATAN', 1),
-              const SizedBox(width: 40), // Space for FAB
-              _buildNavItem(Icons.collections_bookmark_rounded, 'GALLERY', 2),
-              _buildNavItem(Icons.report_gmailerrorred_rounded, 'RONDA', 3),
-            ],
+        padding: EdgeInsets.zero,
+        child: SafeArea(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            height: 60,
+            child: Row(
+              children: [
+                _buildNavItem(Icons.home_rounded, 'HOME', 0),
+                _buildNavItem(Icons.people_alt_rounded, 'KEGIATAN', 1),
+                const SizedBox(width: 48), // Space for FAB
+                _buildNavItem(Icons.collections_bookmark_rounded, 'GALLERY', 2),
+                _buildNavItem(Icons.report_gmailerrorred_rounded, 'RONDA', 3),
+              ],
+            ),
           ),
         ),
       ),
@@ -211,30 +214,33 @@ class _RTMainScreenState extends State<RTMainScreen> {
 
   Widget _buildNavItem(IconData icon, String label, int index) {
     bool isSelected = _currentIndex == index;
-    return InkWell(
-      onTap: () {
-        setState(() {
-          _currentIndex = index;
-        });
-      },
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            color: isSelected ? AppColors.primary : Colors.grey[400],
-            size: 24,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
+    return Expanded(
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
               color: isSelected ? AppColors.primary : Colors.grey[400],
+              size: 24,
             ),
-          ),
-        ],
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: isSelected ? AppColors.primary : Colors.grey[400],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

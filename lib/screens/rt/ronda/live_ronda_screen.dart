@@ -108,7 +108,18 @@ class _LiveRondaScreenState extends State<LiveRondaScreen> {
               .map((row) => Map<String, dynamic>.from(row as Map))
               .toList()
         : <Map<String, dynamic>>[];
-    final scannedIds = logs
+    final now = DateTime.now();
+    final todayLogs = logs.where((log) {
+      final timestampStr = log['scanned_at'] ?? log['created_at'];
+      if (timestampStr == null) return true;
+      final date = DateTime.tryParse(timestampStr.toString());
+      if (date == null) return true;
+      final localDate = date.toLocal();
+      return localDate.year == now.year &&
+          localDate.month == now.month &&
+          localDate.day == now.day;
+    }).toList();
+    final scannedIds = todayLogs
         .map((log) => log['checkpoint_id']?.toString())
         .whereType<String>()
         .toSet();

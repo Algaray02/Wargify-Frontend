@@ -44,34 +44,27 @@ class _IuranScreenState extends State<IuranScreen> {
     });
 
     try {
-      // Fetch both history iuran and treasury summary (with graceful fallback for treasury summary)
       final rows = await _apiService.getList(ApiEndpoints.myIuran);
       
-      try {
-        final treasuryData = await _apiService.getMap(ApiEndpoints.treasuryAuditSummary);
-        if (treasuryData.containsKey('summary')) {
-          final summary = Map<String, dynamic>.from(treasuryData['summary'] as Map);
-          final currentBalance = double.tryParse('${summary['current_balance']}') ?? 0.0;
-          _totalDana = _formatCurrency(currentBalance.toInt());
-        }
-      } catch (_) {
-        // Fallback to default mock or calculate locally if desired
-        _totalDana = 'Rp 42.500.000';
-      }
-
       final timeFormatter = DateFormat('dd');
       final items = rows.map((row) {
         final data = Map<String, dynamic>.from(row as Map);
-        final period = Map<String, dynamic>.from(
-          (data['period'] ?? {}) as Map,
-        );
-        final category = Map<String, dynamic>.from(
-          (period['category'] ?? {}) as Map,
-        );
+        final period = data['period'] is Map
+            ? Map<String, dynamic>.from(data['period'] as Map)
+            : <String, dynamic>{};
+        final categoryMap = (data['category'] ?? period['category']) is Map
+            ? Map<String, dynamic>.from((data['category'] ?? period['category']) as Map)
+            : <String, dynamic>{};
 
-        final month = int.tryParse('${period['month']}') ?? 1;
+        final monthVal = data['month'] ?? period['month'];
+        final month = int.tryParse('$monthVal') ?? 1;
+        
         final amountPaidDouble = double.tryParse('${data['amount_paid']}') ?? 0.0;
         final amountPaid = amountPaidDouble.toInt();
+        
+        final amountDouble = double.tryParse('${data['amount'] ?? data['amount_paid']}') ?? 0.0;
+        final amount = amountDouble.toInt();
+        
         final paidAt = DateTime.tryParse('${data['paid_at']}');
 
         // Formatted full date & time (e.g. 09 Juni 2026, 14:21 WIB)
@@ -80,22 +73,36 @@ class _IuranScreenState extends State<IuranScreen> {
           formattedFullPaidAt = DateFormat("dd MMMM yyyy, HH:mm 'WIB'", 'id').format(paidAt);
         }
 
+        final periodName = data['period_name']?.toString() ?? period['period_name']?.toString() ?? 'Iuran';
+        final isLunas = data['status']?.toString() == 'lunas' || data['status']?.toString() == 'paid';
+
         return <String, dynamic>{
-          'payment_id': data['payment_id']?.toString() ?? '-',
-          'period_name': period['period_name']?.toString() ?? 'Iuran',
-          'category_name': category['name']?.toString() ?? 'Umum',
+          'payment_id': data['payment'] is Map
+              ? data['payment']['payment_id']?.toString() ?? '-'
+              : data['payment_id']?.toString() ?? '-',
+          'period_name': periodName,
+          'category_name': categoryMap['name']?.toString() ?? 'Umum',
           'amount_paid': amountPaid,
+          'amount': amount,
           'paid_at_formatted': formattedFullPaidAt,
           'bulan': _monthAbbr[month.clamp(1, 12)],
           'tanggal': paidAt != null ? timeFormatter.format(paidAt) : '-',
-          'judul': period['period_name']?.toString() ?? 'Iuran',
-          'status': 'Lunas', // Since these records come from /me/iuran, they are already paid
-          'jumlah': _formatCurrency(amountPaid),
+          'judul': periodName,
+          'status': isLunas ? 'Lunas' : 'Belum Lunas',
+          'jumlah': _formatCurrency(isLunas ? amountPaid : amount),
         };
       }).toList();
 
+      int totalPaid = 0;
+      for (final item in items) {
+        if (item['status'] == 'Lunas') {
+          totalPaid += item['amount_paid'] as int;
+        }
+      }
+
       if (!mounted) return;
       setState(() {
+        _totalDana = _formatCurrency(totalPaid);
         _daftarIuran = items;
         _filteredIuran = _applyFilter(items);
         _semuaLunas = items.every((item) => item['status'] == 'Lunas');
@@ -231,7 +238,7 @@ class _IuranScreenState extends State<IuranScreen> {
                   );
                 },
               ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 80),
           ],
         ),
       ),
@@ -240,6 +247,7 @@ class _IuranScreenState extends State<IuranScreen> {
 
   void _showIuranDetail(Map<String, dynamic> item) {
     final paymentId = item['payment_id'] ?? '-';
+    final isLunas = item['status'] == 'Lunas';
     
     showModalBottomSheet(
       context: context,
@@ -271,22 +279,24 @@ class _IuranScreenState extends State<IuranScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppColors.success.withOpacity(0.12),
+                  color: isLunas
+                      ? AppColors.success.withOpacity(0.12)
+                      : AppColors.danger.withOpacity(0.12),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
-                  Icons.verified_rounded,
+                child: Icon(
+                  isLunas ? Icons.verified_rounded : Icons.pending_actions_rounded,
                   size: 54,
-                  color: AppColors.success,
+                  color: isLunas ? AppColors.success : AppColors.danger,
                 ),
               ),
               const SizedBox(height: 12),
               Text(
-                'Pembayaran Berhasil',
+                isLunas ? 'Pembayaran Berhasil' : 'Belum Dibayar',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.success,
+                  color: isLunas ? AppColors.success : AppColors.danger,
                 ),
               ),
               const SizedBox(height: 6),
@@ -316,7 +326,7 @@ class _IuranScreenState extends State<IuranScreen> {
                     const Divider(height: 24),
                     _buildReceiptRow('Periode', item['period_name'] ?? '-'),
                     const Divider(height: 24),
-                    _buildReceiptRow('Waktu Bayar', item['paid_at_formatted'] ?? '-'),
+                    _buildReceiptRow('Waktu Bayar', isLunas ? (item['paid_at_formatted'] ?? '-') : 'Belum melakukan pembayaran'),
                     const Divider(height: 24),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -337,7 +347,7 @@ class _IuranScreenState extends State<IuranScreen> {
                             children: [
                               Expanded(
                                 child: Text(
-                                  paymentId,
+                                  isLunas ? paymentId : '-',
                                   textAlign: TextAlign.end,
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 13,
@@ -348,23 +358,25 @@ class _IuranScreenState extends State<IuranScreen> {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              GestureDetector(
-                                onTap: () {
-                                  Clipboard.setData(ClipboardData(text: paymentId));
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Nomor referensi berhasil disalin'),
-                                      duration: Duration(seconds: 2),
-                                    ),
-                                  );
-                                },
-                                child: const Icon(
-                                  Icons.copy_rounded,
-                                  size: 16,
-                                  color: AppColors.primary,
+                              if (isLunas) ...[
+                                const SizedBox(width: 8),
+                                GestureDetector(
+                                  onTap: () {
+                                    Clipboard.setData(ClipboardData(text: paymentId));
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Nomor referensi berhasil disalin'),
+                                        duration: Duration(seconds: 2),
+                                      ),
+                                    );
+                                  },
+                                  child: const Icon(
+                                    Icons.copy_rounded,
+                                    size: 16,
+                                    color: AppColors.primary,
+                                  ),
                                 ),
-                              ),
+                              ],
                             ],
                           ),
                         ),
@@ -373,7 +385,22 @@ class _IuranScreenState extends State<IuranScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 20),
+              if (!isLunas) ...[
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Text(
+                    'Silakan tunjukkan QR Code keluarga Anda ke Pengurus RT / Bendahara untuk melakukan konfirmasi pembayaran.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                      height: 1.5,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
               
               // Close Button
               SizedBox(

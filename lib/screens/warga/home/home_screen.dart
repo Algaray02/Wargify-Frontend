@@ -14,7 +14,8 @@ import 'package:wargify/widgets/common/sos_card.dart';
 
 class WargaHomePage extends StatefulWidget {
   final UserModel user;
-  const WargaHomePage({super.key, required this.user});
+  final VoidCallback? onNavigateToIuran;
+  const WargaHomePage({super.key, required this.user, this.onNavigateToIuran});
 
   @override
   State<WargaHomePage> createState() => _WargaHomePageState();
@@ -41,6 +42,8 @@ class _WargaHomePageState extends State<WargaHomePage> {
   String _iuranBulan = 'Memuat...';
   String _statusIuran = '-';
   String _totalTagihan = 'Rp 0';
+  int _totalLunas = 0;
+  int _totalIuranCount = 0;
 
   // --- Dari GET /activities ---
   List<Map<String, dynamic>> _upcomingEvents = [];
@@ -68,16 +71,28 @@ class _WargaHomePageState extends State<WargaHomePage> {
       final profile = results[0] is Map<String, dynamic>
           ? results[0] as Map<String, dynamic>
           : <String, dynamic>{};
-      final iuranRaw = results[1];
+      final iuranList = results[1] is List
+          ? results[1] as List
+          : <dynamic>[];
       final activityRaw = results[2];
       final galleryRaw = results[3];
 
-      final iuranRows = iuranRaw is List
-          ? iuranRaw.whereType<Map>().toList()
-          : <Map>[];
+      final iuranRows = iuranList.whereType<Map>().toList();
+
       final activityRows = activityRaw is List
           ? activityRaw.whereType<Map>().toList()
           : <Map>[];
+
+      // Local calculations for dues metrics
+      int totalLunas = 0;
+      int totalIuran = iuranRows.length;
+      for (final row in iuranRows) {
+        final data = Map<String, dynamic>.from(row as Map);
+        final status = data['status']?.toString().toLowerCase();
+        if (status == 'lunas' || status == 'paid') {
+          totalLunas++;
+        }
+      }
 
       if (!mounted) return;
       setState(() {
@@ -92,17 +107,24 @@ class _WargaHomePageState extends State<WargaHomePage> {
           _rtRw = 'Alamat belum lengkap';
         }
 
+        // ── Iuran metrics ──
+        _totalLunas = totalLunas;
+        _totalIuranCount = totalIuran;
+
         // ── Iuran ──
         if (iuranRows.isNotEmpty) {
           final latest = Map<String, dynamic>.from(iuranRows.first);
           final period = latest['period'] is Map
               ? Map<String, dynamic>.from(latest['period'] as Map)
               : <String, dynamic>{};
-          _iuranBulan = period['period_name']?.toString() ?? 'Iuran Terbaru';
-          _statusIuran = latest['status']?.toString() == 'paid'
-              ? 'LUNAS'
-              : 'BELUM LUNAS';
-          _totalTagihan = _formatCurrency(latest['amount_paid']);
+          _iuranBulan = latest['period_name']?.toString() ?? period['period_name']?.toString() ?? 'Iuran Terbaru';
+          final isLunas = latest['status']?.toString() == 'lunas' || latest['status']?.toString() == 'paid';
+          _statusIuran = isLunas ? 'LUNAS' : 'BELUM LUNAS';
+          
+          final displayAmount = isLunas 
+              ? (double.tryParse('${latest['amount_paid']}') ?? 0.0).toInt()
+              : (double.tryParse('${latest['amount'] ?? latest['amount_paid']}') ?? 0.0).toInt();
+          _totalTagihan = _formatCurrency(displayAmount);
         } else {
           _iuranBulan = 'Belum ada riwayat';
           _statusIuran = 'BELUM LUNAS';
@@ -249,76 +271,51 @@ class _WargaHomePageState extends State<WargaHomePage> {
                   ),
                 ],
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'IURAN BULAN INI',
+                        'Total Iuran Lunas',
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: FontWeight.w600,
                           color: AppColors.textSecondary,
-                          letterSpacing: 0.8,
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _statusIuran == 'LUNAS' ? AppColors.success : AppColors.danger,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          _statusIuran,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.white,
-                          ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '$_totalLunas / $_totalIuranCount',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    _iuranBulan,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+                  TextButton.icon(
+                    onPressed: widget.onNavigateToIuran,
+                    icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                    label: Text(
+                      'Lihat Detail',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Total Tagihan',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                          Text(
-                            _totalTagihan,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: _statusIuran == 'LUNAS' ? AppColors.textPrimary : AppColors.danger,
-                            ),
-                          ),
-                        ],
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        side: const BorderSide(color: AppColors.primary, width: 1),
                       ),
-                    ],
+                    ),
                   ),
                 ],
               ),
@@ -511,7 +508,7 @@ class _WargaHomePageState extends State<WargaHomePage> {
                 ),
               ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 80),
           ],
         ),
       ),
