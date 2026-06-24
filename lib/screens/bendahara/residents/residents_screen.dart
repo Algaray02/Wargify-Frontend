@@ -184,7 +184,7 @@ class _ResidentsScreenState extends State<ResidentsScreen> {
                           children: [
                             Text('Kas Masuk', style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.green[800], fontWeight: FontWeight.bold)),
                             const SizedBox(height: 4),
-                            Text('Rp ${_formatRupiah(totalKasMasuk)}', style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green[900])),
+                            Text('${_formatRupiah(totalKasMasuk)}', style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green[900])),
                           ],
                         ),
                       ),
@@ -205,7 +205,7 @@ class _ResidentsScreenState extends State<ResidentsScreen> {
                           children: [
                             Text('Tunggakan', style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.red[800], fontWeight: FontWeight.bold)),
                             const SizedBox(height: 4),
-                            Text('Rp ${_formatRupiah(totalTunggakan)}', style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red[900])),
+                            Text('${_formatRupiah(totalTunggakan)}', style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red[900])),
                           ],
                         ),
                       ),
@@ -558,7 +558,7 @@ class _ResidentsScreenState extends State<ResidentsScreen> {
                                 ),
                               ),
                               Text(
-                                "Rp ${_formatRupiah(nominal.round())}",
+                                "${_formatRupiah(nominal.round())}",
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,

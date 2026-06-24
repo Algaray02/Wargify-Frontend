@@ -35,6 +35,22 @@ class _ManualPaymentSheetState extends State<ManualPaymentSheet> {
     _fetchPeriodPayments();
   }
 
+  String _formatRupiah(Object? value) {
+    final amount = value is num
+        ? value
+        : num.tryParse(value?.toString() ?? '') ?? 0;
+    final raw = amount.round().toString();
+    final buffer = StringBuffer();
+    for (var i = 0; i < raw.length; i++) {
+      final reverseIndex = raw.length - i;
+      buffer.write(raw[i]);
+      if (reverseIndex > 1 && reverseIndex % 3 == 1) {
+        buffer.write('.');
+      }
+    }
+    return 'Rp $buffer';
+  }
+
   // 1. Ambil Data Transaksi Real-time dari Laravel
   Future<void> _fetchPeriodPayments() async {
     if (!mounted) return;
@@ -122,12 +138,6 @@ class _ManualPaymentSheetState extends State<ManualPaymentSheet> {
   Future<void> _toggleManualPayment(String familyId, String targetPeriodId, double targetAmount, bool isChecked) async {
     if (!isChecked) return; 
     
-    // testing
-    // print("========== 🚀 MEMULAI PROSES TEMBAK API 🚀 ==========");
-    // print("Family ID: $familyId");
-    // print("Period ID Target: $targetPeriodId");
-    // print("Nominal: $targetAmount");
-
     // ✨ KUNCI SINKRONISASI UTAMA: Update data master di memori induk secara senyap tanpa merusak layout
     for (var warga in _allResidentsFlattened) {
       if (warga['family_id'] == familyId) {
@@ -153,13 +163,9 @@ class _ManualPaymentSheetState extends State<ManualPaymentSheet> {
 
       final response = await _apiService.post(ApiEndpoints.iuranPayments, requestBody);
 
-      // print("🟥 RESPONS API SERVER: $response");
-
       if (!mounted) return;
 
       if (response != null && (response['success'] == true || response['payment_id'] != null)) {
-        // print("🟩 API SUKSES! Centang dikunci aman di layar.");
-        
         // Simpan ke temp IDs untuk keperluan tracker jika dibutuhkan
         _tempMarkedPaidFamilyIds.add(familyId);
         
@@ -170,14 +176,12 @@ class _ManualPaymentSheetState extends State<ManualPaymentSheet> {
           ),
         );
       } else {
-        // print("❌ API GAGAL / NEGATIF! Memicu Rollback UI...");
         _rollbackStatus(familyId, targetPeriodId);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(response?['message'] ?? 'Gagal memperbarui status di server')),
         );
       }
     } catch (e) {
-      // print("💥 CRASH PADA CATCH FLUTTER! Error: $e");
       if (!mounted) return;
       _rollbackStatus(familyId, targetPeriodId);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -422,7 +426,7 @@ class _ManualPaymentSheetState extends State<ManualPaymentSheet> {
     );
   }
 
-  // TAMPILAN WARGA YANG BELUM BAYAR IURAN
+  // TAMPILAN WARGA YANG BELUM BAYAR IURAN (DROPDOWN EXPANSION TILE)
   Widget _buildResidentItem(Map<String, dynamic> warga) {
     final String name = warga['full_name'] ?? '-';
     final String block = warga['block_info'] ?? '-';
@@ -442,11 +446,11 @@ class _ManualPaymentSheetState extends State<ManualPaymentSheet> {
       return "Periode Lain";
     }
 
-    // 🌟 2. GROUPING DATA: Kelompokkan secara dinamis berdasar data 'month' & 'year' yang baru dikirim Laravel
+    // 🌟 2. GROUPING DATA: Kelompokkan secara dinamis berdasar data 'month' & 'year' yang dikirim Laravel
     final Map<String, List<dynamic>> groupedByMonth = {};
     
     for (var tagihan in listTagihan) {
-      // Menangkap angka month dan year dari response JSON Laravel yang baru kita tambahkan
+      // Menangkap angka month dan year dari response JSON Laravel
       final int monthVal = int.tryParse(tagihan['month'].toString()) ?? 0;
       final int yearVal = int.tryParse(tagihan['year'].toString()) ?? 0;
       
@@ -470,151 +474,164 @@ class _ManualPaymentSheetState extends State<ManualPaymentSheet> {
     return StatefulBuilder(
       builder: (BuildContext context, StateSetter setCardState) {
         return Container(
-          margin: const EdgeInsets.only(bottom: 16, left: 24, right: 24),
-          padding: const EdgeInsets.all(16),
+          margin: const EdgeInsets.only(bottom: 14),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFE0E6ED)),
+            border: Border.all(color: const Color(0xFFE5EEF5)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.03),
-                blurRadius: 10,
+                color: Colors.black.withOpacity(0.02),
+                blurRadius: 8,
                 offset: const Offset(0, 4),
-              ),
+              )
             ],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // BARIS PROFIL WARGA
-              Row(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF004E92).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Center(
-                      child: Text(
-                        name.isNotEmpty ? name[0].toUpperCase() : 'W',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontWeight: FontWeight.bold, 
-                          color: const Color(0xFF004E92),
-                          fontSize: 16,
-                        ),
-                      ),
+          child: Theme(
+            data: Theme.of(context).copyWith(
+              dividerColor: Colors.transparent,
+              splashColor: Colors.transparent,
+              highlightColor: Colors.transparent,
+            ),
+            child: ExpansionTile(
+              tilePadding: const EdgeInsets.all(16),
+              childrenPadding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
+              
+              // 1. KEPALA DROPDOWN
+              leading: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFEBEE),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Center(
+                  child: Text(
+                    name.isNotEmpty ? name.split(' ').map((e) => e[0]).take(2).join() : 'W',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontWeight: FontWeight.bold, 
+                      color: Colors.red[700],
+                      fontSize: 14,
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
+                ),
+              ),
+              title: Text(
+                name,
+                style: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                  color: const Color(0xFF0D1B2A),
+                ),
+              ),
+              subtitle: Text(
+                "Kepala KK: $headName • $block",
+                style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.grey[500]),
+              ),
+              trailing: const Icon(
+                Icons.keyboard_arrow_down_rounded, 
+                color: AppColors.primary, 
+                size: 24
+              ),
+
+              // 2. ISI DROPDOWN (RINCIAN TAGIHAN & CHECKBOX MANUAL)
+              children: [
+                const Divider(height: 1, color: Color(0xFFF0F4F8)),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "Pilih iuran yang dibayar tunai:",
+                      style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey[700]),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: groupedByMonth.entries.map((entry) {
+                    final String namaBulanHeader = entry.key; // Hasil konversi: "JUNI 2026", "JULI 2026", dll
+                    final List<dynamic> tagihanList = entry.value;
+
+                    return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(name, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 15)),
-                        Text("Kepala KK: $headName • $block", style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.grey[600])),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12.0),
-                child: Divider(height: 1, color: Color(0xFFEEEEEE)),
-              ),
-
-              Text(
-                "Pilih iuran yang dibayar tunai:",
-                style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey[700]),
-              ),
-              const SizedBox(height: 4),
-              
-              // 3. RENDER UI CHECKBOX TERKELOMPOK BULAN REAL
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: groupedByMonth.entries.map((entry) {
-                  final String namaBulanHeader = entry.key; // Hasil konversi: "JUNI 2026", "JULI 2026", dll
-                  final List<dynamic> tagihanList = entry.value;
-
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Sub-Header Nama Bulan Utama
-                      Padding(
-                        padding: const EdgeInsets.only(top: 12.0, bottom: 4.0),
-                        child: Text(
-                          namaBulanHeader,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12, 
-                            fontWeight: FontWeight.bold, 
-                            color: const Color(0xFF004E92),
-                            letterSpacing: 0.5,
+                        // Sub-Header Nama Bulan Utama
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12.0, bottom: 4.0),
+                          child: Text(
+                            namaBulanHeader,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12, 
+                              fontWeight: FontWeight.bold, 
+                              color: const Color(0xFF004E92),
+                              letterSpacing: 0.5,
+                            ),
                           ),
                         ),
-                      ),
-                      
-                      // Looping murni data iuran kategori
-                      ...tagihanList.map((tagihan) {
-                        final bool sudahBayar = tagihan['is_paid'] == true;
-                        final String periodId = tagihan['period_id'] ?? '';
-                        final double nominal = double.tryParse(tagihan['amount'].toString()) ?? 0.0;
-                        final String categoryName = tagihan['category_name'] ?? 'Iuran';
+                        
+                        // Looping murni data iuran kategori dengan Checkbox
+                        ...tagihanList.map((tagihan) {
+                          final bool sudahBayar = tagihan['is_paid'] == true;
+                          final String periodId = tagihan['period_id'] ?? '';
+                          final double nominal = double.tryParse(tagihan['amount'].toString()) ?? 0.0;
+                          final String categoryName = tagihan['category_name'] ?? 'Iuran';
 
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4.0),
-                          key: ValueKey(periodId),
-                          child: Row(
-                            children: [
-                              SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: Checkbox(
-                                  activeColor: const Color(0xFF004E92),
-                                  value: sudahBayar,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                                  onChanged: sudahBayar 
-                                      ? null 
-                                      : (bool? checked) {
-                                          if (checked == true) {
-                                            setCardState(() {
-                                              tagihan['is_paid'] = true;
-                                            });
-                                            _toggleManualPayment(familyId, periodId, nominal, checked!);
-                                          }
-                                        },
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  categoryName, // Isinya murni string kategori dari DB, misal: "Iuran Kebersihan"
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 13, 
-                                    color: sudahBayar ? Colors.grey[400] : Colors.black87,
-                                    decoration: sudahBayar ? TextDecoration.lineThrough : null,
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4.0),
+                            key: ValueKey(periodId),
+                            child: Row(
+                              children: [
+                                SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: Checkbox(
+                                    activeColor: const Color(0xFF004E92),
+                                    value: sudahBayar,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                                    onChanged: sudahBayar 
+                                        ? null 
+                                        : (bool? checked) {
+                                            if (checked == true) {
+                                              setCardState(() {
+                                                tagihan['is_paid'] = true;
+                                              });
+                                              _toggleManualPayment(familyId, periodId, nominal, checked!);
+                                            }
+                                          },
                                   ),
                                 ),
-                              ),
-                              Text(
-                                "Rp ${nominal.toStringAsFixed(0)}",
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 13, 
-                                  fontWeight: FontWeight.bold, 
-                                  color: sudahBayar ? Colors.green[700] : Colors.red[700],
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    categoryName, // Isinya murni string kategori dari DB, misal: "Iuran Kebersihan"
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 13, 
+                                      color: sudahBayar ? Colors.grey[400] : Colors.black87,
+                                      decoration: sudahBayar ? TextDecoration.lineThrough : null,
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }),
-                    ],
-                  );
-                }).toList(),
-              ),
-            ],
+                                Text(
+                                  _formatRupiah(nominal.round()),
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 13, 
+                                    fontWeight: FontWeight.bold, 
+                                    color: sudahBayar ? Colors.green[700] : Colors.red[700],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -629,7 +646,7 @@ class _ManualPaymentSheetState extends State<ManualPaymentSheet> {
     final String formattedTime = rawDate.length > 16 ? rawDate.substring(0, 16).replaceAll('T', ' ') : 'Lunas';
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12, left: 24, right: 24),
+      margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFD),
