@@ -9,7 +9,7 @@ import 'home/home_screen.dart';
 import 'activity/activity_screen.dart';
 import 'residents/residents_screen.dart';
 import 'audit/audit_screen.dart';
-import 'package:wargify/screens/common/scan/attendance_scanner_screen.dart';
+import 'qr/qr_scanner_screen.dart';
 import 'package:wargify/screens/profile/profile_screen.dart';
 import 'package:wargify/screens/common/notifikasi/notifikasi_log_screen.dart';
 
@@ -56,7 +56,7 @@ class _BendaharaMainScreenState extends State<BendaharaMainScreen> {
     }
 
     await _authService.logout();
-    
+
     if (mounted) {
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (context) => const LoginScreen()),
@@ -185,9 +185,7 @@ class _BendaharaMainScreenState extends State<BendaharaMainScreen> {
           onPressed: () {
             Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (context) => const AttendanceScannerScreen(),
-              ),
+              MaterialPageRoute(builder: (context) => const QrScannerScreen()),
             );
           },
           backgroundColor: AppColors.primary,

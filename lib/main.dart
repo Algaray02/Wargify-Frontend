@@ -14,10 +14,7 @@ void main() async {
 
   final authService = AuthService();
   final bool loggedIn = await authService.isLoggedIn();
-  
-  AppNotificationService().initialize(registerToken: loggedIn).catchError((e) {
-    debugPrint("FCM Initialization Error: $e");
-  });
+  await AppNotificationService().initialize(registerToken: loggedIn);
 
   runApp(
     MyApp(

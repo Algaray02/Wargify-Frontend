@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:wargify/screens/bendahara/scan/show_contribution_qr_screen.dart';
 import '../../../../core/constants/colors.dart';
 import '../../../../models/user_model.dart';
 import '../../../../services/api_service.dart';
-import 'package:wargify/screens/common/scan/show_contribution_qr_screen.dart';
+import '../../../../widgets/bendahara/payment/manual_payment_sheet.dart';
 import '../contribution/add_contribution_screen.dart';
 import '../financial/add_income_screen.dart';
 import '../financial/add_expense_screen.dart';
@@ -322,9 +323,7 @@ class _BendaharaHomePageState extends State<BendaharaHomePage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => ShowContributionQrScreen(
-                            periodData: _activePeriod, // ⬅️ Oper Object Map hasil GET asli Laravel
-                          ),
+                          builder: (context) => ShowContributionQrScreen(periodData: _activePeriod),
                         ),
                       );
                     },

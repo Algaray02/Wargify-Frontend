@@ -20,7 +20,9 @@ class ApiEndpoints {
   static const String checkArrears = '/iuran/check-arrears';
   static const String makePayment = '/iuran/process-payments';
   static const String iuranPeriods = '/iuran-periods';
+  static const String iuranCategories = '/iuran-categories';
   static const String iuranPayments = '/iuran-payments';
+  static const String processIuranPayments = '/iuran/process-payments';
   static const String treasuryLogs = '/treasury-logs';
   static const String treasurySummary = '/treasury-summary';
   static const String treasuryAuditSummary = '/treasury-audit-summary';

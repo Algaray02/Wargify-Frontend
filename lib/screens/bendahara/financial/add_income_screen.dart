@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:wargify/core/constants/colors.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:wargify/core/constants/api_endpoints.dart';
 import 'package:wargify/services/api_service.dart';
 import 'package:dio/dio.dart';
 
@@ -15,24 +18,73 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
   final TextEditingController _amountController = TextEditingController();
   String? _selectedSource;
   final List<String> _sourceOptions = [
-    'IURAN_WARGA', 
-    'DONASI_SPONSOR', 
-    'DANA_DESA_PEMERINTAH', 
-    'PENGELUARAN_RUTIN', 
-    'PENGELUARAN_DARURAT', 
-    'LAINNYA'
+    'IURAN_WARGA',
+    'DONASI_SPONSOR',
+    'DANA_DESA_PEMERINTAH',
+    'PENGELUARAN_RUTIN',
+    'PENGELUARAN_DARURAT',
+    'LAINNYA',
   ];
   final TextEditingController _dateController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
 
   final ApiService _apiService = ApiService();
+  final ImagePicker _imagePicker = ImagePicker();
   bool _isSaving = false;
   String? _sourceErrorText;
+  File? _receiptImage;
+
+  Future<void> _showReceiptSourceSheet() async {
+    await showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt_rounded),
+              title: const Text('Ambil dari kamera'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickReceiptImage(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded),
+              title: const Text('Pilih dari galeri'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickReceiptImage(ImageSource.gallery);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickReceiptImage(ImageSource source) async {
+    final picked = await _imagePicker.pickImage(
+      source: source,
+      imageQuality: 80,
+      maxWidth: 1600,
+    );
+
+    if (picked == null || !mounted) return;
+    setState(() => _receiptImage = File(picked.path));
+  }
 
   Future<void> _saveIncome() async {
-    if (_amountController.text.isEmpty || _selectedSource == null || _descriptionController.text.isEmpty) {
+    if (_amountController.text.isEmpty ||
+        _selectedSource == null ||
+        _descriptionController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nominal, Sumber Dana, dan Keterangan wajib diisi!')),
+        const SnackBar(
+          content: Text('Nominal, Sumber Dana, dan Keterangan wajib diisi!'),
+        ),
       );
       return;
     }
@@ -40,7 +92,9 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
     setState(() => _isSaving = true);
 
     try {
-      String cleanAmount = _amountController.text.replaceAll('.', '').replaceAll(',', '');
+      String cleanAmount = _amountController.text
+          .replaceAll('.', '')
+          .replaceAll(',', '');
 
       final Map<String, dynamic> requestBody = {
         'type': 'INCOME',
@@ -49,8 +103,18 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
         'description': _descriptionController.text.trim(),
       };
 
+      if (_receiptImage != null) {
+        requestBody['receipt_file'] = await MultipartFile.fromFile(
+          _receiptImage!.path,
+          filename: _receiptImage!.path.split('/').last,
+        );
+      }
+
       // Mengirim POST request ke endpoint /incomes di Laravel kamu
-      await _apiService.post('/treasury-logs', requestBody);
+      await _apiService.postMultipart(
+        ApiEndpoints.treasuryLogs,
+        FormData.fromMap(requestBody),
+      );
 
       if (!mounted) return;
 
@@ -63,11 +127,12 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
       if (!mounted) return;
       String errorMessage = e.toString();
       if (e is DioException && e.response != null) {
-        errorMessage = "Eror ${e.response?.statusCode}: ${e.response?.data['message'] ?? e.response?.data.toString()}";
+        errorMessage =
+            "Eror ${e.response?.statusCode}: ${e.response?.data['message'] ?? e.response?.data.toString()}";
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal menyimpan: $errorMessage')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal menyimpan: $errorMessage')));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -122,14 +187,18 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE3F2FD).withOpacity(0.5),
+                  color: const Color(0xFFE3F2FD).withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: const Color(0xFFBBDEFB), width: 1),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.info_outline_rounded, color: Color(0xFF0D47A1), size: 24),
+                    const Icon(
+                      Icons.info_outline_rounded,
+                      color: Color(0xFF0D47A1),
+                      size: 24,
+                    ),
                     const SizedBox(width: 16),
                     Expanded(
                       child: Text(
@@ -215,7 +284,7 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
                   border: Border.all(color: const Color(0xFFE0E6ED)),
                 ),
                 child: DropdownButtonFormField<String>(
-                  value: _selectedSource,
+                  initialValue: _selectedSource,
                   items: _sourceOptions.map((source) {
                     return DropdownMenuItem<String>(
                       value: source,
@@ -242,54 +311,21 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
               const SizedBox(height: 24),
 
               _buildFieldLabel('TANGGAL PENERIMAAN'),
-              _buildDateField(
-                controller: _dateController,
-                hint: 'mm/dd/yyyy',
-              ),
+              _buildDateField(controller: _dateController, hint: 'mm/dd/yyyy'),
               const SizedBox(height: 24),
 
               _buildFieldLabel('KETERANGAN TAMBAHAN'),
               _buildTextAreaField(
                 controller: _descriptionController,
-                hint: 'Tambahkan catatan detail mengenai transaksi ini untuk mempermudah pelaporan...',
+                hint:
+                    'Tambahkan catatan detail mengenai transaksi ini untuk mempermudah pelaporan...',
               ),
               const SizedBox(height: 24),
 
               _buildFieldLabel('LAMPIRAN PENDUKUNG'),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 40),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF0F4F8),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: const Color(0xFFD1D9E0),
-                    width: 1.5,
-                    style: BorderStyle.solid, // Should be dashed if possible but standard border is okay for now
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    const Icon(Icons.file_upload_outlined, color: Color(0xFF4A5568), size: 32),
-                    const SizedBox(height: 12),
-                    Text(
-                      'UNGGAH BUKTI TRANSAKSI',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF4A5568),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '(Format: JPG, PNG, PDF - Maks 5MB)',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11,
-                        color: Colors.grey[500],
-                      ),
-                    ),
-                  ],
-                ),
+              _buildReceiptPicker(
+                icon: Icons.file_upload_outlined,
+                title: 'UNGGAH BUKTI TRANSAKSI',
               ),
               const SizedBox(height: 40),
             ],
@@ -307,8 +343,13 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
               backgroundColor: const Color(0xFF0056B3),
               foregroundColor: Colors.white,
               minimumSize: const Size(double.infinity, 56),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              textStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              textStyle: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
               elevation: 0,
             ),
           ),
@@ -332,27 +373,78 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
     );
   }
 
-  Widget _buildTextField({required TextEditingController controller, required String hint}) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE0E6ED)),
-      ),
-      child: TextField(
-        controller: controller,
-        style: GoogleFonts.plusJakartaSans(fontSize: 14),
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: TextStyle(color: Colors.grey[400]),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-          border: InputBorder.none,
+  Widget _buildReceiptPicker({required IconData icon, required String title}) {
+    return InkWell(
+      onTap: _showReceiptSourceSheet,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF0F4F8),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFFD1D9E0), width: 1.5),
         ),
+        child: _receiptImage == null
+            ? Column(
+                children: [
+                  Icon(icon, color: const Color(0xFF4A5568), size: 32),
+                  const SizedBox(height: 12),
+                  Text(
+                    title,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF4A5568),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '(Format: JPG/PNG - Maks 8MB)',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      color: Colors.grey[500],
+                    ),
+                  ),
+                ],
+              )
+            : Column(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: Image.file(
+                      _receiptImage!,
+                      height: 160,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      TextButton.icon(
+                        onPressed: _showReceiptSourceSheet,
+                        icon: const Icon(Icons.image_search_rounded),
+                        label: const Text('Ganti Foto'),
+                      ),
+                      TextButton.icon(
+                        onPressed: () => setState(() => _receiptImage = null),
+                        icon: const Icon(Icons.delete_outline_rounded),
+                        label: const Text('Hapus'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
       ),
     );
   }
 
-  Widget _buildDateField({required TextEditingController controller, required String hint}) {
+  Widget _buildDateField({
+    required TextEditingController controller,
+    required String hint,
+  }) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -379,15 +471,25 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
         decoration: InputDecoration(
           hintText: hint,
           hintStyle: TextStyle(color: Colors.grey[400]),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 18,
+          ),
           border: InputBorder.none,
-          suffixIcon: const Icon(Icons.calendar_today_outlined, size: 20, color: Colors.grey),
+          suffixIcon: const Icon(
+            Icons.calendar_today_outlined,
+            size: 20,
+            color: Colors.grey,
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildTextAreaField({required TextEditingController controller, required String hint}) {
+  Widget _buildTextAreaField({
+    required TextEditingController controller,
+    required String hint,
+  }) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,

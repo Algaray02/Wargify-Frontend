@@ -1,14 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:wargify/core/constants/colors.dart';
-import 'attendance_scanner_screen.dart';
-import 'package:wargify/widgets/common/scan/manual_payment_sheet.dart';
+import 'package:wargify/screens/bendahara/qr/qr_scanner_screen.dart';
+import 'package:wargify/widgets/bendahara/payment/manual_payment_sheet.dart';
 
-class ShowContributionQrScreen extends StatelessWidget {
-  const ShowContributionQrScreen({super.key});
+class ShowContributionQrScreen extends StatefulWidget {
+  final Map<String, dynamic>? periodData;
+
+  const ShowContributionQrScreen({super.key, this.periodData});
 
   @override
+  State<ShowContributionQrScreen> createState() => _ShowContributionQrScreenState();
+}
+
+class _ShowContributionQrScreenState extends State<ShowContributionQrScreen> {
+  @override
   Widget build(BuildContext context) {
+    // SINKRONISASI DATA: Menggunakan 'widget.' untuk mengakses variabel dari StatefulWidget
+    final String periodName = widget.periodData?['period_name'] ?? 'Iuran Bulanan';
+    final String qrData = widget.periodData?['payment_qr_code'] ?? 'Wargify_Generic_Contribution';
+    final String categoryName = widget.periodData?['category']?['name'] ?? 'Umum';
+    
+    // Mengekstrak ID Periode agar bisa dipakai oleh sheet centang manual
+    final String periodId = widget.periodData?['period_id'] ?? '';
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFD),
       appBar: AppBar(
@@ -19,11 +34,11 @@ class ShowContributionQrScreen extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Tampilkan QR Iuran',
+          'QR $periodName',
           style: GoogleFonts.plusJakartaSans(
             color: const Color(0xFF0D47A1),
             fontWeight: FontWeight.bold,
-            fontSize: 18,
+            fontSize: 16,
           ),
         ),
         actions: [
@@ -63,7 +78,7 @@ class ShowContributionQrScreen extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      'DIGITAL LEDGER',
+                      categoryName.toUpperCase(),
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 12,
                         color: Colors.grey[500],
@@ -80,7 +95,7 @@ class ShowContributionQrScreen extends StatelessWidget {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
                         child: Image.network(
-                          'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=WargifyContribution_Oct2026',
+                          'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=$qrData',
                           width: 200,
                           height: 200,
                         ),
@@ -88,7 +103,7 @@ class ShowContributionQrScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 32),
                     Text(
-                      'Scan untuk mencatat iuran\nwarga secara otomatis',
+                      periodName,
                       textAlign: TextAlign.center,
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 16,
@@ -98,37 +113,29 @@ class ShowContributionQrScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'Pastikan layar terang agar\nmudah terbaca oleh kamera.',
+                      'Scan QR statis ini untuk melakukan pencatatan pembayaran pada kategori terkait.',
                       textAlign: TextAlign.center,
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 14,
+                        fontSize: 13,
                         color: Colors.grey[500],
+                        height: 1.4,
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 32),
-              ElevatedButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.share_outlined, size: 20),
-                label: const Text('Bagikan QR'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF004E92),
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 56),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  textStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold),
-                ),
-              ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
+              
+              // Tombol Centang Manual terintegrasi penuh dengan ID Periode aktif
               OutlinedButton.icon(
                 onPressed: () {
                   showModalBottomSheet(
                     context: context,
                     isScrollControlled: true,
                     backgroundColor: Colors.transparent,
-                    builder: (context) => const ManualPaymentSheet(),
+                    builder: (context) => ManualPaymentSheet(
+                      periodId: periodId,
+                    ),
                   );
                 },
                 icon: const Icon(Icons.checklist_rtl_rounded, size: 20),
@@ -141,6 +148,7 @@ class ShowContributionQrScreen extends StatelessWidget {
                   textStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold),
                 ),
               ),
+              
               const SizedBox(height: 32),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -164,7 +172,7 @@ class ShowContributionQrScreen extends StatelessWidget {
         onPressed: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => const AttendanceScannerScreen()),
+            MaterialPageRoute(builder: (context) => const QrScannerScreen()),
           );
         },
         backgroundColor: const Color(0xFF004E92),

@@ -128,7 +128,10 @@ class _AddGalleryScreenState extends State<AddGalleryScreen> {
       Navigator.pop(context, true);
     } catch (error) {
       if (!mounted) return;
-      _showSnack('Gagal membuat galeri: $error', isError: true);
+      _showSnack(
+        'Gagal menyimpan galeri: ${_errorMessage(error)}',
+        isError: true,
+      );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -149,6 +152,31 @@ class _AddGalleryScreenState extends State<AddGalleryScreen> {
       '${ApiEndpoints.galleries}/$galleryId/images',
       formData,
     );
+  }
+
+  String _errorMessage(Object error) {
+    if (error is DioException) {
+      final data = error.response?.data;
+      if (data is Map) {
+        final errors = data['errors'];
+        if (errors is Map) {
+          final messages = errors.values
+              .whereType<List>()
+              .expand((items) => items)
+              .map((item) => item.toString())
+              .where((message) => message.isNotEmpty)
+              .toList();
+          if (messages.isNotEmpty) return messages.join('\n');
+        }
+
+        final message = data['message']?.toString();
+        if (message != null && message.isNotEmpty) return message;
+      }
+
+      return 'Server menolak foto yang dipilih.';
+    }
+
+    return error.toString();
   }
 
   void _showSnack(String message, {bool isError = false}) {
