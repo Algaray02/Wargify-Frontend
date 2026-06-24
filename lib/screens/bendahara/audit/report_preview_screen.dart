@@ -3,10 +3,43 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:wargify/core/constants/colors.dart';
 
 class ReportPreviewScreen extends StatelessWidget {
-  const ReportPreviewScreen({super.key});
+  final Map<String, dynamic> summary;
+  final List<dynamic> expenses;
+  final Map<String, dynamic> iuranStats;
+
+  const ReportPreviewScreen({
+    super.key,
+    required this.summary,
+    required this.expenses,
+    required this.iuranStats,
+  });
+
+  String _formatRupiah(Object? value) {
+    final amount = value is num ? value : num.tryParse(value?.toString() ?? '') ?? 0;
+    final raw = amount.round().toString();
+    final buffer = StringBuffer();
+    for (var i = 0; i < raw.length; i++) {
+      final reverseIndex = raw.length - i;
+      buffer.write(raw[i]);
+      if (reverseIndex > 1 && reverseIndex % 3 == 1) {
+        buffer.write('.');
+      }
+    }
+    return 'Rp $buffer';
+  }
 
   @override
   Widget build(BuildContext context) {
+    // 🌟 KUNCI PERBAIKAN: Amankan konversi tipe data dinamis (int/double) via toString()
+    double totalMasuk = double.tryParse(summary['total_income']?.toString() ?? '0') ?? 0.0;
+    double totalKeluar = double.tryParse(summary['total_expense']?.toString() ?? '0') ?? 0.0;
+    double saldoAkhir = totalMasuk - totalKeluar;
+
+    int totalKk = int.tryParse(iuranStats['total_kk']?.toString() ?? '0') ?? 0;
+    int sudahBayar = int.tryParse(iuranStats['sudah_bayar_kk']?.toString() ?? '0') ?? 0;
+    double progressPercent = totalKk > 0 ? (sudahBayar / totalKk) * 100 : 0.0;
+    double totalIuranTerkumpul = double.tryParse(iuranStats['total_collected']?.toString() ?? '0') ?? 0.0;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF0F2F5),
       appBar: AppBar(
@@ -29,7 +62,9 @@ class ReportPreviewScreen extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: ElevatedButton.icon(
-              onPressed: () {},
+              onPressed: () {
+                // Skenario cetak PDF logic system
+              },
               icon: const Icon(Icons.download, size: 16),
               label: const Text('Unduh PDF'),
               style: ElevatedButton.styleFrom(
@@ -47,7 +82,7 @@ class ReportPreviewScreen extends StatelessWidget {
           child: Center(
             child: Container(
               width: double.infinity,
-              constraints: const BoxConstraints(maxWidth: 500), // Slightly smaller max width
+              constraints: const BoxConstraints(maxWidth: 500),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(8),
@@ -55,7 +90,7 @@ class ReportPreviewScreen extends StatelessWidget {
                   BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5)),
                 ],
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32), // Reduced padding
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -101,7 +136,7 @@ class ReportPreviewScreen extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            'Oktober 2026',
+                            summary['current_period_label'] ?? 'Oktober 2026',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
@@ -110,7 +145,7 @@ class ReportPreviewScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '25 Okt 2026',
+                            summary['generated_at'] ?? '25 Okt 2026',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 8,
                               color: Colors.grey[500],
@@ -122,19 +157,19 @@ class ReportPreviewScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 32),
 
-                  // Summary Row - Fixed Overflows with LayoutBuilder and Smaller sizes
+                  // Summary Row - Dinamis
                   Row(
                     children: [
-                      _buildSummaryBox('Total Masuk', 'Rp 18.2jt', Colors.blue[800]!),
+                      _buildSummaryBox('Total Masuk', _formatRupiah(totalMasuk), Colors.blue[800]!),
                       const SizedBox(width: 8),
-                      _buildSummaryBox('Total Keluar', 'Rp 2.7jt', Colors.red[800]!),
+                      _buildSummaryBox('Total Keluar', _formatRupiah(totalKeluar), Colors.red[800]!),
                       const SizedBox(width: 8),
-                      _buildSummaryBox('Saldo Akhir', 'Rp 15.4jt', const Color(0xFF004E92), isHighlighted: true),
+                      _buildSummaryBox('Saldo Akhir', _formatRupiah(saldoAkhir), const Color(0xFF004E92), isHighlighted: true),
                     ],
                   ),
                   const SizedBox(height: 32),
 
-                  // Iuran Summary Section
+                  // Iuran Summary Section - Dinamis
                   _buildSectionLabel('Iuran Summary'),
                   const SizedBox(height: 12),
                   Container(
@@ -153,7 +188,7 @@ class ReportPreviewScreen extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'IURAN BULANAN (OKT 2026)',
+                                    'IURAN BULANAN KELUARGA',
                                     style: GoogleFonts.plusJakartaSans(
                                       fontSize: 10,
                                       fontWeight: FontWeight.bold,
@@ -163,11 +198,11 @@ class ReportPreviewScreen extends StatelessWidget {
                                   const SizedBox(height: 12),
                                   Row(
                                     children: [
-                                      _buildMiniInfo('TOTAL KK', '60'),
+                                      _buildMiniInfo('TOTAL KK', '$totalKk'),
                                       const SizedBox(width: 16),
-                                      _buildMiniInfo('NOMINAL', '150k'),
+                                      _buildMiniInfo('NOMINAL', '${(double.tryParse(iuranStats['tariff_per_kk']?.toString() ?? '150000') ?? 150000 / 1000).toStringAsFixed(0)}k'),
                                       const SizedBox(width: 16),
-                                      _buildMiniInfo('LUNAS', '51', color: Colors.green[700]),
+                                      _buildMiniInfo('LUNAS', '$sudahBayar', color: Colors.green[700]),
                                     ],
                                   ),
                                 ],
@@ -179,7 +214,7 @@ class ReportPreviewScreen extends StatelessWidget {
                                 color: const Color(0xFF004E92),
                                 borderRadius: BorderRadius.circular(4),
                               ),
-                              child: Text('85%', style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),
+                              child: Text('${progressPercent.toStringAsFixed(0)}%', style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),
                             ),
                           ],
                         ),
@@ -188,7 +223,7 @@ class ReportPreviewScreen extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text('TERKUMPUL', style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.bold)),
-                            Text('Rp 7.650.000', style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w800, color: const Color(0xFF004E92))),
+                            Text(_formatRupiah(totalIuranTerkumpul), style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w800, color: const Color(0xFF004E92))),
                           ],
                         ),
                       ],
@@ -196,10 +231,10 @@ class ReportPreviewScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 32),
 
-                  // Expense Table
+                  // Expense Table - Dinamis
                   _buildSectionLabel('Rincian Pengeluaran'),
                   const SizedBox(height: 12),
-                  _buildExpenseTable(),
+                  _buildExpenseTable(totalKeluar),
                   const SizedBox(height: 32),
 
                   // Signature Footer
@@ -321,7 +356,7 @@ class ReportPreviewScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildExpenseTable() {
+  Widget _buildExpenseTable(double totalExpense) {
     return Container(
       decoration: BoxDecoration(
         border: Border.all(color: const Color(0xFFE5EEF5)),
@@ -329,7 +364,6 @@ class ReportPreviewScreen extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Header
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
             color: const Color(0xFFF0F4F8),
@@ -341,10 +375,19 @@ class ReportPreviewScreen extends StatelessWidget {
               ],
             ),
           ),
-          _buildExpenseRow('Lampu Jalan', 'Rp 850k', 'LED Blok B'),
-          _buildExpenseRow('Iuran Sampah', 'Rp 1.2jt', 'Gaji petugas'),
-          _buildExpenseRow('Konsumsi', 'Rp 700k', 'Rapat bulanan'),
-          // Total
+          ...expenses.map((expense) => Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                decoration: const BoxDecoration(
+                  border: Border(bottom: BorderSide(color: Color(0xFFE5EEF5))),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(flex: 3, child: Text(expense['title'] ?? 'Pengeluaran', style: GoogleFonts.plusJakartaSans(fontSize: 8))),
+                    Expanded(flex: 2, child: Text(_formatRupiah(expense['amount']), style: GoogleFonts.plusJakartaSans(fontSize: 8, fontWeight: FontWeight.bold))),
+                    Expanded(flex: 3, child: Text(expense['notes'] ?? '-', style: GoogleFonts.plusJakartaSans(fontSize: 7, color: Colors.grey[600]), overflow: TextOverflow.ellipsis)),
+                  ],
+                ),
+              )),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
             color: const Color(0xFFFFEBEE).withOpacity(0.3),
@@ -352,26 +395,10 @@ class ReportPreviewScreen extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text('TOTAL', style: GoogleFonts.plusJakartaSans(fontSize: 8, fontWeight: FontWeight.bold)),
-                Text('Rp 2.750.000', style: GoogleFonts.plusJakartaSans(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.red[800])),
+                Text(_formatRupiah(totalExpense), style: GoogleFonts.plusJakartaSans(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.red[800])),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildExpenseRow(String title, String amount, String note) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFFE5EEF5))),
-      ),
-      child: Row(
-        children: [
-          Expanded(flex: 3, child: Text(title, style: GoogleFonts.plusJakartaSans(fontSize: 8))),
-          Expanded(flex: 2, child: Text(amount, style: GoogleFonts.plusJakartaSans(fontSize: 8, fontWeight: FontWeight.bold))),
-          Expanded(flex: 3, child: Text(note, style: GoogleFonts.plusJakartaSans(fontSize: 7, color: Colors.grey[600]), overflow: TextOverflow.ellipsis)),
         ],
       ),
     );

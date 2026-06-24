@@ -1,8 +1,8 @@
 class ApiEndpoints {
   // Ganti dengan IP Local Komputer kamu (Cek via 'hostname -I' atau 'ip addr')
-  // PENTING: Pastikan IP ini adalah IP server di jaringan lokal yang SAMA dengan hape
-  // static const String baseUrl = 'http://172.16.163.250:8081/api/v1';
-  static const String baseUrl = 'https://wargify.algaray.dev/api/v1';
+  // PENTING: Pastikan IP ini adalah IP server di jaringan lokal yang SAMA dengan hape 
+  static const String baseUrl = 'http://172.16.163.134:8081/api/v1';
+  // static const String baseUrl = 'https://wargify.algaray.dev/api/v1';
 
   // MODUL AUTH & PROFIL
   static const String login = '/login';
@@ -18,10 +18,12 @@ class ApiEndpoints {
   // MODUL IURAN & KAS
   static const String myIuran = '/me/iuran';
   static const String checkArrears = '/iuran/check-arrears';
+  static const String makePayment = '/iuran/process-payments';
   static const String iuranPeriods = '/iuran-periods';
   static const String iuranPayments = '/iuran-payments';
   static const String treasuryLogs = '/treasury-logs';
   static const String treasurySummary = '/treasury-summary';
+  static const String treasuryAuditSummary = '/treasury-audit-summary';
 
   // MODUL SCANNER UTAMA
   static const String qrScan = '/qr/scan';

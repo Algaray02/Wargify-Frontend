@@ -1,22 +1,214 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:wargify/core/constants/colors.dart';
+import 'package:wargify/services/api_service.dart';
+import 'package:wargify/core/constants/api_endpoints.dart';
+import 'package:dio/dio.dart';
 
 class ManualPaymentSheet extends StatefulWidget {
-  const ManualPaymentSheet({super.key});
+  final String periodId; // Dioper dari ShowContributionQrScreen
+
+  const ManualPaymentSheet({super.key, required this.periodId});
 
   @override
   State<ManualPaymentSheet> createState() => _ManualPaymentSheetState();
 }
 
 class _ManualPaymentSheetState extends State<ManualPaymentSheet> {
-  final List<Map<String, dynamic>> _residents = [
-    {'name': 'Agus Dermawan', 'block': 'Blok A / No. 12', 'paid': false},
-    {'name': 'Budi Santoso', 'block': 'Blok B / No. 05', 'paid': false},
-    {'name': 'Citra Handayani', 'block': 'Blok C / No. 22', 'paid': false},
-    {'name': 'Pak Slamet', 'block': 'Blok A / No. 01', 'paid': true, 'method': 'Manual', 'time': '12 Okt, 08:45'},
-    {'name': 'Ibu Wahyuni', 'block': 'Blok B / No. 03', 'paid': true, 'method': 'QRIS', 'time': '12 Okt, 09:12'},
-  ];
+  final ApiService _apiService = ApiService();
+  
+  List<dynamic> _allPayments = [];
+  List<Map<String, dynamic>> _allResidentsFlattened = [];
+  List<Map<String, dynamic>> _filteredResidents = [];
+  
+  bool _isLoading = true;
+  String? _errorMsg;
+  String _searchQuery = "";
+  String _activeTab = "Belum Bayar"; // Filter Tab Aktif
+
+  // Melacak ID keluarga yang sukses ditandai lunas pada sesi ini
+  final List<String> _tempMarkedPaidFamilyIds = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchPeriodPayments();
+  }
+
+  // 1. Ambil Data Transaksi Real-time dari Laravel
+  Future<void> _fetchPeriodPayments() async {
+    if (!mounted) return;
+
+    if (widget.periodId.isEmpty) {
+      setState(() {
+        _errorMsg = "Eror: ID Periode tidak ditemukan.";
+        _isLoading = false;
+      });
+      return;
+    }
+
+    try {
+      setState(() {
+        _isLoading = true;
+        _errorMsg = null;
+      });
+
+      final url = '${ApiEndpoints.iuranPeriods}/${widget.periodId}/payments';
+      final response = await _apiService.getList(url);
+
+      if (response != null && response is List) {
+        List<Map<String, dynamic>> tempResidents = [];
+        
+        for (var item in response) {
+          tempResidents.add({
+            'family_id': item['family_id'],
+            'full_name': item['full_name'],
+            'head_of_family_name': item['head_of_family_name'],
+            'block_info': item['block_info'],
+            'is_paid': item['is_paid_global'] == true, // Status tab global
+            'tagihan': item['tagihan'] ?? [],
+          });
+        }
+
+        if (!mounted) return;
+
+        setState(() {
+          _allPayments = response; 
+          _allResidentsFlattened = tempResidents;
+          _applyFilterAndSearch();
+          _isLoading = false;
+        });
+      } else {
+        if (!mounted) return;
+        setState(() {
+          _errorMsg = "Format data dari server salah atau kosong.";
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMsg = "Eror Aplikasi: ${e.toString()}"; 
+      }); 
+    }
+  }
+
+  // 2. Logika Pemfilteran Tab dan Fitur Cari Sesuai Nama Masing-masing Warga
+  void _applyFilterAndSearch() {
+    List<Map<String, dynamic>> results = List.from(_allResidentsFlattened);
+
+    // Filter berdasarkan Pencarian Teks Nama Individu Warga
+    if (_searchQuery.isNotEmpty) {
+      results = results.where((warga) {
+        final String residentName = warga['full_name'] ?? '';
+        return residentName.toLowerCase().contains(_searchQuery.toLowerCase());
+      }).toList();
+    }
+
+    // Filter berdasarkan Kategori Tab Aktif
+    if (_activeTab == "Belum Bayar") {
+      results = results.where((warga) => warga['is_paid'] == false).toList();
+    } else if (_activeTab == "Sudah Bayar") {
+      results = results.where((warga) => warga['is_paid'] == true).toList();
+    }
+
+    setState(() {
+      _filteredResidents = results;
+    });
+  }
+
+  // 3. Eksekusi Tembak API saat Centang Manual Diaktifkan per Komponen Iuran
+  Future<void> _toggleManualPayment(String familyId, String targetPeriodId, double targetAmount, bool isChecked) async {
+    if (!isChecked) return; 
+    
+    // testing
+    // print("========== 🚀 MEMULAI PROSES TEMBAK API 🚀 ==========");
+    // print("Family ID: $familyId");
+    // print("Period ID Target: $targetPeriodId");
+    // print("Nominal: $targetAmount");
+
+    // ✨ KUNCI SINKRONISASI UTAMA: Update data master di memori induk secara senyap tanpa merusak layout
+    for (var warga in _allResidentsFlattened) {
+      if (warga['family_id'] == familyId) {
+        final List<dynamic> listTagihan = warga['tagihan'] ?? [];
+        for (var tagihan in listTagihan) {
+          if (tagihan['period_id'] == targetPeriodId) {
+            tagihan['is_paid'] = true;
+          }
+        }
+        // Cek apakah setelah dicentang, semua komponen iuran warga ini sudah lunas semua
+        final bool hasUnpaid = listTagihan.any((t) => t['is_paid'] == false);
+        warga['is_paid'] = !hasUnpaid; // Update status global KK secara dinamis
+      }
+    }
+
+    try {
+      final Map<String, dynamic> requestBody = {
+        'period_id': targetPeriodId,
+        'family_id': familyId,
+        'paid_by_user_id': null, 
+        'amount_paid': targetAmount, 
+      };
+
+      final response = await _apiService.post(ApiEndpoints.iuranPayments, requestBody);
+
+      // print("🟥 RESPONS API SERVER: $response");
+
+      if (!mounted) return;
+
+      if (response != null && (response['success'] == true || response['payment_id'] != null)) {
+        // print("🟩 API SUKSES! Centang dikunci aman di layar.");
+        
+        // Simpan ke temp IDs untuk keperluan tracker jika dibutuhkan
+        _tempMarkedPaidFamilyIds.add(familyId);
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Status iuran berhasil dicatat sementara'), 
+            duration: Duration(seconds: 1)
+          ),
+        );
+      } else {
+        // print("❌ API GAGAL / NEGATIF! Memicu Rollback UI...");
+        _rollbackStatus(familyId, targetPeriodId);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(response?['message'] ?? 'Gagal memperbarui status di server')),
+        );
+      }
+    } catch (e) {
+      // print("💥 CRASH PADA CATCH FLUTTER! Error: $e");
+      if (!mounted) return;
+      _rollbackStatus(familyId, targetPeriodId);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal memperbarui status: $e')),
+      );
+    }
+  }
+
+  // Fungsi Pembantu untuk mengembalikan centangan jika transaksi API gagal
+  void _rollbackStatus(String familyId, String targetPeriodId) {
+    if (!mounted) return;
+    
+    setState(() {
+      for (var warga in _allResidentsFlattened) {
+        if (warga['family_id'] == familyId) {
+          final List<dynamic> listTagihan = warga['tagihan'] ?? [];
+          for (var tagihan in listTagihan) {
+            if (tagihan['period_id'] == targetPeriodId) {
+              tagihan['is_paid'] = false; // Kembalikan ke false jika gagal
+            }
+          }
+          final bool hasUnpaid = listTagihan.any((t) => t['is_paid'] == false);
+          warga['is_paid'] = !hasUnpaid;
+        }
+      }
+      _applyFilterAndSearch(); // Saring ulang dan segarkan tampilan UI global
+    });
+  }
+
+  // Hitung jumlah warga lunas secara dinamis dari state lokal
+  int _getPaidCount() => _allResidentsFlattened.where((r) => r['is_paid'] == true).length;
 
   @override
   Widget build(BuildContext context) {
@@ -34,9 +226,11 @@ class _ManualPaymentSheetState extends State<ManualPaymentSheet> {
             height: 4,
             decoration: BoxDecoration(
               color: Colors.grey[300],
-              borderRadius: BorderRadius.circular(2),
+              borderRadius: BorderRadius.circular(22),
             ),
           ),
+          
+          // Header
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
             child: Row(
@@ -60,7 +254,9 @@ class _ManualPaymentSheetState extends State<ManualPaymentSheet> {
                           const Icon(Icons.people_outline, size: 16, color: Colors.grey),
                           const SizedBox(width: 4),
                           Text(
-                            '15 / 60 warga sudah bayar',
+                            _isLoading 
+                                ? 'Menghitung warga...' 
+                                : '${_getPaidCount()} / ${_allResidentsFlattened.length} KK sudah bayar',
                             style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey[600]),
                           ),
                         ],
@@ -90,8 +286,14 @@ class _ManualPaymentSheetState extends State<ManualPaymentSheet> {
                 borderRadius: BorderRadius.circular(16),
               ),
               child: TextField(
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value;
+                    _applyFilterAndSearch();
+                  });
+                },
                 decoration: InputDecoration(
-                  hintText: 'Cari nama warga...',
+                  hintText: 'Cari nama warga / anggota keluarga...',
                   hintStyle: GoogleFonts.plusJakartaSans(color: Colors.grey[400], fontSize: 14),
                   prefixIcon: const Icon(Icons.search_rounded, color: Colors.grey),
                   border: InputBorder.none,
@@ -101,7 +303,7 @@ class _ManualPaymentSheetState extends State<ManualPaymentSheet> {
           ),
           const SizedBox(height: 16),
           
-          // Tabs
+          // Tabs Filter
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Container(
@@ -112,30 +314,38 @@ class _ManualPaymentSheetState extends State<ManualPaymentSheet> {
               ),
               child: Row(
                 children: [
-                  _buildTab('Belum Bayar', true),
-                  _buildTab('Semua', false),
-                  _buildTab('Sudah Bayar', false),
+                  _buildTab('Belum Bayar'),
+                  _buildTab('Semua'),
+                  _buildTab('Sudah Bayar'),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 24),
           
+          // Main Body Content
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              children: [
-                _buildSectionHeader('BELUM BAYAR (45)'),
-                ..._residents.where((r) => !r['paid']).map((r) => _buildResidentItem(r)),
-                const SizedBox(height: 24),
-                _buildSectionHeader('SUDAH BAYAR (15)', isExpandable: true),
-                ..._residents.where((r) => r['paid']).map((r) => _buildPaidResidentItem(r)),
-                const SizedBox(height: 100),
-              ],
-            ),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+                : _errorMsg != null
+                    ? Center(child: Text('$_errorMsg', style: const TextStyle(color: Colors.red)))
+                    : _filteredResidents.isEmpty
+                        ? Center(child: Text('Tidak ada data warga ditemukan', style: GoogleFonts.plusJakartaSans(color: Colors.grey)))
+                        : ListView.builder(
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            itemCount: _filteredResidents.length,
+                            itemBuilder: (context, index) {
+                              final warga = _filteredResidents[index];
+                              final bool isPaid = warga['is_paid'] == true;
+                              
+                              return isPaid
+                                  ? _buildPaidResidentItem(warga)
+                                  : _buildResidentItem(warga);
+                            },
+                          ),
           ),
           
-          // Bottom Bar
+          // Bottom Actions Banner
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
@@ -147,35 +357,20 @@ class _ManualPaymentSheetState extends State<ManualPaymentSheet> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2D3135),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.check_circle_rounded, color: Colors.green, size: 20),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Berhasil ditandai sebagai sudah bayar',
-                          style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 12),
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () {},
-                        child: Text(
-                          'UNDO',
-                          style: GoogleFonts.plusJakartaSans(color: Colors.white, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
                 ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () {
+                    // Ketika tombol selesai ditekan, panggil refresh total database dari server
+                    _fetchPeriodPayments();
+                    
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Data berhasil disinkronkan ke server! 🎉'),
+                        duration: Duration(seconds: 1),
+                      ),
+                    );
+
+                    Navigator.pop(context, true);
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF004E92),
                     foregroundColor: Colors.white,
@@ -183,7 +378,7 @@ class _ManualPaymentSheetState extends State<ManualPaymentSheet> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   child: Text(
-                    'Simpan Perubahan',
+                    'Selesai',
                     style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -195,22 +390,31 @@ class _ManualPaymentSheetState extends State<ManualPaymentSheet> {
     );
   }
 
-  Widget _buildTab(String label, bool isSelected) {
+  Widget _buildTab(String label) {
+    final bool isSelected = _activeTab == label;
     return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: isSelected ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4)] : null,
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 12,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              color: isSelected ? AppColors.primary : Colors.grey[600],
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _activeTab = label;
+            _applyFilterAndSearch();
+          });
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: isSelected ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4)] : null,
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected ? AppColors.primary : Colors.grey[600],
+              ),
             ),
           ),
         ),
@@ -218,112 +422,225 @@ class _ManualPaymentSheetState extends State<ManualPaymentSheet> {
     );
   }
 
-  Widget _buildSectionHeader(String title, {bool isExpandable = false}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            title,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[500],
-              letterSpacing: 1.1,
-            ),
+  // TAMPILAN WARGA YANG BELUM BAYAR IURAN
+  Widget _buildResidentItem(Map<String, dynamic> warga) {
+    final String name = warga['full_name'] ?? '-';
+    final String block = warga['block_info'] ?? '-';
+    final String headName = warga['head_of_family_name'] ?? '-';
+    final String familyId = warga['family_id'] ?? '';
+    final List<dynamic> listTagihan = warga['tagihan'] ?? [];
+    
+    // 🌟 1. Fungsi Helper merubah angka bulan (1-12) dari database menjadi Teks Bahasa Indonesia
+    String getNamaBulanIndo(int monthNumber) {
+      const List<String> months = [
+        "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+        "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+      ];
+      if (monthNumber >= 1 && monthNumber <= 12) {
+        return months[monthNumber - 1];
+      }
+      return "Periode Lain";
+    }
+
+    // 🌟 2. GROUPING DATA: Kelompokkan secara dinamis berdasar data 'month' & 'year' yang baru dikirim Laravel
+    final Map<String, List<dynamic>> groupedByMonth = {};
+    
+    for (var tagihan in listTagihan) {
+      // Menangkap angka month dan year dari response JSON Laravel yang baru kita tambahkan
+      final int monthVal = int.tryParse(tagihan['month'].toString()) ?? 0;
+      final int yearVal = int.tryParse(tagihan['year'].toString()) ?? 0;
+      
+      String headerKey = "";
+
+      if (monthVal >= 1 && monthVal <= 12 && yearVal > 0) {
+        // Gabungkan otomatis menjadi: "JUNI 2026", "JULI 2026", "AGUSTUS 2026", dst.
+        headerKey = "${getNamaBulanIndo(monthVal)} $yearVal".toUpperCase();
+      } else {
+        // Fallback cadangan aman jika terjadi anomali data kosong
+        final String rawPeriodName = tagihan['period_name'] ?? 'Periode Lain';
+        headerKey = rawPeriodName.toUpperCase();
+      }
+
+      if (!groupedByMonth.containsKey(headerKey)) {
+        groupedByMonth[headerKey] = [];
+      }
+      groupedByMonth[headerKey]!.add(tagihan);
+    }
+    
+    return StatefulBuilder(
+      builder: (BuildContext context, StateSetter setCardState) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 16, left: 24, right: 24),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFE0E6ED)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-          if (isExpandable) const Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: Colors.grey),
-        ],
-      ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // BARIS PROFIL WARGA
+              Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF004E92).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Center(
+                      child: Text(
+                        name.isNotEmpty ? name[0].toUpperCase() : 'W',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.bold, 
+                          color: const Color(0xFF004E92),
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(name, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 15)),
+                        Text("Kepala KK: $headName • $block", style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.grey[600])),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12.0),
+                child: Divider(height: 1, color: Color(0xFFEEEEEE)),
+              ),
+
+              Text(
+                "Pilih iuran yang dibayar tunai:",
+                style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey[700]),
+              ),
+              const SizedBox(height: 4),
+              
+              // 3. RENDER UI CHECKBOX TERKELOMPOK BULAN REAL
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: groupedByMonth.entries.map((entry) {
+                  final String namaBulanHeader = entry.key; // Hasil konversi: "JUNI 2026", "JULI 2026", dll
+                  final List<dynamic> tagihanList = entry.value;
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Sub-Header Nama Bulan Utama
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12.0, bottom: 4.0),
+                        child: Text(
+                          namaBulanHeader,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12, 
+                            fontWeight: FontWeight.bold, 
+                            color: const Color(0xFF004E92),
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                      
+                      // Looping murni data iuran kategori
+                      ...tagihanList.map((tagihan) {
+                        final bool sudahBayar = tagihan['is_paid'] == true;
+                        final String periodId = tagihan['period_id'] ?? '';
+                        final double nominal = double.tryParse(tagihan['amount'].toString()) ?? 0.0;
+                        final String categoryName = tagihan['category_name'] ?? 'Iuran';
+
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4.0),
+                          key: ValueKey(periodId),
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: Checkbox(
+                                  activeColor: const Color(0xFF004E92),
+                                  value: sudahBayar,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                                  onChanged: sudahBayar 
+                                      ? null 
+                                      : (bool? checked) {
+                                          if (checked == true) {
+                                            setCardState(() {
+                                              tagihan['is_paid'] = true;
+                                            });
+                                            _toggleManualPayment(familyId, periodId, nominal, checked!);
+                                          }
+                                        },
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  categoryName, // Isinya murni string kategori dari DB, misal: "Iuran Kebersihan"
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 13, 
+                                    color: sudahBayar ? Colors.grey[400] : Colors.black87,
+                                    decoration: sudahBayar ? TextDecoration.lineThrough : null,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                "Rp ${nominal.toStringAsFixed(0)}",
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13, 
+                                  fontWeight: FontWeight.bold, 
+                                  color: sudahBayar ? Colors.green[700] : Colors.red[700],
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                    ],
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildResidentItem(Map<String, dynamic> r) {
+  // TAMPILAN WARGA YANG SUDAH LUNAS IURAN
+  Widget _buildPaidResidentItem(Map<String, dynamic> warga) {
+    final String name = warga['full_name'] ?? '-';
+    final String headName = warga['head_of_family_name'] ?? '-';
+    final String rawDate = warga['paid_at'] ?? '';
+    final String formattedTime = rawDate.length > 16 ? rawDate.substring(0, 16).replaceAll('T', ' ') : 'Lunas';
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 12, left: 24, right: 24),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFFF8FAFD),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE0E6ED)),
       ),
       child: Row(
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: const Color(0xFFE3F2FD),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Center(
-              child: Text(
-                r['name'].split(' ').map((e) => e[0]).take(2).join(),
-                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: AppColors.primary),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      r['name'],
-                      style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 14),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFF1F0),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        'Belum bayar',
-                        style: GoogleFonts.plusJakartaSans(fontSize: 8, color: Colors.red[700], fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ],
-                ),
-                Text(
-                  r['block'],
-                  style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.grey[600]),
-                ),
-              ],
-            ),
-          ),
-          Checkbox(
-            value: r['paid'],
-            onChanged: (val) {
-              setState(() {
-                r['paid'] = val;
-              });
-            },
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-            activeColor: AppColors.primary,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPaidResidentItem(Map<String, dynamic> r) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFD),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
           CircleAvatar(
             radius: 24,
-            backgroundImage: NetworkImage('https://ui-avatars.com/api/?name=${r['name']}&background=random'),
+            backgroundImage: NetworkImage('https://ui-avatars.com/api/?name=$name&background=random'),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -331,8 +648,13 @@ class _ManualPaymentSheetState extends State<ManualPaymentSheet> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  r['name'],
+                  name,
                   style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                Text(
+                  "Kepala KK: $headName",
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.grey[500]),
                 ),
                 Row(
                   children: [
@@ -344,10 +666,10 @@ class _ManualPaymentSheetState extends State<ManualPaymentSheet> {
                       ),
                       child: Row(
                         children: [
-                          Icon(r['method'] == 'Manual' ? Icons.payments_outlined : Icons.qr_code_rounded, size: 10, color: Colors.grey[700]),
+                          const Icon(Icons.payments_outlined, size: 10, color: Colors.grey),
                           const SizedBox(width: 4),
                           Text(
-                            r['method'] ?? 'Manual',
+                            'Lunas',
                             style: GoogleFonts.plusJakartaSans(fontSize: 8, color: Colors.grey[700], fontWeight: FontWeight.bold),
                           ),
                         ],
@@ -355,7 +677,7 @@ class _ManualPaymentSheetState extends State<ManualPaymentSheet> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      r['time'] ?? '',
+                      formattedTime,
                       style: GoogleFonts.plusJakartaSans(fontSize: 10, color: Colors.grey[500]),
                     ),
                   ],

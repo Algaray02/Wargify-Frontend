@@ -11,17 +11,72 @@ class AddContributionScreen extends StatefulWidget {
   @override
   State<AddContributionScreen> createState() => _AddContributionScreenState();
 }
+String _selectedDuration = '1';
 
 class _AddContributionScreenState extends State<AddContributionScreen> {
   final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _amountController = TextEditingController();
   final ApiService _apiService = ApiService();
   bool _isSaving = false;
 
+  // State untuk melacak kategori iuran yang dipilih dan nominalnya
+  final Map<String, Map<String, dynamic>> _categories = {
+    'arisan': {'name': 'Uang Kas Arisan', 'checked': false, 'amount': 20000.0},
+    'kebersihan': {'name': 'Kebersihan', 'checked': false, 'amount': 15000.0},
+    'keamanan': {'name': 'Keamanan', 'checked': false, 'amount': 15000.0},
+    'sosial': {'name': 'Sosial', 'checked': false, 'amount': 10000.0},
+    'lainnya': {'name': 'Lainnya', 'checked': false, 'amount': 5000.0},
+  };
+
+  double _totalAmount = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _calculateTotal();
+  }
+
+  void _calculateTotal() {
+    double total = 0.0;
+    _categories.forEach((key, value) {
+      if (value['checked'] == true) {
+        total += value['amount'];
+      }
+    });
+    setState(() {
+      _totalAmount = total;
+    });
+  }
+
+  String _formatRupiah(double value) {
+    String raw = value.round().toString();
+    final buffer = StringBuffer();
+    for (var i = 0; i < raw.length; i++) {
+      final reverseIndex = raw.length - i;
+      buffer.write(raw[i]);
+      if (reverseIndex > 1 && reverseIndex % 3 == 1) {
+        buffer.write('.');
+      }
+    }
+    return 'Rp $buffer';
+  }
+
   Future<void> _saveContributionPeriod() async {
-    if (_nameController.text.isEmpty || _amountController.text.isEmpty) {
+    // Memastikan ada minimal satu kategori iuran yang dicentang
+    List<String> selectedCategories = [];
+    _categories.forEach((key, value) {
+      if (value['checked'] == true) selectedCategories.add(key);
+    });
+
+    if (_nameController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nama Iuran dan Nominal tidak boleh kosong!')),
+        const SnackBar(content: Text('Nama Iuran tidak boleh kosong!')),
+      );
+      return;
+    }
+
+    if (selectedCategories.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pilih minimal satu jenis iuran!')),
       );
       return;
     }
@@ -36,17 +91,18 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
         'period_name': _nameController.text,
         'month': currentMonth,
         'year': currentYear,
-        'amount_per_family': double.parse(_amountController.text),
+        'duration_months': int.parse(_selectedDuration), // Kirim durasi bulan (1 atau 12)
+        'categories': selectedCategories,
       };
 
-      // Mengirim POST request ke endpoint /iuran-periods Laravel
-      final response = await _apiService.post('/iuran-periods', requestBody);
+      final response = await _apiService.post(ApiEndpoints.iuranPeriods, requestBody);
 
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(response['message'] ?? 'Iuran baru berhasil dibuka!')),
-        );
-        Navigator.of(context).popUntil((route) => route.isFirst); 
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(response['message'] ?? 'Iuran baru berhasil dibuka!')),
+      );
+      Navigator.of(context).popUntil((route) => route.isFirst);
 
     } catch (e) {
       if (!mounted) return;
@@ -58,7 +114,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Gagal menyimpan iuran: $pesanEror'),
-          duration: const Duration(seconds: 5), // Agak lama biar sempat dibaca
+          duration: const Duration(seconds: 5),
         ),
       );
     } finally {
@@ -68,9 +124,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
 
   @override
   void dispose() {
-    // Membersihkan memori controller saat screen ditutup
     _nameController.dispose();
-    _amountController.dispose();
     super.dispose();
   }
 
@@ -99,7 +153,6 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Detail Card
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -123,11 +176,11 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Detail iuran bulanan',
+                          'Detail pembuatan iuran',
                           style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.bold),
                         ),
                         Text(
-                          'Isi informasi untuk memulai iuran baru',
+                          'Pilih kategori iuran yang ingin diaktifkan bulan ini',
                           style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey[600]),
                         ),
                       ],
@@ -138,95 +191,104 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
             ),
             const SizedBox(height: 32),
             
-            _buildLabel('Nama Iuran'),
-            _buildTextField('contoh: Iuran Oktober 2026', controller: _nameController),
+            _buildLabel('Nama Iuran / Periode'),
+            _buildTextField('contoh: Iuran Bulan Mei 2026', controller: _nameController),
             const SizedBox(height: 24),
             
-            _buildLabel('Nominal Iuran'),
+            _buildLabel('Pilih Jenis Iuran'),
             Container(
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: const Color(0xFFE0E6ED)),
               ),
-              child: Row(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Text(
-                      'Rp',
-                      style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.grey[600]),
+              child: Column(
+                children: _categories.keys.map((String key) {
+                  return CheckboxListTile(
+                    activeColor: const Color(0xFF0D47A1),
+                    title: Text(
+                      _categories[key]!['name'],
+                      style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600),
                     ),
-                  ),
-                  Expanded(
-                    child: TextField(
-                      controller: _amountController,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        hintText: '0',
-                        hintStyle: GoogleFonts.plusJakartaSans(fontSize: 24, fontWeight: FontWeight.w500, color: Colors.grey[300]),
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
+                    subtitle: Text(
+                      _formatRupiah(_categories[key]!['amount']),
+                      style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey[600]),
                     ),
-                  ),
-                ],
+                    value: _categories[key]!['checked'],
+                    onChanged: (bool? value) {
+                      setState(() {
+                        _categories[key]!['checked'] = value;
+                        _calculateTotal();
+                      });
+                    },
+                  );
+                }).toList(),
               ),
             ),
             const SizedBox(height: 24),
-            
-            _buildLabel('Keterangan'),
-            _buildTextField('Contoh: uang bulanan warga', maxLines: 3),
-            const SizedBox(height: 24),
-            
-            _buildLabel('Tipe Iuran'),
+
+            _buildLabel('Total Akumulasi Tarif'),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: const Color(0xFFF0F4F8),
+                color: const Color(0xFF0D47A1).withOpacity(0.05),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE0E6ED)),
+                border: Border.all(color: const Color(0xFF0D47A1).withOpacity(0.2)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Iuran Bulanan',
-                    style: GoogleFonts.plusJakartaSans(color: Colors.grey[600]),
+                    'Total Terinput:',
+                    style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF0D47A1)),
                   ),
-                  Icon(Icons.lock_outline_rounded, size: 20, color: Colors.grey[400]),
+                  Text(
+                    _formatRupiah(_totalAmount),
+                    style: GoogleFonts.plusJakartaSans(fontSize: 22, fontWeight: FontWeight.w800, color: const Color(0xFF0D47A1)),
+                  ),
                 ],
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
             
-            Row(
-              children: [
-                Expanded(
-                  child: _buildInfoCard(
-                    icon: Icons.calendar_today_outlined,
-                    label: 'Frekuensi',
-                    value: 'Tiap Bulan',
-                    color: const Color(0xFFE3F2FD),
-                    iconColor: const Color(0xFF1565C0),
-                  ),
+            _buildLabel('Durasi Tagihan'),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE0E6ED)),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _selectedDuration,
+                  isExpanded: true,
+                  icon: const Icon(Icons.arrow_drop_down_rounded, color: Colors.grey, size: 30),
+                  items: [
+                    DropdownMenuItem(
+                      value: '1',
+                      child: Text('Bulan Ini Saja', style: GoogleFonts.plusJakartaSans(fontSize: 14)),
+                    ),
+                    DropdownMenuItem(
+                      value: '3',
+                      child: Text('Bulan Ini s/d 3 bulan ke Depan (Triwulan)', style: GoogleFonts.plusJakartaSans(fontSize: 14)),
+                    ),
+                  ],
+                  onChanged: (String? newValue) {
+                    if (newValue != null) {
+                      setState(() {
+                        _selectedDuration = newValue;
+                      });
+                    }
+                  },
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildInfoCard(
-                    icon: Icons.verified_user_outlined,
-                    label: 'Status',
-                    value: 'Aktif',
-                    color: const Color(0xFFFBE9E7),
-                    iconColor: const Color(0xFFD84315),
-                  ),
-                ),
-              ],
+              ),
             ),
-            const SizedBox(height: 40),
-            
+            const SizedBox(height: 24),
+
             ElevatedButton(
-              onPressed:_isSaving ? null : _saveContributionPeriod,
+              onPressed: _isSaving ? null : _saveContributionPeriod,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF004E92),
                 foregroundColor: Colors.white,
@@ -265,7 +327,7 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
     );
   }
 
-  Widget _buildTextField(String hint, {int maxLines = 1, TextEditingController? controller}) {
+  Widget _buildTextField(String hint, {TextEditingController? controller}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
@@ -275,38 +337,12 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
       ),
       child: TextField(
         controller: controller,
-        maxLines: maxLines,
         decoration: InputDecoration(
           hintText: hint,
           hintStyle: GoogleFonts.plusJakartaSans(color: Colors.grey[300], fontSize: 14),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 16),
         ),
-      ),
-    );
-  }
-
-  Widget _buildInfoCard({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color color,
-    required Color iconColor,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: iconColor, size: 24),
-          const SizedBox(height: 12),
-          Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 10, color: iconColor)),
-          Text(value, style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF0D1B2A))),
-        ],
       ),
     );
   }

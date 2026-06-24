@@ -59,10 +59,18 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     super.dispose();
   }
 
+  // 🌟 HELPER REGEX: Memvalidasi apakah kode yang dipindai adalah UUID murni yang sah
+  bool _isValidUuid(String str) {
+    final regExp = RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+    );
+    return regExp.hasMatch(str);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.black, // Match dark premium background of RT/Bendahara
       body: Stack(
         children: [
           // 1. Camera View (Only in Scan Mode)
@@ -100,7 +108,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
           // 2. Tampil QR Mode Screen
           if (!isModeScan) _buildTampilQrScreen(),
 
-          // 3. Curved Background Circles
+          // 3. Curved Background Circles (Matches RT layout ornament)
           Positioned(
             top: -50,
             right: -100,
@@ -121,7 +129,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
           SafeArea(
             child: Column(
               children: [
-                // Header
+                // Header (Sama persis RT)
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -158,7 +166,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
 
                 if (isModeScan) ...[
                   const Spacer(flex: 1),
-                  // Attendance Mode Badge
+                  // Attendance Mode Badge (Sama persis RT)
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -195,8 +203,8 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                       fontSize: 28,
                       fontWeight: FontWeight.w800,
                       color: Colors.white,
-                ),
-              ),
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 40),
@@ -212,7 +220,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                   ),
                   const Spacer(flex: 2),
 
-                  // Viewfinder
+                  // Viewfinder (Sama persis RT)
                   Center(
                     child: Container(
                       width: 280,
@@ -261,7 +269,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                   const Spacer(),
                 ],
 
-                // Toggle Mode Selector
+                // Toggle Mode Selector (Glassmorphic & Premium)
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 40,
@@ -335,26 +343,44 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
               ],
             ),
           ),
+
+          // Loading Overlay saat memproses data API
+          if (_isProcessingScan)
+            Container(
+              color: Colors.black54,
+              child: const Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
+              ),
+            ),
         ],
       ),
     );
   }
 
+  // =========================================================================
+  // METHOD 1: GENERATE & TAMPILKAN QR CODE WARGA (MURNI VALUE UUID FAMILY_ID)
+  // =========================================================================
   Widget _buildTampilQrScreen() {
     final displayName = _currentUser?.fullName ?? 'Memuat...';
     final family = _asMap(_profileData?['family']);
     final household = _asMap(family?['household']);
-    final familyQr = family?['qr_code_data']?.toString();
-    final displayCode = (familyQr != null && familyQr.isNotEmpty)
-        ? familyQr
+    
+    // 🌟 PERBAIKAN 1: Ambil family_id, ubah ke String, lalu bersihkan secara total dari spasi, tab, enter (\n)
+    final rawFamilyId = family?['family_id']?.toString() ?? family?['id']?.toString();
+    final familyId = rawFamilyId?.replaceAll(RegExp(r'\s+'), '').trim();
+
+    // 🌟 PERBAIKAN 2: Sesuai permintaan, QR Code kini murni berisi nilai family_id (UUID) saja tanpa prefix teks!
+    final displayCode = (familyId != null && familyId.isNotEmpty)
+        ? familyId
         : 'QR-FAMILY-BELUM-TERSEDIA';
+
     final blockNumber = household?['block_number']?.toString();
     final houseNumber = household?['house_number']?.toString();
     final householdLabel = [
       if (blockNumber != null && blockNumber.isNotEmpty) 'Blok $blockNumber',
       if (houseNumber != null && houseNumber.isNotEmpty) 'No. $houseNumber',
     ].join(' / ');
-    final hasFamilyQr = familyQr != null && familyQr.isNotEmpty;
+    final hasFamilyQr = familyId != null && familyId.isNotEmpty;
 
     return SafeArea(
       child: Center(
@@ -413,6 +439,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
               ),
               const SizedBox(height: 30),
 
+              // Premium QR Glass Card
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(24),
@@ -443,6 +470,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                     ),
                     const SizedBox(height: 24),
 
+                    // QR Image Box
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -450,7 +478,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                         borderRadius: BorderRadius.circular(24),
                       ),
                       child: QrImageView(
-                        data: displayCode,
+                        data: displayCode, // 🌟 Menghasilkan QR Code murni UUID sebaris lurus!
                         version: QrVersions.auto,
                         size: 180,
                         eyeStyle: const QrEyeStyle(
@@ -465,6 +493,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                     ),
                     const SizedBox(height: 20),
 
+                    // Dynamic ID Badge
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -521,40 +550,106 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   }
 
   // =========================================================================
-  // PERUBAHAN UTAMA: PROSES SCAN JAUH LEBIH PINTAR MENGIKUTI STRUKTUR REVISI
+  // METHOD 2: HANDLER PEMINDAIAN KAMERA (CLEAN & ANTI ERROR)
   // =========================================================================
   Future<void> _handleScannedCode(String? code) async {
-    final scannedCode = code?.trim();
+    // 🌟 PERBAIKAN 3: Bersihkan seluruh teks QR dari spasi, enter (\n) yang merusak parsing UUID
+    final scannedCode = code?.replaceAll(RegExp(r'\s+'), '').trim();
     if (scannedCode == null || scannedCode.isEmpty || _isProcessingScan) return;
 
     setState(() => _isProcessingScan = true);
     await controller.stop();
 
-    // JIKA YANG DISCAN ADALAH QR KELUARGA (QR-FAM-XXX)
-    if (scannedCode.startsWith('QR-FAM-')) {
+    // 🌟 PERBAIKAN 4: Deteksi format secara adaptif (Mendukung UUID murni maupun prefix lama)
+    bool isFamilyQr = _isValidUuid(scannedCode) || 
+                      scannedCode.startsWith('family_id:') || 
+                      scannedCode.startsWith('family_id');
+
+    if (isFamilyQr) {
+      String cleanFamilyId = scannedCode;
+      
+      // Potong prefix jika pengurus tidak sengaja memindai format lama
+      if (scannedCode.startsWith('family_id:')) {
+        cleanFamilyId = scannedCode.substring('family_id:'.length).trim();
+      } else if (scannedCode.startsWith('family_id')) {
+        cleanFamilyId = scannedCode.replaceAll('family_id', '').replaceAll(':', '').trim();
+      }
+
+      print("Parsed Family ID untuk checkArrears: $cleanFamilyId");
+
       try {
-        // Tembak API Check Arrears buatan kita kemarin ke Laravel
-        final response = await _apiService.post('/iuran/check-arrears', {
-          'family_id': scannedCode, // Sesuai data QR di seeder database
+        // Tembak API check arrears menggunakan key 'family_id' sesuai spesifikasi Laravel baru
+        final response = await _apiService.post(ApiEndpoints.checkArrears, {
+          'family_id': cleanFamilyId,
         });
 
-        if (!mounted) return;
-        // Tampilkan bottom sheet modern rangkuman akumulasi tunggakan iuran
-        await _showArrearsBottomSheet(response['data']);
+        // 🌟 SAFETY CHECK: Pastikan API mengembalikan data sukses sebelum membuka bottom sheet
+        if (response != null && response['success'] == true && response['data'] != null) {
+          if (!mounted) return;
+          await _showArrearsBottomSheet(response['data']);
+        } else {
+          // Tampilkan pesan eror asli yang dilempar oleh Laravel backend!
+          final message = response?['message']?.toString() ?? 'Gagal memeriksa tunggakan iuran.';
+          if (!mounted) return;
+          await _showScanErrorDialog(message);
+        }
       } on DioException catch (e) {
-        final message = e.response?.data is Map
-            ? (e.response?.data['message']?.toString() ?? 'Gagal memeriksa tunggakan.')
-            : 'Gagal memeriksa tunggakan.';
+        // 🌟 PRINT DEBUG SANGAT DETIL: Mengeluarkan kode eror HTTP asli di popup dialog biar gampang dibaca!
+        final statusCode = e.response?.statusCode;
+        final responseData = e.response?.data;
+        String message = 'Gagal memeriksa tunggakan iuran.';
+
+        // Print prominently to the console so Vian can see it in terminal!
+        debugPrint("🚨🚨🚨 [API ERROR DETECTED] 🚨🚨🚨");
+        debugPrint("Path: ${e.requestOptions.path}");
+        debugPrint("Status Code: $statusCode");
+        debugPrint("Error Type: ${e.type}");
+        debugPrint("Response Type: ${responseData?.runtimeType}");
+        debugPrint("Raw Response: $responseData");
+        debugPrint("🚨🚨🚨================================🚨🚨🚨");
+
+        if (e.response == null) {
+          message = "Koneksi Bermasalah:\nTidak dapat terhubung ke server Laravel di IP ${ApiEndpoints.baseUrl}. Pastikan laptop dan HP tersambung di Wi-Fi yang SAMA.\nDetail: ${e.message}";
+        } else {
+          String errorDetail = '';
+          if (responseData is Map) {
+            errorDetail = responseData['message']?.toString() ?? responseData.toString();
+          } else if (responseData is String) {
+            // Jika respons berupa HTML (Eror khas Laravel), ambil judul HTML-nya agar jelas terbaca
+            if (responseData.contains('<title>')) {
+              final start = responseData.indexOf('<title>') + 7;
+              final end = responseData.indexOf('</title>');
+              if (end > start) {
+                errorDetail = responseData.substring(start, end).trim();
+              }
+            }
+            if (errorDetail.isEmpty) {
+              errorDetail = responseData.length > 200 
+                  ? "${responseData.substring(0, 200)}..." 
+                  : responseData;
+            }
+          } else {
+            errorDetail = responseData?.toString() ?? e.message ?? 'Unknown Error';
+          }
+
+          message = "Error $statusCode (${e.type.toString().split('.').last}):\n$errorDetail";
+        }
+
         if (!mounted) return;
         await _showScanErrorDialog(message);
-      } catch (_) {
+      } catch (e, stack) {
+        // 🌟 PRINT DEBUG: Cetak detail crash log jika ada tipe data yang tidak cocok di Flutter
+        debugPrint("CRASH LOG FLUTTER DETECTED: $e");
+        debugPrint("STACKTRACE: $stack");
         if (!mounted) return;
-        await _showScanErrorDialog('Terjadi kesalahan memproses data keluarga.');
+        await _showScanErrorDialog('Terjadi kesalahan internal aplikasi: $e');
       } finally {
-        if (mounted) setState(() => _isProcessingScan = false);
+        if (mounted) {
+          setState(() => _isProcessingScan = false);
+        }
       }
     } else {
-      // JIKA YANG DISCAN ADALAH QR PRESENSI KEGIATAN BIASA
+      // Jalankan skenario pemindaian umum (seperti Presensi Kegiatan/Ronda)
       try {
         final result = await _apiService.post(ApiEndpoints.qrScan, {
           'code': scannedCode,
@@ -566,240 +661,266 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         final message = e.response?.data is Map
             ? (e.response?.data['message']?.toString() ?? 'QR gagal diproses.')
             : 'QR gagal diproses.';
+
         if (!mounted) return;
         await _showScanErrorDialog(message);
-      } catch (_) {
+      } catch (e) {
         if (!mounted) return;
-        await _showScanErrorDialog('Terjadi kesalahan saat memproses QR.');
-      }_showScanResultDialog;
-      if (mounted) setState(() => _isProcessingScan = false);
+        await _showScanErrorDialog('Terjadi kesalahan saat memproses QR: $e');
+      } finally {
+        if (mounted) {
+          setState(() => _isProcessingScan = false);
+        }
+      }
     }
   }
 
-  // TAMPILAN BOTTOM SHEET REVISI: Rincian total & bulan iuran yang menunggak
+  // =========================================================================
+  // INTERAKTIF CHECKLIST DI BOTTOM SHEET & PROSES TRANSAKSI MASAL
+  // =========================================================================
   Future<void> _showArrearsBottomSheet(Map<String, dynamic> data) {
+    final String familyId = data['family_id'] ?? '';
     final List<dynamic> details = data['details'] ?? [];
-    final double totalOutstanding = (data['total_outstanding'] as num).toDouble();
+
+    List<dynamic> selectedPeriodIds = details.map((item) => item['period_id']).toList();
 
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF121212), // Premium Dark Mode
+      backgroundColor: const Color(0xFF121212),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(
-            top: 20,
-            left: 20,
-            right: 20,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 50,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setSheetState) {
+            
+            double totalTerpilih = 0;
+            for (var item in details) {
+              if (selectedPeriodIds.contains(item['period_id'])) {
+                totalTerpilih += (item['amount'] as num).toDouble();
+              }
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                top: 20,
+                left: 20,
+                right: 20,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
               ),
-              const SizedBox(height: 20),
-              Row(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.receipt_long_rounded, color: Colors.amber, size: 24),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Tagihan Iuran Warga',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Kode KK: ${data['family_id']}',
-                style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.white54),
-              ),
-              const Divider(color: Colors.white10, height: 24),
-              
-              if (details.isEmpty)
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 20),
-                    child: Text(
-                      '🎉 Semua iuran keluarga ini LUNAS!',
-                      style: GoogleFonts.plusJakartaSans(
-                        color: Colors.greenAccent,
-                        fontWeight: FontWeight.bold,
+                  Center(
+                    child: Container(
+                      width: 50,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
                   ),
-                )
-              else ...[
-                Text(
-                  'Daftar Tunggakan Kumulatif:',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white70,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                // List Tagihan dinamis yang belum terbayar
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 200),
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: details.length,
-                    itemBuilder: (context, index) {
-                      final item = details[index];
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.04),
-                          borderRadius: BorderRadius.circular(12),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      const Icon(Icons.admin_panel_settings_rounded, color: Colors.blue, size: 24),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Tagihan Iuran Warga',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  item['period_name'] ?? '',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                                Text(
-                                  item['category_name'] ?? '',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    color: Colors.white38,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Text(
-                              _formatRupiah(item['amount']),
-                              style: GoogleFonts.plusJakartaSans(
-                                color: Colors.amber[200],
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-              
-              const Divider(color: Colors.white10, height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Total Outstanding:',
-                    style: GoogleFonts.plusJakartaSans(color: Colors.white70, fontSize: 14),
-                  ),
-                  Text(
-                    _formatRupiah(totalOutstanding),
-                    style: GoogleFonts.plusJakartaSans(
-                      color: Colors.greenAccent,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        controller.start();
-                      },
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Colors.white24),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
-                      child: Text(
-                        'Batal',
-                        style: GoogleFonts.plusJakartaSans(color: Colors.white),
-                      ),
-                    ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  if (totalOutstanding > 0)
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          Navigator.pop(context);
-                          // Bayar cicilan iuran paling atas / lunas langsung tempat
-                          _processDirectPayment(details.first, data['family_id']);
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                        ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Kode Teks QR: ${data['qr_code_data'] ?? '-'}',
+                    style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.white54),
+                  ),
+                  const Divider(color: Colors.white10, height: 24),
+                  
+                  if (details.isEmpty)
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 20),
                         child: Text(
-                          'Bayar Sekarang',
+                          '🎉 Semua iuran keluarga ini LUNAS!',
                           style: GoogleFonts.plusJakartaSans(
-                            color: Colors.white,
+                            color: Colors.greenAccent,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
+                    )
+                  else ...[
+                    Text(
+                      'Pilih komponen iuran yang dibayar tunai:',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white70,
+                      ),
                     ),
+                    const SizedBox(height: 10),
+                    
+                    ConstrainedBox(
+                      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.3),
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: details.length,
+                        itemBuilder: (context, index) {
+                          final item = details[index];
+                          final periodId = item['period_id'];
+                          final bool isChecked = selectedPeriodIds.contains(periodId);
+
+                          return Theme(
+                            data: Theme.of(context).copyWith(unselectedWidgetColor: Colors.white30),
+                            child: CheckboxListTile(
+                              contentPadding: EdgeInsets.zero,
+                              activeColor: Colors.blue,
+                              checkColor: Colors.white,
+                              value: isChecked,
+                              onChanged: (bool? val) {
+                                setSheetState(() {
+                                  if (val == true) {
+                                    selectedPeriodIds.add(periodId);
+                                  } else {
+                                    selectedPeriodIds.remove(periodId);
+                                  }
+                                });
+                              },
+                              title: Text(
+                                item['period_name'] ?? '',
+                                style: GoogleFonts.plusJakartaSans(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              subtitle: Text(
+                                item['category_name'] ?? '',
+                                style: GoogleFonts.plusJakartaSans(
+                                  color: Colors.white38,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              secondary: Text(
+                                _formatRupiah(item['amount']),
+                                style: GoogleFonts.plusJakartaSans(
+                                  color: isChecked ? Colors.amber[200] : Colors.grey,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                  
+                  const Divider(color: Colors.white10, height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Total Terpilih:',
+                        style: GoogleFonts.plusJakartaSans(color: Colors.white70, fontSize: 14),
+                      ),
+                      Text(
+                        _formatRupiah(totalTerpilih),
+                        style: GoogleFonts.plusJakartaSans(
+                          color: totalTerpilih > 0 ? Colors.greenAccent : Colors.grey,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            controller.start();
+                          },
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Colors.white24),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                          child: Text(
+                            'Batal',
+                            style: GoogleFonts.plusJakartaSans(color: Colors.white),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: selectedPeriodIds.isEmpty
+                              ? null
+                              : () async {
+                                  Navigator.pop(context);
+                                  _processSelectedPayments(familyId, selectedPeriodIds);
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            disabledBackgroundColor: Colors.white10,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                          child: Text(
+                            'Catat Pembayaran (${selectedPeriodIds.length})',
+                            style: GoogleFonts.plusJakartaSans(
+                              color: selectedPeriodIds.isEmpty ? Colors.white30 : Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
   }
 
-  // Eksekusi pembayaran langsung via API Laravel setelah Bendahara deal dengan warga
-  Future<void> _processDirectPayment(Map<String, dynamic> targetBill, String familyId) async {
+  // MENEMBAK API PROCESS-PAYMENT CICILAN MASSAL
+  Future<void> _processSelectedPayments(String familyId, List<dynamic> periodIds) async {
     setState(() => _isProcessingScan = true);
     try {
-      final response = await _apiService.post('/iuran-payments', {
-        'period_id': targetBill['period_id'],
+      // 🌟 Menggunakan Endpoint ApiEndpoints.makePayment yang sinkron dengan Laravel baru Anda
+      final response = await _apiService.post(ApiEndpoints.makePayment, {
         'family_id': familyId,
-        'paid_by_user_id': _currentUser?.userId, // Bendahara yang mengesahkan log
-        'amount_paid': targetBill['amount'],
+        'selected_periods': periodIds,
       });
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Sukses! Pembayaran ${targetBill['period_name']} berhasil dicatat.'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (_) {
+      
+      if (response != null && response['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response['message'] ?? 'Sukses mencatat pembayaran warga! 🎉'),
+            backgroundColor: Colors.green[800],
+          ),
+        );
+      }
+    } catch (e) {
       if (!mounted) return;
-      _showScanErrorDialog('Gagal memproses pembayaran iuran warga.');
+      _showScanErrorDialog('Gagal memproses transaksi pembayaran massal.');
     } finally {
       if (mounted) {
         setState(() => _isProcessingScan = false);

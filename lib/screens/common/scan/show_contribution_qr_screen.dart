@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:wargify/core/constants/colors.dart';
-import 'attendance_scanner_screen.dart';
+import 'package:wargify/screens/bendahara/qr/qr_scanner_screen.dart';
 import 'package:wargify/widgets/common/scan/manual_payment_sheet.dart';
 
 class ShowContributionQrScreen extends StatelessWidget {
@@ -14,6 +14,9 @@ class ShowContributionQrScreen extends StatelessWidget {
     final String periodName = periodData?['period_name'] ?? 'Iuran Bulanan';
     final String qrData = periodData?['payment_qr_code'] ?? 'Wargify_Generic_Contribution';
     final String categoryName = periodData?['category']?['name'] ?? 'Umum';
+    
+    // Mengekstrak ID Periode dari database Supabase agar bisa dipakai oleh sheet centang manual
+    final String periodId = periodData?['period_id'] ?? '';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFD),
@@ -115,27 +118,18 @@ class ShowContributionQrScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 32),
-              ElevatedButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.share_outlined, size: 20),
-                label: const Text('Bagikan QR'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF004E92),
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 56),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  textStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold),
-                ),
-              ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
+              
+              // Tombol Centang Manual terintegrasi penuh dengan ID Periode aktif
               OutlinedButton.icon(
                 onPressed: () {
                   showModalBottomSheet(
                     context: context,
                     isScrollControlled: true,
                     backgroundColor: Colors.transparent,
-                    builder: (context) => const ManualPaymentSheet(),
+                    builder: (context) => ManualPaymentSheet(
+                      periodId: periodId,
+                    ),
                   );
                 },
                 icon: const Icon(Icons.checklist_rtl_rounded, size: 20),
@@ -148,6 +142,7 @@ class ShowContributionQrScreen extends StatelessWidget {
                   textStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold),
                 ),
               ),
+              
               const SizedBox(height: 32),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -171,7 +166,7 @@ class ShowContributionQrScreen extends StatelessWidget {
         onPressed: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => const AttendanceScannerScreen()),
+            MaterialPageRoute(builder: (context) => const QrScannerScreen()),
           );
         },
         backgroundColor: const Color(0xFF004E92),

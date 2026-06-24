@@ -31,29 +31,46 @@ class _BendaharaHomePageState extends State<BendaharaHomePage> {
   
   final ApiService _apiService = ApiService();
   Map<String, dynamic>? _summaryData = {};
+  Map<String, dynamic>? _activePeriod = {}; // ⬅️ 1. TAMBAHKAN VARIABEL UNTUK MENAMPUNG PERIODE IURAN
   bool _isLoading = true;
   String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _fetchTreasuryData();
+    _fetchTreasuryAndPeriodData(); // ⬅️ Panggil fungsi gabungan baru
   }
 
-  Future<void> _fetchTreasuryData() async {
+  // 2. FUNGSI BARU: Mengambil Data Keuangan SEKALIGUS Periode Iuran Aktif
+ Future<void> _fetchTreasuryAndPeriodData() async {
     try {
+      if (!mounted) return;
       setState(() {
         _isLoading = true;
         _errorMessage = null;
       });
 
-      final data = await _apiService.getMap(ApiEndpoints.treasurySummary);
+      // A. Ambil Data Summary Kas
+      final summaryData = await _apiService.getMap(ApiEndpoints.treasurySummary);
+      
+      // B. Ambil Data List Periode (Pakai getList karena terbukti bisa ONLINE)
+      final periodResponse = await _apiService.getList(ApiEndpoints.iuranPeriods);
     
+      if (!mounted) return;
+
       setState(() {
-        _summaryData = data;
+        _summaryData = summaryData;
+        
+        if (periodResponse != null && periodResponse is List && periodResponse.isNotEmpty) {
+          _activePeriod = periodResponse.first; // Ambil data iuran paling terbaru
+        } else {
+          _activePeriod = null; 
+        }
+        
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         if (e is DioException && e.response != null) {
           _errorMessage = "Error ${e.response?.statusCode}: ${e.response?.data['message'] ?? e.response?.data.toString()}";
@@ -90,7 +107,7 @@ class _BendaharaHomePageState extends State<BendaharaHomePage> {
                 ),
                 const SizedBox(height: 16),
                 ElevatedButton(
-                  onPressed: _fetchTreasuryData,
+                  onPressed: _fetchTreasuryAndPeriodData,
                   child: const Text('Coba Lagi'),
                 ),
               ],
@@ -101,7 +118,7 @@ class _BendaharaHomePageState extends State<BendaharaHomePage> {
     }
 
     return RefreshIndicator(
-      onRefresh: _fetchTreasuryData,
+      onRefresh: _fetchTreasuryAndPeriodData, // ⬅️ Refresh akan memperbarui kas & list iuran lunas
       color: AppColors.primary,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -130,6 +147,7 @@ class _BendaharaHomePageState extends State<BendaharaHomePage> {
             ),
             const SizedBox(height: 24),
             
+            // Card Kas Utama
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(24),
@@ -199,7 +217,9 @@ class _BendaharaHomePageState extends State<BendaharaHomePage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => const AddContributionScreen()),
-                      );
+                      ).then((_) {
+                        _fetchTreasuryAndPeriodData();
+                      });
                     },
                     icon: const Icon(Icons.add_circle_outline, size: 18),
                     label: const Text('Tambah Iuran'),
@@ -217,6 +237,7 @@ class _BendaharaHomePageState extends State<BendaharaHomePage> {
             ),
             const SizedBox(height: 24),
             
+            // Card Status Penagihan Warga
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -249,7 +270,8 @@ class _BendaharaHomePageState extends State<BendaharaHomePage> {
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
-                              'Multi Kategori',
+                              _activePeriod?['period_name'] ?? 'Tidak ada periode aktif',
+                              overflow: TextOverflow.ellipsis,
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
@@ -267,7 +289,14 @@ class _BendaharaHomePageState extends State<BendaharaHomePage> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text('Sistem Penagihan Aktif', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey[600])),
-                      Text('Online', style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.green)),
+                      Text(
+                        _activePeriod != null && _activePeriod!.isNotEmpty ? 'Online' : 'Offline', 
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14, 
+                          fontWeight: FontWeight.w800, 
+                          color: _activePeriod != null && _activePeriod!.isNotEmpty ? Colors.green : Colors.red
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 10),
@@ -286,11 +315,17 @@ class _BendaharaHomePageState extends State<BendaharaHomePage> {
                     style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.grey[500]),
                   ),
                   const SizedBox(height: 20),
+                  
+                  // 3. SEKARANG DATA YANG DIOPER SUDAH REAL PERIOD DATA (ANTI-EROR)
                   OutlinedButton(
-                    onPressed: () {
+                    onPressed: (_activePeriod == null || _activePeriod!.isEmpty) ? null : () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const ShowContributionQrScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => ShowContributionQrScreen(
+                            periodData: _activePeriod, // ⬅️ Oper Object Map hasil GET asli Laravel
+                          ),
+                        ),
                       );
                     },
                     style: OutlinedButton.styleFrom(
@@ -300,7 +335,10 @@ class _BendaharaHomePageState extends State<BendaharaHomePage> {
                     ),
                     child: Text(
                       'Tampilkan QR Iuran',
-                      style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: AppColors.primary),
+                      style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.bold, 
+                        color: (_activePeriod == null || _activePeriod!.isEmpty) ? Colors.grey : AppColors.primary
+                      ),
                     ),
                   ),
                 ],
@@ -308,6 +346,7 @@ class _BendaharaHomePageState extends State<BendaharaHomePage> {
             ),
             const SizedBox(height: 24),
             
+            // Sisa kode Keuangan & Summary ke bawah tetap sama persis milikmu...
             Text(
               'Kelola Keuangan',
               style: GoogleFonts.plusJakartaSans(
