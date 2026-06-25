@@ -7,8 +7,8 @@ class ApiService {
     : _dio = Dio(
         BaseOptions(
           baseUrl: ApiEndpoints.baseUrl,
-          connectTimeout: const Duration(seconds: 20), // ⬅️ Naikkan ke 20 detik agar aman saat sinkronisasi massal
-          receiveTimeout: const Duration(seconds: 20), // ⬅️ Naikkan ke 20 detik
+          connectTimeout: const Duration(seconds: 20),
+          receiveTimeout: const Duration(seconds: 20),
           headers: {
             'Accept': 'application/json',
             'X-Requested-With': 'XMLHttpRequest',
@@ -81,8 +81,7 @@ class ApiService {
     String path,
     FormData data,
   ) async {
-    data.fields.add(const MapEntry('_method', 'PATCH'));
-    final response = await _dio.post(path, data: data);
+    final response = await _dio.patch(path, data: data);
     final payload = _unwrap(response.data);
 
     if (payload is Map<String, dynamic>) return payload;

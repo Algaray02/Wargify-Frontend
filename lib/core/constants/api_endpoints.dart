@@ -39,6 +39,7 @@ class ApiEndpoints {
   static const String rondaGroups = '/ronda/groups';
   static const String rondaSchedules = '/ronda/schedules';
   static const String rondaCheckpoints = '/ronda/checkpoints';
+  static const String rondaCheckpointLogs = '/ronda/checkpoint-logs';
   static const String rondaAttendance = '/ronda/attendance';
 
   // MODUL LAPORAN & SOS

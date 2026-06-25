@@ -1,6 +1,8 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'core/constants/colors.dart';
 import 'firebase_options.dart';
 import 'screens/auth/login_screen.dart';
@@ -10,11 +12,21 @@ import 'services/auth/auth_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  
+  // Initialize Indonesian locale for date formatting
+  await initializeDateFormatting('id', null);
+  
+  if (!kIsWeb) {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  }
 
   final authService = AuthService();
   final bool loggedIn = await authService.isLoggedIn();
-  await AppNotificationService().initialize(registerToken: loggedIn);
+  if (!kIsWeb) {
+    await AppNotificationService().initialize(registerToken: loggedIn);
+  }
 
   runApp(
     MyApp(

@@ -1,27 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../../services/app_notification_service.dart';
 import '../../../core/constants/colors.dart';
 import '../../../services/auth/auth_service.dart';
 import '../../../models/user_model.dart';
 import 'package:wargify/screens/auth/login_screen.dart';
 import 'home/home_screen.dart';
-import 'activity/activity_screen.dart';
-import 'residents/residents_screen.dart';
-import 'audit/audit_screen.dart';
-import 'qr/qr_scanner_screen.dart';
+import 'iuran/iuran_screen.dart';
+import 'gallery/gallery_screen.dart';
+import 'ronda/ronda_screen.dart';
+import 'package:wargify/screens/warga/qr/warga_qr_scan_screen.dart';
+import 'package:wargify/screens/warga/qr/warga_qr_tampil_screen.dart';
+
 import 'package:wargify/screens/profile/profile_screen.dart';
 import 'package:wargify/screens/common/notifikasi/notifikasi_log_screen.dart';
 
-class BendaharaMainScreen extends StatefulWidget {
+class WargaMainScreen extends StatefulWidget {
   final UserModel user;
-  const BendaharaMainScreen({super.key, required this.user});
+  const WargaMainScreen({super.key, required this.user});
 
   @override
-  State<BendaharaMainScreen> createState() => _BendaharaMainScreenState();
+  State<WargaMainScreen> createState() => _WargaMainScreenState();
 }
 
-class _BendaharaMainScreenState extends State<BendaharaMainScreen> {
+class _WargaMainScreenState extends State<WargaMainScreen> {
   int _currentIndex = 0;
   final _authService = AuthService();
   late UserModel _currentUser;
@@ -33,10 +34,17 @@ class _BendaharaMainScreenState extends State<BendaharaMainScreen> {
     super.initState();
     _currentUser = widget.user;
     _pages = [
-      BendaharaHomePage(user: _currentUser),
-      const ActivityScreen(),
-      const ResidentsScreen(),
-      const AuditScreen(),
+      WargaHomePage(
+        user: _currentUser,
+        onNavigateToIuran: () {
+          setState(() {
+            _currentIndex = 1;
+          });
+        },
+      ),
+      const IuranScreen(),
+      const GalleryScreen(),
+      const RondaScreen(),
     ];
     _refreshProfile();
   }
@@ -49,18 +57,10 @@ class _BendaharaMainScreenState extends State<BendaharaMainScreen> {
   }
 
   Future<void> _handleLogout() async {
-    try {
-      await AppNotificationService().initialize(registerToken: false);
-    } catch (e) {
-      debugPrint("Gagal mencabut token FCM di server: $e");
-    }
-
     await _authService.logout();
-
     if (mounted) {
-      Navigator.of(context).pushAndRemoveUntil(
+      Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (context) => const LoginScreen()),
-        (route) => false,
       );
     }
   }
@@ -158,7 +158,8 @@ class _BendaharaMainScreenState extends State<BendaharaMainScreen> {
                   ],
                 ),
                 IconButton(
-                  icon: const Icon(Icons.notifications_none_rounded, size: 28),
+                  icon:
+                      const Icon(Icons.notifications_none_rounded, size: 28),
                   onPressed: () {
                     Navigator.push(
                       context,
@@ -183,9 +184,115 @@ class _BendaharaMainScreenState extends State<BendaharaMainScreen> {
         margin: const EdgeInsets.only(top: 30),
         child: FloatingActionButton(
           onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const QrScannerScreen()),
+            showModalBottomSheet(
+              context: context,
+              backgroundColor: Colors.transparent,
+              builder: (context) => Container(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Menu QR Warga',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.qr_code_scanner_rounded,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      title: Text(
+                        'Scan QR Presensi',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'Scan QR code kegiatan presensi',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const WargaQrScanScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    const Divider(),
+                    const SizedBox(height: 8),
+                    ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.qr_code_2_rounded,
+                          color: Colors.blue,
+                        ),
+                      ),
+                      title: Text(
+                        'Tampilkan QR Family',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'Tunjukkan QR Anda ke pengurus RT untuk konfirmasi iuran',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const WargaQrTampilScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
+              ),
             );
           },
           backgroundColor: AppColors.primary,
@@ -208,11 +315,11 @@ class _BendaharaMainScreenState extends State<BendaharaMainScreen> {
             height: 60,
             child: Row(
               children: [
-                _buildNavItem(Icons.home_rounded, 'Beranda', 0),
-                _buildNavItem(Icons.receipt_long_rounded, 'Aktivitas', 1),
-                const SizedBox(width: 48), // Space for FAB
-                _buildNavItem(Icons.people_alt_rounded, 'Warga', 2),
-                _buildNavItem(Icons.bar_chart_rounded, 'AUDIT', 3),
+                _buildNavItem(Icons.home_rounded, 'Home', 0),
+                _buildNavItem(Icons.receipt_long_rounded, 'Iuran', 1),
+                const SizedBox(width: 48),
+                _buildNavItem(Icons.photo_library_rounded, 'Gallery', 2),
+                _buildNavItem(Icons.shield_rounded, 'Ronda', 3),
               ],
             ),
           ),

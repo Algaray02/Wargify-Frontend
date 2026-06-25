@@ -136,7 +136,18 @@ class _RondaScreenState extends State<RondaScreen> {
   int get _scannedCheckpoints {
     final schedule = _activeSchedule;
     final logs = schedule?['checkpoint_logs'];
-    return logs is List ? logs.length : 0;
+    if (logs is! List) return 0;
+    final now = DateTime.now();
+    return logs.whereType<Map>().where((log) {
+      final timestampStr = log['scanned_at'] ?? log['created_at'];
+      if (timestampStr == null) return true;
+      final date = DateTime.tryParse(timestampStr.toString());
+      if (date == null) return true;
+      final localDate = date.toLocal();
+      return localDate.year == now.year &&
+          localDate.month == now.month &&
+          localDate.day == now.day;
+    }).length;
   }
 
   String _formatScheduleDate(Map<String, dynamic> schedule) {
@@ -211,9 +222,20 @@ class _RondaScreenState extends State<RondaScreen> {
     final checkpoints = schedule['checkpoints'] is List
         ? schedule['checkpoints'] as List
         : const [];
-    final checkpointLogs = schedule['checkpoint_logs'] is List
+    final now = DateTime.now();
+    final rawLogs = schedule['checkpoint_logs'] is List
         ? schedule['checkpoint_logs'] as List
         : const [];
+    final checkpointLogs = rawLogs.whereType<Map>().where((log) {
+      final timestampStr = log['scanned_at'] ?? log['created_at'];
+      if (timestampStr == null) return true;
+      final date = DateTime.tryParse(timestampStr.toString());
+      if (date == null) return true;
+      final localDate = date.toLocal();
+      return localDate.year == now.year &&
+          localDate.month == now.month &&
+          localDate.day == now.day;
+    }).toList();
     final members = group['members'] is List
         ? group['members'] as List
         : const [];
@@ -353,9 +375,20 @@ class _RondaScreenState extends State<RondaScreen> {
         : Map<String, dynamic>.from(
             (activeSchedule['coordinator'] ?? {}) as Map,
           );
-    final checkpointLogs = activeSchedule?['checkpoint_logs'] is List
+    final now = DateTime.now();
+    final rawLogs = activeSchedule?['checkpoint_logs'] is List
         ? activeSchedule!['checkpoint_logs'] as List
         : const [];
+    final checkpointLogs = rawLogs.whereType<Map>().where((log) {
+      final timestampStr = log['scanned_at'] ?? log['created_at'];
+      if (timestampStr == null) return true;
+      final date = DateTime.tryParse(timestampStr.toString());
+      if (date == null) return true;
+      final localDate = date.toLocal();
+      return localDate.year == now.year &&
+          localDate.month == now.month &&
+          localDate.day == now.day;
+    }).toList();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 20),

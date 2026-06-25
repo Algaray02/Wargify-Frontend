@@ -1,123 +1,55 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:wargify/core/constants/colors.dart';
+import 'package:intl/intl.dart';
 import 'package:wargify/core/constants/api_endpoints.dart';
-import 'package:wargify/widgets/common/sos_card.dart';
-import 'package:wargify/widgets/common/lapor_fasilitas_card.dart';
-import 'package:wargify/widgets/warga/warga_header.dart';
-import 'package:wargify/widgets/warga/warga_bottom_nav.dart';
-import 'package:wargify/screens/warga/iuran/iuran_screen.dart';
-import 'package:wargify/screens/warga/gallery/gallery_screen.dart';
-import 'package:wargify/screens/warga/laporan/laporan_fasilitas_screen.dart';
-import 'package:wargify/screens/warga/ronda/ronda_screen.dart';
-import 'package:wargify/screens/common/qr/qr_scanner_screen.dart';
-import 'package:wargify/services/auth/auth_service.dart';
+import 'package:wargify/core/constants/colors.dart';
 import 'package:wargify/models/user_model.dart';
-import 'package:wargify/screens/common/notifikasi/notifikasi_log_screen.dart';
-import 'package:wargify/screens/rt/sos/sos_trigger_screen.dart';
+import 'package:wargify/screens/warga/gallery/gallery_screen.dart';
+import 'package:wargify/screens/warga/kegiatan/kegiatan_detail_screen.dart';
+import 'package:wargify/screens/warga/laporan/laporan_fasilitas_screen.dart';
+import 'package:wargify/screens/warga/sos/sos_screen.dart';
 import 'package:wargify/services/api_service.dart';
+import 'package:wargify/widgets/common/lapor_fasilitas_card.dart';
+import 'package:wargify/widgets/common/sos_card.dart';
 
-class WargaHomeScreen extends StatefulWidget {
-  const WargaHomeScreen({super.key});
+class WargaHomePage extends StatefulWidget {
+  final UserModel user;
+  final VoidCallback? onNavigateToIuran;
+  const WargaHomePage({super.key, required this.user, this.onNavigateToIuran});
 
   @override
-  State<WargaHomeScreen> createState() => _WargaHomeScreenState();
+  State<WargaHomePage> createState() => _WargaHomePageState();
 }
 
-class _WargaHomeScreenState extends State<WargaHomeScreen> {
-  int _currentNavIndex = 0;
-  final _authService = AuthService();
+class _WargaHomePageState extends State<WargaHomePage> {
   final _apiService = ApiService();
-  UserModel? _currentUser;
 
   @override
   void initState() {
     super.initState();
-    _fetchProfile();
     _fetchDashboardData();
   }
 
-  Future<void> _fetchProfile() async {
-    try {
-      final user = await _authService.getProfile();
-      if (mounted) {
-        setState(() {
-          _currentUser = user;
-        });
-      }
-    } catch (e) {
-      // Fallback ke cache jika offline
-      final cachedUser = await _authService.getCurrentUser();
-      if (mounted) {
-        setState(() {
-          _currentUser = cachedUser;
-        });
-      }
-    }
-  }
+  static const _bulanIndo = [
+    '', 'JAN', 'FEB', 'MAR', 'APR', 'MEI', 'JUN',
+    'JUL', 'AGT', 'SEP', 'OKT', 'NOV', 'DES',
+  ];
 
-  final String _rtRw = 'RT 004 / RW 012';
-  final bool _isVerified = true;
+  // --- Dari GET /me ---
+  String _rtRw = 'Memuat...';
 
+  // --- Dari GET /me/iuran ---
   String _iuranBulan = 'Memuat...';
   String _statusIuran = '-';
   String _totalTagihan = 'Rp 0';
+  int _totalLunas = 0;
+  int _totalIuranCount = 0;
 
-  List<Map<String, String>> _kegiatanTerbaru = [
-    {
-      'kategori': 'LINGKUNGAN',
-      'judul': 'Minggu Bersih: Kerja Bakti Massal RT 04',
-      'imageUrl':
-          'https://i.pinimg.com/564x/6e/0f/05/6e0f057d6d82cb6a1f1054c2b3504f92.jpg',
-      'color': 'green',
-    },
-    {
-      'kategori': 'KEAMANAN',
-      'judul': 'Penambahan Siskamling',
-      'imageUrl':
-          'https://froyonion.sgp1.cdn.digitaloceanspaces.com/images/blogdetail/858eb1bd32c0fc50cba8ba93e472de88e7082914.jpg',
-      'color': 'blue',
-    },
-  ];
+  // --- Dari GET /activities ---
+  List<Map<String, dynamic>> _upcomingEvents = [];
 
-  final List<Map<String, String>> _upcomingEvents = [
-    {
-      'type': 'rapat',
-      'label': 'Rapat Mendatang',
-      'sublabel': 'Pengingat',
-      'countdown': '2 Days',
-      'countdownPrefix': 'MULAI DALAM',
-      'tanggal': '28',
-      'bulan': 'SEP',
-      'judul': 'Pembahasan Anggaran RT 2024',
-      'waktu': '19:30 - Selesai',
-      'tempat': 'Balai Warga',
-    },
-    {
-      'type': 'ronda',
-      'label': 'Shift Ronda',
-      'sublabel': 'Giliran anda untuk\nmenjaga keamanan\ndesa',
-      'countdown': 'Minggu\nDepan',
-      'countdownPrefix': 'TUGAS MENDATANG',
-      'tanggal': '24',
-      'bulan': 'OKT',
-      'judul': 'Malam Rabu',
-      'waktu': '22:00 - 02:00',
-      'tempat': 'Post Ronda RT 04',
-    },
-    {
-      'type': 'kegiatan',
-      'label': 'Kegiatan Mendatang',
-      'sublabel': 'Pengingat',
-      'countdown': '2 Days',
-      'countdownPrefix': 'MULAI DALAM',
-      'tanggal': '28',
-      'bulan': 'SEP',
-      'judul': 'Kerja Bakti',
-      'waktu': '06:00 - Selesai',
-      'tempat': 'Sekitar Sungai',
-    },
-  ];
+  // --- Dari GET /galleries ---
+  List<Map<String, dynamic>> _galleryAlbums = [];
 
   String _getGreeting() {
     final hour = DateTime.now().hour;
@@ -129,54 +61,110 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
 
   Future<void> _fetchDashboardData() async {
     try {
-      final results = await Future.wait([
-        _apiService.getList(ApiEndpoints.myIuran),
-        _apiService.getList(ApiEndpoints.activities),
-      ]);
-      final iuranRows = results[0].whereType<Map>().toList();
-      final activityRows = results[1].whereType<Map>().toList();
+      final meResult = _apiService.getMap(ApiEndpoints.me);
+      final iuranResult = _apiService.getList(ApiEndpoints.myIuran);
+      final activitiesResult = _apiService.getList(ApiEndpoints.activities);
+      final galleryResult = _apiService.getList(ApiEndpoints.galleries);
+
+      final results = await Future.wait([meResult, iuranResult, activitiesResult, galleryResult]);
+
+      final profile = results[0] is Map<String, dynamic>
+          ? results[0] as Map<String, dynamic>
+          : <String, dynamic>{};
+      final iuranList = results[1] is List
+          ? results[1] as List
+          : <dynamic>[];
+      final activityRaw = results[2];
+      final galleryRaw = results[3];
+
+      final iuranRows = iuranList.whereType<Map>().toList();
+
+      final activityRows = activityRaw is List
+          ? activityRaw.whereType<Map>().toList()
+          : <Map>[];
+
+      // Local calculations for dues metrics
+      int totalLunas = 0;
+      int totalIuran = iuranRows.length;
+      for (final row in iuranRows) {
+        final data = Map<String, dynamic>.from(row as Map);
+        final status = data['status']?.toString().toLowerCase();
+        if (status == 'lunas' || status == 'paid') {
+          totalLunas++;
+        }
+      }
 
       if (!mounted) return;
       setState(() {
+        // ── RT/RW dari profile ──
+        final family = profile['family'];
+        final household = family is Map ? family['household'] : null;
+        if (household is Map) {
+          final block = household['block_number']?.toString() ?? '';
+          final number = household['house_number']?.toString() ?? '';
+          _rtRw = [if (block.isNotEmpty) 'Blok $block', if (number.isNotEmpty) 'No. $number'].join(' / ');
+        } else {
+          _rtRw = 'Alamat belum lengkap';
+        }
+
+        // ── Iuran metrics ──
+        _totalLunas = totalLunas;
+        _totalIuranCount = totalIuran;
+
+        // ── Iuran ──
         if (iuranRows.isNotEmpty) {
           final latest = Map<String, dynamic>.from(iuranRows.first);
           final period = latest['period'] is Map
               ? Map<String, dynamic>.from(latest['period'] as Map)
               : <String, dynamic>{};
-          _iuranBulan = period['period_name']?.toString() ?? 'Iuran Terbaru';
-          _statusIuran =
-              (double.tryParse('${latest['amount_paid'] ?? 0}') ?? 0) > 0
-              ? 'LUNAS'
-              : 'BELUM LUNAS';
-          _totalTagihan = _formatCurrency(latest['amount_paid']);
+          _iuranBulan = latest['period_name']?.toString() ?? period['period_name']?.toString() ?? 'Iuran Terbaru';
+          final isLunas = latest['status']?.toString() == 'lunas' || latest['status']?.toString() == 'paid';
+          _statusIuran = isLunas ? 'LUNAS' : 'BELUM LUNAS';
+          
+          final displayAmount = isLunas 
+              ? (double.tryParse('${latest['amount_paid']}') ?? 0.0).toInt()
+              : (double.tryParse('${latest['amount'] ?? latest['amount_paid']}') ?? 0.0).toInt();
+          _totalTagihan = _formatCurrency(displayAmount);
         } else {
           _iuranBulan = 'Belum ada riwayat';
           _statusIuran = 'BELUM LUNAS';
           _totalTagihan = 'Rp 0';
         }
 
-        if (activityRows.isNotEmpty) {
-          _kegiatanTerbaru = activityRows.take(5).map((row) {
-            final item = Map<String, dynamic>.from(row);
-            return {
-              'kategori': _activityTypeLabel(item['type']?.toString()),
-              'judul': item['title']?.toString() ?? 'Kegiatan',
-              'color': item['type'] == 'RAPAT' ? 'blue' : 'green',
-            };
-          }).toList();
-        }
-      });
-    } catch (_) {}
-  }
+        // ── Upcoming Events ──
+        final now = DateTime.now();
+        final upcoming = <Map<String, dynamic>>[];
 
-  String _activityTypeLabel(String? type) {
-    switch (type) {
-      case 'RAPAT':
-        return 'RAPAT';
-      case 'KEGIATAN_UMUM':
-        return 'LINGKUNGAN';
-      default:
-        return 'KEGIATAN';
+        for (final act in activityRows.map((e) => Map<String, dynamic>.from(e))) {
+          final status = act['status']?.toString() ?? '';
+          final dateStr = act['activity_date']?.toString();
+          final date = dateStr != null ? DateTime.tryParse(dateStr) : null;
+
+          if (status == 'ANNOUNCED' && date != null && !date.isBefore(DateTime(now.year, now.month, now.day))) {
+            upcoming.add(act);
+          }
+        }
+
+        upcoming.sort((a, b) {
+          final aDate = DateTime.tryParse(a['activity_date'] ?? '');
+          final bDate = DateTime.tryParse(b['activity_date'] ?? '');
+          return (aDate ?? now).compareTo(bDate ?? now);
+        });
+
+        _upcomingEvents = upcoming;
+
+        // ── Galeri ──
+        _galleryAlbums = galleryRaw is List
+            ? galleryRaw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+            : [];
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _rtRw = 'Tidak tersedia';
+          _iuranBulan = 'Gagal memuat';
+        });
+      }
     }
   }
 
@@ -191,79 +179,13 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
     return 'Rp $number';
   }
 
-  Color _getCategoryColor(String color) {
-    switch (color) {
-      case 'green':
-        return AppColors.success;
-      case 'red':
-        return AppColors.danger;
-      default:
-        return AppColors.primary;
-    }
-  }
-
-  IconData _getEventIcon(String type) {
-    switch (type) {
-      case 'ronda':
-        return Icons.shield_outlined;
-      case 'rapat':
-        return Icons.people_outline;
-      default:
-        return Icons.people_outline;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: WargaHeader(
-        user: _currentUser,
-        onNotificationTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const NotifikasiLogScreen(),
-            ),
-          );
-        },
-      ),
-      bottomNavigationBar: WargaBottomNav(
-        currentIndex: _currentNavIndex,
-        onTap: (index) {
-          if (index == 1) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const IuranScreen()),
-            );
-            return;
-          }
-          if (index == 2) {
-            Navigator.push(
-              // ← push bukan pushReplacement
-              context,
-              MaterialPageRoute(builder: (_) => const QrScannerScreen()),
-            );
-            return;
-          }
-          if (index == 3) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const GalleryScreen()),
-            );
-            return;
-          }
-          if (index == 4) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const RondaScreen()),
-            );
-            return;
-          }
-          setState(() => _currentNavIndex = index);
-        },
-      ),
-      body: SingleChildScrollView(
+    return RefreshIndicator(
+      onRefresh: _fetchDashboardData,
+      color: AppColors.primary,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -272,7 +194,7 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
 
             // --- Role Label ---
             Text(
-              (_currentUser?.role ?? 'WARGA').toUpperCase(),
+              widget.user.role.toUpperCase(),
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
@@ -294,9 +216,7 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
                 children: [
                   TextSpan(text: '${_getGreeting()} '),
                   TextSpan(
-                    text: _currentUser != null
-                        ? _currentUser!.fullName.trim().split(' ')[0]
-                        : 'Memuat...',
+                    text: widget.user.fullName.trim().split(' ')[0],
                     style: const TextStyle(color: AppColors.primary),
                   ),
                 ],
@@ -304,68 +224,35 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
             ),
             const SizedBox(height: 12),
 
-            // --- RT/RW & Verified Badge ---
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
+            // --- RT/RW ---
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 5,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.secondary,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.location_on_outlined,
+                    size: 14,
+                    color: AppColors.primary,
                   ),
-                  decoration: BoxDecoration(
-                    color: AppColors.secondary,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.location_on_outlined,
-                        size: 14,
-                        color: AppColors.primary,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        _rtRw,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                if (_isVerified)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFD4EDDA),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.verified,
-                          size: 14,
-                          color: AppColors.success,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Terverifikasi',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            color: AppColors.success,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
+                  const SizedBox(width: 4),
+                  Text(
+                    _rtRw,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-              ],
+                ],
+              ),
             ),
             const SizedBox(height: 20),
 
@@ -384,100 +271,51 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
                   ),
                 ],
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'IURAN BULAN INI',
+                        'Total Iuran Lunas',
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: FontWeight.w600,
                           color: AppColors.textSecondary,
-                          letterSpacing: 0.8,
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.success,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          _statusIuran,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.white,
-                          ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '$_totalLunas / $_totalIuranCount',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    _iuranBulan,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+                  TextButton.icon(
+                    onPressed: widget.onNavigateToIuran,
+                    icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                    label: Text(
+                      'Lihat Detail',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Total Tagihan',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                          Text(
-                            _totalTagihan,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ],
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        side: const BorderSide(color: AppColors.primary, width: 1),
                       ),
-                      ElevatedButton(
-                        onPressed: () {
-                          // TODO: navigate to kwitansi
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: AppColors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 10,
-                          ),
-                          elevation: 0,
-                        ),
-                        child: Text(
-                          'Lihat Kwitansi',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ],
               ),
@@ -490,7 +328,7 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const SosTriggerScreen(),
+                    builder: (context) => const WargaSosScreen(),
                   ),
                 );
               },
@@ -510,26 +348,54 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
             ),
             const SizedBox(height: 24),
 
-            // --- Kegiatan Terbaru ---
+            // --- Preview Foto Kegiatan ---
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Kegiatan Terbaru',
+                  'Preview Foto Kegiatan',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary,
                   ),
                 ),
-                GestureDetector(
-                  onTap: () {},
-                  child: Text(
-                    'Lihat Semua',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13,
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w600,
+                InkWell(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => Scaffold(
+                        backgroundColor: AppColors.background,
+                        appBar: AppBar(
+                          backgroundColor: Colors.white,
+                          elevation: 0,
+                          leading: IconButton(
+                            icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                          title: Text(
+                            'Galeri',
+                            style: GoogleFonts.plusJakartaSans(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                        ),
+                        body: const GalleryScreen(),
+                      ),
+                    ),
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Text(
+                      'Lihat Semua',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
@@ -537,23 +403,69 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
             ),
             const SizedBox(height: 12),
 
-            // --- Horizontal Scroll Kegiatan Cards ---
-            SizedBox(
-              height: 200,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: _kegiatanTerbaru.length,
-                separatorBuilder: (context, index) => const SizedBox(width: 12),
-                itemBuilder: (context, index) {
-                  final item = _kegiatanTerbaru[index];
-                  return _KegiatanCard(
-                    kategori: item['kategori'] ?? '',
-                    judul: item['judul'] ?? '',
-                    categoryColor: _getCategoryColor(item['color'] ?? ''),
-                  );
-                },
+            // --- Horizontal Scroll Galeri Cards ---
+            if (_galleryAlbums.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 32),
+                child: Center(
+                  child: Text(
+                    'Belum ada galeri',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      color: Colors.grey[400],
+                    ),
+                  ),
+                ),
+              )
+            else
+              SizedBox(
+                height: 200,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _galleryAlbums.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(width: 12),
+                  itemBuilder: (context, index) {
+                    final album = _galleryAlbums[index];
+                    final images = album['images'] is List ? album['images'] as List : <dynamic>[];
+                    final firstImage = images.isNotEmpty
+                        ? (images.first is Map ? (images.first as Map)['image_url']?.toString() : null)
+                        : null;
+                    return _KegiatanCard(
+                      kategori: album['album_name']?.toString() ?? 'Album',
+                      judul: album['activity'] is Map
+                          ? (album['activity'] as Map)['title']?.toString() ?? ''
+                          : '',
+                      imageUrl: firstImage,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => Scaffold(
+                        backgroundColor: AppColors.background,
+                        appBar: AppBar(
+                          backgroundColor: Colors.white,
+                          elevation: 0,
+                          leading: IconButton(
+                            icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                          title: Text(
+                            'Galeri',
+                            style: GoogleFonts.plusJakartaSans(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                        ),
+                        body: const GalleryScreen(),
+                      ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ),
-            ),
             const SizedBox(height: 24),
 
             // --- Upcoming Events ---
@@ -562,12 +474,41 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
                 padding: const EdgeInsets.only(bottom: 16),
                 child: _UpcomingEventCard(
                   event: event,
-                  icon: _getEventIcon(event['type'] ?? ''),
+                  onSelengkapnya: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => KegiatanDetailScreen(
+                        activity: event,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
 
-            const SizedBox(height: 16),
+            if (_upcomingEvents.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: AppColors.white,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Center(
+                    child: Text(
+                      'Tidak ada kegiatan mendatang',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        color: Colors.grey[400],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+            const SizedBox(height: 80),
           ],
         ),
       ),
@@ -580,44 +521,59 @@ class _WargaHomeScreenState extends State<WargaHomeScreen> {
 class _KegiatanCard extends StatelessWidget {
   final String kategori;
   final String judul;
-  final Color categoryColor;
+  final String? imageUrl;
+  final VoidCallback? onTap;
 
   const _KegiatanCard({
     required this.kategori,
     required this.judul,
-    required this.categoryColor,
+    this.imageUrl,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {},
-      child: Container(
-        width: 200,
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        clipBehavior: Clip.hardEdge,
+    return Ink(
+      width: 200,
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        splashColor: AppColors.primary.withOpacity(0.08),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
               height: 110,
               width: double.infinity,
-              color: categoryColor.withOpacity(0.15),
-              child: Icon(
-                Icons.image_outlined,
-                size: 40,
-                color: categoryColor.withOpacity(0.5),
+              decoration: BoxDecoration(
+                color: imageUrl != null ? null : AppColors.secondary,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(16)),
+                image: imageUrl != null
+                    ? DecorationImage(
+                        image: NetworkImage(imageUrl!),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
               ),
+              child: imageUrl == null
+                  ? Icon(
+                      Icons.event_note_outlined,
+                      size: 40,
+                      color: AppColors.primary.withOpacity(0.5),
+                    )
+                  : null,
             ),
             Padding(
               padding: const EdgeInsets.all(10),
@@ -630,7 +586,7 @@ class _KegiatanCard extends StatelessWidget {
                       vertical: 3,
                     ),
                     decoration: BoxDecoration(
-                      color: categoryColor.withOpacity(0.15),
+                      color: AppColors.primary.withOpacity(0.15),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
@@ -638,7 +594,7 @@ class _KegiatanCard extends StatelessWidget {
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 9,
                         fontWeight: FontWeight.bold,
-                        color: categoryColor,
+                        color: AppColors.primary,
                         letterSpacing: 0.5,
                       ),
                     ),
@@ -667,13 +623,30 @@ class _KegiatanCard extends StatelessWidget {
 // ─── Upcoming Event Card ─────────────────────────────────────────────────────
 
 class _UpcomingEventCard extends StatelessWidget {
-  final Map<String, String> event;
-  final IconData icon;
+  final Map<String, dynamic> event;
+  final VoidCallback? onSelengkapnya;
 
-  const _UpcomingEventCard({required this.event, required this.icon});
+  const _UpcomingEventCard({
+    required this.event,
+    this.onSelengkapnya,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final type = event['type']?.toString() ?? '';
+    final title = event['title']?.toString() ?? 'Kegiatan';
+    final location = event['location_name']?.toString() ?? '';
+    final dateStr = event['activity_date']?.toString();
+    final date = dateStr != null ? DateTime.tryParse(dateStr) : null;
+
+    final bulan = date != null ? _WargaHomePageState._bulanIndo[date.month] : '';
+    final tanggal = date != null ? DateFormat('dd').format(date) : '';
+    final waktu = date != null ? DateFormat('HH:mm').format(date) : '';
+    final countdown = date != null ? _countdownText(date) : '';
+
+    final icon = _eventIcon(type);
+    final label = _eventLabel(type);
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -711,7 +684,7 @@ class _UpcomingEventCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        event['label'] ?? '',
+                        label,
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
@@ -719,7 +692,7 @@ class _UpcomingEventCard extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        event['sublabel'] ?? '',
+                        'Pengingat',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 11,
                           color: AppColors.textSecondary,
@@ -733,7 +706,7 @@ class _UpcomingEventCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    event['countdownPrefix'] ?? '',
+                    'MULAI DALAM',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 9,
                       color: AppColors.textSecondary,
@@ -742,7 +715,7 @@ class _UpcomingEventCard extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    event['countdown'] ?? '',
+                    countdown,
                     textAlign: TextAlign.right,
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 16,
@@ -770,7 +743,7 @@ class _UpcomingEventCard extends StatelessWidget {
                 child: Column(
                   children: [
                     Text(
-                      event['bulan'] ?? '',
+                      bulan,
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 10,
                         color: AppColors.white.withOpacity(0.8),
@@ -778,7 +751,7 @@ class _UpcomingEventCard extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      event['tanggal'] ?? '',
+                      tanggal,
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -795,7 +768,7 @@ class _UpcomingEventCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      event['judul'] ?? '',
+                      title,
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
@@ -812,29 +785,31 @@ class _UpcomingEventCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          event['waktu'] ?? '',
+                          waktu,
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 11,
                             color: AppColors.textSecondary,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        const Icon(
-                          Icons.circle,
-                          size: 4,
-                          color: AppColors.textSecondary,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            event['tempat'] ?? '',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11,
-                              color: AppColors.textSecondary,
-                            ),
-                            overflow: TextOverflow.ellipsis,
+                        if (location.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          const Icon(
+                            Icons.circle,
+                            size: 4,
+                            color: AppColors.textSecondary,
                           ),
-                        ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              location,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11,
+                                color: AppColors.textSecondary,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ],
@@ -847,7 +822,7 @@ class _UpcomingEventCard extends StatelessWidget {
             width: double.infinity,
             height: 42,
             child: ElevatedButton(
-              onPressed: () {},
+              onPressed: onSelengkapnya,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: AppColors.white,
@@ -868,5 +843,39 @@ class _UpcomingEventCard extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+IconData _eventIcon(String type) {
+  switch (type) {
+    case 'RAPAT':
+      return Icons.people_outline;
+    default:
+      return Icons.event_outlined;
+  }
+}
+
+String _eventLabel(String type) {
+  switch (type) {
+    case 'RAPAT':
+      return 'Rapat Mendatang';
+    case 'KEGIATAN_UMUM':
+      return 'Kegiatan Mendatang';
+    default:
+      return 'Kegiatan Mendatang';
+  }
+}
+
+String _countdownText(DateTime date) {
+  final diff = date.difference(DateTime.now());
+  if (diff.inDays > 7) {
+    final weeks = (diff.inDays / 7).ceil();
+    return '$weeks Minggu';
+  } else if (diff.inDays > 0) {
+    return '${diff.inDays} Hari';
+  } else if (diff.inHours > 0) {
+    return '${diff.inHours} Jam';
+  } else {
+    return 'Hari Ini';
   }
 }

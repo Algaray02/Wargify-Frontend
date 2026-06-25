@@ -9,7 +9,7 @@ class AppColors {
   static const success = Color(0xFF2A6B2C);
   static const successLight = Color(0xFFACF44A);
   
-  static const textPrimary = Colors.black;
+  static const textPrimary = Color(0xFF0D1B2A);
   static const textSecondary = Colors.black54;
   static const white = Colors.white;
 }

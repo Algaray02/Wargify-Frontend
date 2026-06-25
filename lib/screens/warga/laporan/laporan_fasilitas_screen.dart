@@ -23,6 +23,7 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
   String _selectedStatus = 'ALL';
   String _search = '';
   bool _isLoading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -37,7 +38,10 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
   }
 
   Future<void> _fetchReports() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     try {
       final rows = await _apiService.getList(ApiEndpoints.facilityReports);
       if (!mounted) return;
@@ -47,9 +51,17 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
             .map((row) => Map<String, dynamic>.from(row))
             .toList();
         _isLoading = false;
+        _errorMessage = null;
       });
-    } catch (_) {
-      if (mounted) setState(() => _isLoading = false);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Gagal memuat laporan. Silakan coba lagi.';
+        });
+      }
+      // Logging untuk debugging
+      debugPrint('Error fetching reports: $e');
     }
   }
 
@@ -92,11 +104,11 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
   Color _statusTextColor(String? status) {
     switch (status) {
       case 'SUBMITTED':
-        return const Color(0xFFA35B00);
+        return const Color(0xFFE65100);
       case 'IN_PROGRESS':
-        return AppColors.primary;
+        return const Color(0xFF0D47A1);
       case 'RESOLVED':
-        return AppColors.success;
+        return const Color(0xFF2E7D32);
       default:
         return AppColors.primary;
     }
@@ -105,31 +117,29 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
   Color _statusBgColor(String? status) {
     switch (status) {
       case 'SUBMITTED':
-        return const Color(0xFFFFE7A8);
+        return const Color(0xFFE65100).withOpacity(0.1);
       case 'IN_PROGRESS':
-        return const Color(0xFFD7E8FF);
+        return const Color(0xFF0D47A1).withOpacity(0.1);
       case 'RESOLVED':
-        return const Color(0xFFD9FBE4);
+        return const Color(0xFF2E7D32).withOpacity(0.1);
       default:
         return Colors.white;
     }
   }
 
   IconData _categoryIcon(String? category) {
-    final value = category?.toLowerCase() ?? '';
-    if (value.contains('lampu') || value.contains('jalan')) {
-      return Icons.lightbulb_outline_rounded;
+    switch (category) {
+      case 'Listrik':
+        return Icons.lightbulb_outline_rounded;
+      case 'Air':
+        return Icons.water_drop_outlined;
+      case 'Jalan':
+        return Icons.map_outlined;
+      case 'Kebersihan':
+        return Icons.delete_outline_rounded;
+      default:
+        return Icons.construction_rounded;
     }
-    if (value.contains('air') || value.contains('pipa')) {
-      return Icons.water_drop_outlined;
-    }
-    if (value.contains('sampah') || value.contains('tps')) {
-      return Icons.delete_outline_rounded;
-    }
-    if (value.contains('taman') || value.contains('pohon')) {
-      return Icons.park_outlined;
-    }
-    return Icons.construction_rounded;
   }
 
   Future<void> _openAddReportSheet() async {
@@ -250,7 +260,7 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: const Color(0xFF0D1B2A),
+                color: label == 'Kategori' ? AppColors.primary : const Color(0xFF0D1B2A),
               ),
             ),
           ),
@@ -296,9 +306,9 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
     final reports = _filteredReports;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFD),
+      backgroundColor: const Color(0xFFF6F9FD),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFEAF4FF),
+        backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.primary),
@@ -339,6 +349,8 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
                 padding: EdgeInsets.symmetric(vertical: 48),
                 child: Center(child: CircularProgressIndicator()),
               )
+            else if (_errorMessage != null)
+              _buildErrorState()
             else if (reports.isEmpty)
               _buildEmptyState()
             else
@@ -351,11 +363,12 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
 
   Widget _buildSearchBar() {
     return Container(
-      height: 76,
+      height: 60,
       padding: const EdgeInsets.symmetric(horizontal: 18),
       decoration: BoxDecoration(
-        color: const Color(0xFFDDF0FB),
-        borderRadius: BorderRadius.circular(10),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE9F1F8)),
       ),
       child: TextField(
         controller: _searchController,
@@ -364,13 +377,13 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
           border: InputBorder.none,
           hintText: 'Cari laporan',
           hintStyle: GoogleFonts.plusJakartaSans(
-            fontSize: 17,
-            color: Colors.grey[500],
+            fontSize: 14,
+            color: Colors.grey[400],
           ),
           icon: const Icon(
             Icons.search_rounded,
-            size: 28,
-            color: Colors.black54,
+            size: 22,
+            color: Colors.grey,
           ),
         ),
       ),
@@ -398,9 +411,10 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
             child: InkWell(
               onTap: () => setState(() => _selectedStatus = entry.key),
               borderRadius: BorderRadius.circular(10),
-              child: Container(
+              child: AnimatedContainer(
                 height: 44,
                 alignment: Alignment.center,
+                duration: const Duration(milliseconds: 250),
                 decoration: BoxDecoration(
                   color: active ? Colors.white : Colors.transparent,
                   borderRadius: BorderRadius.circular(10),
@@ -480,8 +494,9 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
       margin: const EdgeInsets.only(bottom: 24),
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFFEAF4FF),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE9F1F8)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -490,10 +505,10 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 58,
-                height: 58,
+                width: 50,
+                height: 50,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: const Color(0xFFE6F0FA),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Icon(
@@ -543,9 +558,9 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
               style: OutlinedButton.styleFrom(
                 backgroundColor: Colors.white,
                 foregroundColor: AppColors.primary,
-                side: const BorderSide(color: Color(0xFFD7E8FF)),
+                side: const BorderSide(color: Color(0xFFE9F1F8)),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(14),
                 ),
               ),
               child: Text(
@@ -591,6 +606,44 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
       ),
     );
   }
+
+   Widget _buildErrorState() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 48),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline_rounded,
+              size: 48,
+              color: Colors.red[400],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _errorMessage ?? 'Terjadi kesalahan',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w800,
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _fetchReports,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Coba Lagi'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _AddFacilityReportSheet extends StatefulWidget {
@@ -609,15 +662,31 @@ class _AddFacilityReportSheet extends StatefulWidget {
 
 class _AddFacilityReportSheetState extends State<_AddFacilityReportSheet> {
   final _titleController = TextEditingController();
-  final _categoryController = TextEditingController();
   final _descriptionController = TextEditingController();
+  String? _selectedCategory;
   XFile? _image;
   bool _isSaving = false;
+
+  static const _categoryValues = ['Listrik', 'Air', 'Jalan', 'Kebersihan', 'Lainnya'];
+
+  IconData _categoryIconFromValue(String value) {
+    switch (value) {
+      case 'Listrik':
+        return Icons.lightbulb_outline_rounded;
+      case 'Air':
+        return Icons.water_drop_outlined;
+      case 'Jalan':
+        return Icons.map_outlined;
+      case 'Kebersihan':
+        return Icons.delete_outline_rounded;
+      default:
+        return Icons.construction_rounded;
+    }
+  }
 
   @override
   void dispose() {
     _titleController.dispose();
-    _categoryController.dispose();
     _descriptionController.dispose();
     super.dispose();
   }
@@ -631,9 +700,134 @@ class _AddFacilityReportSheetState extends State<_AddFacilityReportSheet> {
     if (image != null) setState(() => _image = image);
   }
 
+  Widget _buildCategoryPicker() {
+    final hasValue = _selectedCategory != null;
+
+    return InkWell(
+      onTap: _showCategoryPicker,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF4F8FC),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFD7E8FF)),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              hasValue
+                  ? _categoryIconFromValue(_selectedCategory!)
+                  : Icons.category_outlined,
+              color: AppColors.primary,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                hasValue ? _selectedCategory! : 'Pilih Kategori',
+                style: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.w800,
+                  color: hasValue
+                      ? const Color(0xFF0D1B2A)
+                      : Colors.grey[400],
+                ),
+              ),
+            ),
+            const Icon(Icons.arrow_drop_down, color: AppColors.primary),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showCategoryPicker() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Pilih Kategori',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  color: const Color(0xFF0D1B2A),
+                ),
+              ),
+              const SizedBox(height: 16),
+              ..._categoryValues.map((value) {
+                final active = value == _selectedCategory;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: InkWell(
+                    onTap: () {
+                      setState(() => _selectedCategory = value);
+                      Navigator.pop(ctx);
+                    },
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        color: active
+                            ? AppColors.primary.withOpacity(0.08)
+                            : const Color(0xFFF4F8FC),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: active ? AppColors.primary : const Color(0xFFE9F1F8),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            _categoryIconFromValue(value),
+                            color: active ? AppColors.primary : Colors.grey[600],
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            value,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: active
+                                  ? AppColors.primary
+                                  : const Color(0xFF0D1B2A),
+                            ),
+                          ),
+                          const Spacer(),
+                          if (active)
+                            const Icon(
+                              Icons.check_circle_rounded,
+                              color: AppColors.primary,
+                              size: 22,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _submit() async {
     if (_titleController.text.trim().isEmpty ||
-        _categoryController.text.trim().isEmpty ||
+        _selectedCategory == null ||
         _descriptionController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -646,7 +840,7 @@ class _AddFacilityReportSheetState extends State<_AddFacilityReportSheet> {
     setState(() => _isSaving = true);
     final formData = FormData.fromMap({
       'title': _titleController.text.trim(),
-      'category': _categoryController.text.trim(),
+      'category': _selectedCategory,
       'description': _descriptionController.text.trim(),
     });
 
@@ -706,11 +900,7 @@ class _AddFacilityReportSheetState extends State<_AddFacilityReportSheet> {
             const SizedBox(height: 18),
             _textField(_titleController, 'Judul Laporan'),
             const SizedBox(height: 12),
-            _textField(
-              _categoryController,
-              'Kategori',
-              hint: 'Lampu, Jalan, Air, Sampah',
-            ),
+            _buildCategoryPicker(),
             const SizedBox(height: 12),
             _textField(_descriptionController, 'Deskripsi', maxLines: 4),
             const SizedBox(height: 14),
