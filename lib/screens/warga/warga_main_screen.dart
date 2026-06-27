@@ -174,9 +174,7 @@ class _WargaMainScreenState extends State<WargaMainScreen> {
           ),
         ),
       ),
-      body: SafeArea(
-        child: IndexedStack(index: _currentIndex, children: _pages),
-      ),
+      body: IndexedStack(index: _currentIndex, children: _pages),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       floatingActionButton: Container(
         height: 65,
