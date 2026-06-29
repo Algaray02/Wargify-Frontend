@@ -96,7 +96,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 16),
               Text(
-                'Welcome Back!',
+                'Selamat Datang!',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
@@ -104,7 +104,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               Text(
-                'Sign in to continue',
+                'Login untuk melanjutkan',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 16,
                   color: AppColors.textSecondary,
@@ -122,7 +122,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'No Telp atau ID Warga',
+                      'ID Warga',
                       style: GoogleFonts.plusJakartaSans(
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
@@ -193,7 +193,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     fontSize: 14,
                   ),
                   children: const [
-                    TextSpan(text: "Don't have account? "),
+                    TextSpan(text: "Belum punya akun? "),
                     TextSpan(
                       text: "Hubungi Ketua RT",
                       style: TextStyle(fontWeight: FontWeight.bold),
