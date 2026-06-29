@@ -28,6 +28,7 @@ class _EditRondaScreenState extends State<EditRondaScreen> {
   bool _isSubmitting = false;
   List<Map<String, dynamic>> _groups = [];
   List<Map<String, dynamic>> _members = [];
+  List<Map<String, dynamic>> _schedules = [];
   static const List<String> _weekdayLabels = [
     'Senin',
     'Selasa',
@@ -68,14 +69,19 @@ class _EditRondaScreenState extends State<EditRondaScreen> {
     try {
       final results = await Future.wait([
         _apiService.getList(ApiEndpoints.rondaGroups),
+        _apiService.getList(ApiEndpoints.rondaSchedules),
       ]);
       final groups = (results[0])
+          .map((row) => Map<String, dynamic>.from(row as Map))
+          .toList();
+      final schedules = (results[1])
           .map((row) => Map<String, dynamic>.from(row as Map))
           .toList();
 
       if (!mounted) return;
       setState(() {
         _groups = groups;
+        _schedules = schedules;
         _syncMembers(keepCoordinator: true);
         _isLoading = false;
       });
@@ -138,6 +144,47 @@ class _EditRondaScreenState extends State<EditRondaScreen> {
     return DateTime(date.year, date.month, date.day);
   }
 
+  bool _hasScheduleOnSelectedWeekday(String scheduleId) {
+    final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
+
+    return _schedules.any((schedule) {
+      if (schedule['schedule_id']?.toString() == scheduleId) return false;
+
+      final status = schedule['status']?.toString();
+      if (status != 'SCHEDULED' && status != 'ONGOING') return false;
+
+      final date = DateTime.tryParse('${schedule['schedule_date']}');
+      if (date == null) return false;
+      final scheduleDate = DateTime(date.year, date.month, date.day);
+
+      return !scheduleDate.isBefore(todayDate) &&
+          scheduleDate.weekday == _selectedWeekday;
+    });
+  }
+
+  bool _isWeekdayTaken(int weekday) {
+    final currentScheduleId = widget.schedule['schedule_id']?.toString();
+    final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
+
+    return _schedules.any((schedule) {
+      if (schedule['schedule_id']?.toString() == currentScheduleId) {
+        return false;
+      }
+
+      final status = schedule['status']?.toString();
+      if (status != 'SCHEDULED' && status != 'ONGOING') return false;
+
+      final date = DateTime.tryParse('${schedule['schedule_date']}');
+      if (date == null) return false;
+      final scheduleDate = DateTime(date.year, date.month, date.day);
+
+      return !scheduleDate.isBefore(todayDate) &&
+          scheduleDate.weekday == weekday;
+    });
+  }
+
   Future<void> _submit() async {
     final scheduleId = widget.schedule['schedule_id']?.toString();
     if (scheduleId == null ||
@@ -145,6 +192,13 @@ class _EditRondaScreenState extends State<EditRondaScreen> {
         _selectedCoordinatorId == null ||
         _isSubmitting) {
       _showSnack('Regu dan koordinator harus dipilih.', true);
+      return;
+    }
+    if (_hasScheduleOnSelectedWeekday(scheduleId)) {
+      _showSnack(
+        'Jadwal ronda hari ${_weekdayLabels[_selectedWeekday - 1]} sudah ada.',
+        true,
+      );
       return;
     }
 
@@ -296,13 +350,17 @@ class _EditRondaScreenState extends State<EditRondaScreen> {
           ),
           items: List.generate(7, (index) {
             final weekday = index + 1;
+            final isTaken = _isWeekdayTaken(weekday);
             return DropdownMenuItem<int>(
               value: weekday,
+              enabled: !isTaken,
               child: Text(
-                _weekdayLabels[index],
+                isTaken
+                    ? '${_weekdayLabels[index]} (sudah ada)'
+                    : _weekdayLabels[index],
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 14,
-                  color: const Color(0xFF0D1B2A),
+                  color: isTaken ? Colors.grey : const Color(0xFF0D1B2A),
                 ),
               ),
             );

@@ -25,6 +25,7 @@ class _AddRondaScreenState extends State<AddRondaScreen> {
   List<Map<String, dynamic>> _groups = [];
   List<Map<String, dynamic>> _users = [];
   List<Map<String, dynamic>> _members = [];
+  List<Map<String, dynamic>> _schedules = [];
   static const List<String> _weekdayLabels = [
     'Senin',
     'Selasa',
@@ -52,6 +53,7 @@ class _AddRondaScreenState extends State<AddRondaScreen> {
       final results = await Future.wait([
         _apiService.getList(ApiEndpoints.rondaGroups),
         _apiService.getList(ApiEndpoints.users),
+        _apiService.getList(ApiEndpoints.rondaSchedules),
       ]);
       final groups = (results[0])
           .map((row) => Map<String, dynamic>.from(row as Map))
@@ -60,11 +62,15 @@ class _AddRondaScreenState extends State<AddRondaScreen> {
           .map((row) => Map<String, dynamic>.from(row as Map))
           .where((user) => user['role']?.toString() != 'BENDAHARA')
           .toList();
+      final schedules = (results[2])
+          .map((row) => Map<String, dynamic>.from(row as Map))
+          .toList();
 
       if (!mounted) return;
       setState(() {
         _groups = groups;
         _users = users;
+        _schedules = schedules;
         if (_selectedGroupId == null ||
             !_groups.any(
               (group) => group['group_id']?.toString() == _selectedGroupId,
@@ -130,6 +136,40 @@ class _AddRondaScreenState extends State<AddRondaScreen> {
     return DateTime(date.year, date.month, date.day);
   }
 
+  bool _hasScheduleOnSelectedWeekday() {
+    final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
+
+    return _schedules.any((schedule) {
+      final status = schedule['status']?.toString();
+      if (status != 'SCHEDULED' && status != 'ONGOING') return false;
+
+      final date = DateTime.tryParse('${schedule['schedule_date']}');
+      if (date == null) return false;
+      final scheduleDate = DateTime(date.year, date.month, date.day);
+
+      return !scheduleDate.isBefore(todayDate) &&
+          scheduleDate.weekday == _selectedWeekday;
+    });
+  }
+
+  bool _isWeekdayTaken(int weekday) {
+    final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
+
+    return _schedules.any((schedule) {
+      final status = schedule['status']?.toString();
+      if (status != 'SCHEDULED' && status != 'ONGOING') return false;
+
+      final date = DateTime.tryParse('${schedule['schedule_date']}');
+      if (date == null) return false;
+      final scheduleDate = DateTime(date.year, date.month, date.day);
+
+      return !scheduleDate.isBefore(todayDate) &&
+          scheduleDate.weekday == weekday;
+    });
+  }
+
   Future<void> _submit() async {
     if (_isSubmitting) {
       return;
@@ -140,6 +180,13 @@ class _AddRondaScreenState extends State<AddRondaScreen> {
     }
     if (_selectedCoordinatorId == null) {
       _showSnack('Pilih koordinator regu terlebih dahulu.', isError: true);
+      return;
+    }
+    if (_hasScheduleOnSelectedWeekday()) {
+      _showSnack(
+        'Jadwal ronda hari ${_weekdayLabels[_selectedWeekday - 1]} sudah ada.',
+        isError: true,
+      );
       return;
     }
     setState(() => _isSubmitting = true);
@@ -406,13 +453,19 @@ class _AddRondaScreenState extends State<AddRondaScreen> {
                         ),
                         items: List.generate(7, (index) {
                           final weekday = index + 1;
+                          final isTaken = _isWeekdayTaken(weekday);
                           return DropdownMenuItem<int>(
                             value: weekday,
+                            enabled: !isTaken,
                             child: Text(
-                              _weekdayLabels[index],
+                              isTaken
+                                  ? '${_weekdayLabels[index]} (sudah ada)'
+                                  : _weekdayLabels[index],
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 14,
-                                color: const Color(0xFF0D1B2A),
+                                color: isTaken
+                                    ? Colors.grey
+                                    : const Color(0xFF0D1B2A),
                               ),
                             ),
                           );

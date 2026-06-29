@@ -193,7 +193,7 @@ class _DetailLaporanScreenState extends State<DetailLaporanScreen> {
                   vertical: 5,
                 ),
                 decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.1),
+                  color: statusColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -326,7 +326,7 @@ class _DetailLaporanScreenState extends State<DetailLaporanScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          Divider(color: Colors.grey.withOpacity(0.1)),
+          Divider(color: Colors.grey.withValues(alpha: 0.1)),
           const SizedBox(height: 12),
           _buildInfoRow(
             Icons.person_rounded,
@@ -423,7 +423,9 @@ class _DetailLaporanScreenState extends State<DetailLaporanScreen> {
           duration: const Duration(milliseconds: 160),
           height: 64,
           decoration: BoxDecoration(
-            color: selected ? color.withOpacity(0.08) : const Color(0xFFF8FBFE),
+            color: selected
+                ? color.withValues(alpha: 0.08)
+                : const Color(0xFFF8FBFE),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: selected ? color : const Color(0xFFE1EAF3),
@@ -699,7 +701,7 @@ class _DetailLaporanScreenState extends State<DetailLaporanScreen> {
                     Container(
                       width: 2,
                       height: 74,
-                      color: AppColors.primary.withOpacity(0.18),
+                      color: AppColors.primary.withValues(alpha: 0.18),
                     ),
                 ],
               ),

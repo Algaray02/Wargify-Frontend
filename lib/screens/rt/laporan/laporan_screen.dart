@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:wargify/core/constants/api_endpoints.dart';
 import 'package:wargify/core/constants/colors.dart';
+import 'package:wargify/core/utils/wib_datetime.dart';
 import 'package:wargify/models/user_model.dart';
 import 'package:wargify/services/api_service.dart';
 
@@ -39,8 +40,8 @@ class FacilityReport {
 
   factory FacilityReport.fromJson(Map<String, dynamic> json) {
     final reporter = Map<String, dynamic>.from((json['reporter'] ?? {}) as Map);
-    final createdAt = DateTime.tryParse('${json['created_at']}');
-    final updatedAt = DateTime.tryParse('${json['updated_at']}');
+    final createdAt = parseWibDateTime(json['created_at']);
+    final updatedAt = parseWibDateTime(json['updated_at']);
 
     return FacilityReport(
       id: json['report_id']?.toString() ?? '',
@@ -192,7 +193,8 @@ class _LaporanScreenState extends State<LaporanScreen> {
     }
   }
 
-  Color _statusBgColor(String status) => _statusColor(status).withOpacity(0.1);
+  Color _statusBgColor(String status) =>
+      _statusColor(status).withValues(alpha: 0.1);
 
   IconData _categoryIcon(String category) {
     final text = category.toLowerCase();
@@ -305,7 +307,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
                   boxShadow: selected
                       ? [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
+                            color: Colors.black.withValues(alpha: 0.04),
                             blurRadius: 4,
                             offset: const Offset(0, 2),
                           ),
@@ -341,7 +343,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withOpacity(0.18),
+            color: AppColors.primary.withValues(alpha: 0.18),
             blurRadius: 12,
             offset: const Offset(0, 6),
           ),
@@ -355,7 +357,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
             style: GoogleFonts.plusJakartaSans(
               fontSize: 10,
               fontWeight: FontWeight.w800,
-              color: Colors.white.withOpacity(0.72),
+              color: Colors.white.withValues(alpha: 0.72),
               letterSpacing: 0.8,
             ),
           ),
@@ -387,9 +389,9 @@ class _LaporanScreenState extends State<LaporanScreen> {
         margin: const EdgeInsets.only(right: 8),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.12),
+          color: Colors.white.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withOpacity(0.14)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -406,7 +408,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
               label,
               overflow: TextOverflow.ellipsis,
               style: GoogleFonts.plusJakartaSans(
-                color: Colors.white.withOpacity(0.78),
+                color: Colors.white.withValues(alpha: 0.78),
                 fontWeight: FontWeight.w600,
                 fontSize: 10,
               ),
@@ -534,7 +536,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
         border: Border.all(color: const Color(0xFFE9F1F8)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.015),
+            color: Colors.black.withValues(alpha: 0.015),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -626,7 +628,7 @@ class _LaporanScreenState extends State<LaporanScreen> {
               ),
             ),
             const SizedBox(height: 14),
-            Divider(color: Colors.grey.withOpacity(0.08), height: 1),
+            Divider(color: Colors.grey.withValues(alpha: 0.08), height: 1),
             const SizedBox(height: 12),
             Row(
               children: [

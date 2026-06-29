@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:wargify/core/constants/colors.dart';
 import 'package:intl/intl.dart';
@@ -20,11 +23,22 @@ class _SosDashboardScreenState extends State<SosDashboardScreen> {
   bool _isLoading = true;
   bool _isResolving = false;
   String? _errorMessage;
+  StreamSubscription<Position>? _rtLocationSub;
+  final ValueNotifier<Position?> _rtPositionNotifier = ValueNotifier(null);
+  final ValueNotifier<String?> _rtLocationErrorNotifier = ValueNotifier(null);
 
   @override
   void initState() {
     super.initState();
     _fetchAlerts();
+  }
+
+  @override
+  void dispose() {
+    _rtLocationSub?.cancel();
+    _rtPositionNotifier.dispose();
+    _rtLocationErrorNotifier.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchAlerts() async {
@@ -114,9 +128,65 @@ class _SosDashboardScreenState extends State<SosDashboardScreen> {
     return LatLng(latitude, longitude);
   }
 
+  Future<void> _loadRtLocation() async {
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) throw Exception('GPS RT belum aktif.');
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        throw Exception('Izin lokasi RT belum diberikan.');
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 12),
+        ),
+      );
+
+      if (!mounted) return;
+      _rtPositionNotifier.value = position;
+      _rtLocationErrorNotifier.value = null;
+      _rtLocationSub?.cancel();
+      _rtLocationSub =
+          Geolocator.getPositionStream(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.high,
+              distanceFilter: 5,
+            ),
+          ).listen((position) {
+            if (!mounted) return;
+            _rtPositionNotifier.value = position;
+          });
+    } catch (error) {
+      if (!mounted) return;
+      _rtLocationErrorNotifier.value = error.toString().replaceFirst(
+        'Exception: ',
+        '',
+      );
+    }
+  }
+
+  String _distanceLabel(LatLng from, LatLng to) {
+    final meters = Geolocator.distanceBetween(
+      from.latitude,
+      from.longitude,
+      to.latitude,
+      to.longitude,
+    );
+    if (meters < 1000) return '${meters.round()} m dari posisi RT';
+    return '${(meters / 1000).toStringAsFixed(1)} km dari posisi RT';
+  }
+
   void _showLocationSheet(Map<String, dynamic> alert) {
     final point = _alertPoint(alert);
     if (point == null) return;
+    _loadRtLocation();
 
     showModalBottomSheet<void>(
       context: context,
@@ -193,7 +263,69 @@ class _SosDashboardScreenState extends State<SosDashboardScreen> {
                     ],
                   ),
                 ),
-                Expanded(child: _buildMap(point, interactive: true)),
+                ValueListenableBuilder<Position?>(
+                  valueListenable: _rtPositionNotifier,
+                  builder: (context, rtPosition, _) {
+                    final rtPoint = rtPosition == null
+                        ? null
+                        : LatLng(rtPosition.latitude, rtPosition.longitude);
+                    return Expanded(
+                      child: _buildMap(
+                        point,
+                        interactive: true,
+                        rtPoint: rtPoint,
+                      ),
+                    );
+                  },
+                ),
+                ValueListenableBuilder<String?>(
+                  valueListenable: _rtLocationErrorNotifier,
+                  builder: (context, rtLocationError, _) {
+                    return ValueListenableBuilder<Position?>(
+                      valueListenable: _rtPositionNotifier,
+                      builder: (context, rtPosition, _) {
+                        final rtPoint = rtPosition == null
+                            ? null
+                            : LatLng(rtPosition.latitude, rtPosition.longitude);
+                        if (rtLocationError != null) {
+                          return Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                            child: Text(
+                              rtLocationError,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.danger,
+                              ),
+                            ),
+                          );
+                        }
+                        if (rtPoint == null) return const SizedBox.shrink();
+                        return Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.navigation_rounded,
+                                size: 18,
+                                color: AppColors.primary,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                _distanceLabel(rtPoint, point),
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
                 Padding(
                   padding: const EdgeInsets.all(20),
                   child: SizedBox(
@@ -227,7 +359,7 @@ class _SosDashboardScreenState extends State<SosDashboardScreen> {
           );
         },
       ),
-    );
+    ).whenComplete(() => _rtLocationSub?.cancel());
   }
 
   @override
@@ -601,10 +733,15 @@ class _SosDashboardScreenState extends State<SosDashboardScreen> {
     );
   }
 
-  Widget _buildMap(LatLng point, {required bool interactive}) {
+  Widget _buildMap(LatLng point, {required bool interactive, LatLng? rtPoint}) {
     return FlutterMap(
       options: MapOptions(
-        initialCenter: point,
+        initialCenter: rtPoint == null
+            ? point
+            : LatLng(
+                (rtPoint.latitude + point.latitude) / 2,
+                (rtPoint.longitude + point.longitude) / 2,
+              ),
         initialZoom: interactive ? 17 : 15,
         interactionOptions: InteractionOptions(
           flags: interactive ? InteractiveFlag.all : InteractiveFlag.none,
@@ -615,8 +752,43 @@ class _SosDashboardScreenState extends State<SosDashboardScreen> {
           urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.wargify.app',
         ),
+        if (rtPoint != null)
+          PolylineLayer(
+            polylines: [
+              Polyline(
+                points: [rtPoint, point],
+                color: AppColors.primary,
+                strokeWidth: 4,
+              ),
+            ],
+          ),
         MarkerLayer(
           markers: [
+            if (rtPoint != null)
+              Marker(
+                point: rtPoint,
+                width: 46,
+                height: 46,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 4),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withOpacity(0.3),
+                        blurRadius: 12,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.person_pin_circle_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                ),
+              ),
             Marker(
               point: point,
               width: 54,

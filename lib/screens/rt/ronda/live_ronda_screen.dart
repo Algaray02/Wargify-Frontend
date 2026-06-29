@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:wargify/core/constants/api_endpoints.dart';
+import 'package:wargify/core/utils/wib_datetime.dart';
 import 'package:wargify/services/api_service.dart';
 import '../../../../../core/constants/colors.dart';
 
@@ -44,6 +45,19 @@ class _LiveRondaScreenState extends State<LiveRondaScreen> {
   }
 
   Map<String, dynamic> get _schedule => _scheduleData;
+
+  Map<String, dynamic> get _coordinator {
+    final coordinator = _schedule['coordinator'];
+    return coordinator is Map
+        ? Map<String, dynamic>.from(coordinator)
+        : <String, dynamic>{};
+  }
+
+  Map<String, dynamic> get _activeRondaLog {
+    if (_rondaLog.isNotEmpty) return _rondaLog;
+    final log = _schedule['ronda_log'] ?? _schedule['rondaLog'];
+    return log is Map ? Map<String, dynamic>.from(log) : <String, dynamic>{};
+  }
 
   Future<void> _refreshLiveData() async {
     try {
@@ -100,27 +114,6 @@ class _LiveRondaScreenState extends State<LiveRondaScreen> {
     }
   }
 
-  List<Map<String, dynamic>> get _participants {
-    final group = _schedule['group'] is Map
-        ? Map<String, dynamic>.from(_schedule['group'] as Map)
-        : <String, dynamic>{};
-    final members = group['members'];
-    final checkpoints = _checkpoints;
-    final fallback = checkpoints.isNotEmpty
-        ? checkpoints.first['location'] as LatLng
-        : const LatLng(-6.200000, 106.816666);
-    if (members is! List) return [];
-    return members.map((member) {
-      final data = Map<String, dynamic>.from(member as Map);
-      return {
-        'name': data['full_name']?.toString() ?? 'Petugas',
-        'image':
-            'https://ui-avatars.com/api/?name=${Uri.encodeComponent(data['full_name']?.toString() ?? 'Petugas')}&background=00468B&color=fff',
-        'location': fallback,
-      };
-    }).toList();
-  }
-
   List<Map<String, dynamic>> get _checkpoints {
     final checkpoints = _schedule['checkpoints'];
     final logs = _schedule['checkpoint_logs'] is List
@@ -132,9 +125,9 @@ class _LiveRondaScreenState extends State<LiveRondaScreen> {
     final todayLogs = logs.where((log) {
       final timestampStr = log['scanned_at'] ?? log['created_at'];
       if (timestampStr == null) return true;
-      final date = DateTime.tryParse(timestampStr.toString());
+      final date = parseWibDateTime(timestampStr);
       if (date == null) return true;
-      final localDate = date.toLocal();
+      final localDate = date;
       return localDate.year == now.year &&
           localDate.month == now.month &&
           localDate.day == now.day;
@@ -159,11 +152,11 @@ class _LiveRondaScreenState extends State<LiveRondaScreen> {
   }
 
   List<Map<String, String>> get _reports {
-    final shiftStart = DateTime.tryParse('${_schedule['shift_start']}');
-    final shiftEnd = DateTime.tryParse('${_schedule['shift_end']}');
+    final shiftStart = parseWibDateTime(_schedule['shift_start']);
+    final shiftEnd = parseWibDateTime(_schedule['shift_end']);
     final reports =
         _facilityReports.where((report) {
-          final createdAt = DateTime.tryParse('${report['created_at']}');
+          final createdAt = parseWibDateTime(report['created_at']);
           if (createdAt == null || shiftStart == null || shiftEnd == null) {
             return false;
           }
@@ -182,7 +175,7 @@ class _LiveRondaScreenState extends State<LiveRondaScreen> {
       final reporter = report['reporter'] is Map
           ? Map<String, dynamic>.from(report['reporter'] as Map)
           : <String, dynamic>{};
-      final createdAt = DateTime.tryParse('${report['created_at']}');
+      final createdAt = parseWibDateTime(report['created_at']);
       return {
         'time': createdAt == null ? '-' : DateFormat('HH:mm').format(createdAt),
         'user': reporter['full_name']?.toString() ?? 'Warga',
@@ -194,8 +187,8 @@ class _LiveRondaScreenState extends State<LiveRondaScreen> {
   }
 
   String get _shiftText {
-    final start = DateTime.tryParse('${_schedule['shift_start']}');
-    final end = DateTime.tryParse('${_schedule['shift_end']}');
+    final start = parseWibDateTime(_schedule['shift_start']);
+    final end = parseWibDateTime(_schedule['shift_end']);
     if (start == null || end == null) return '-';
     final formatter = DateFormat('HH:mm');
     return '${formatter.format(start)} - ${formatter.format(end)} WIB';
@@ -215,7 +208,7 @@ class _LiveRondaScreenState extends State<LiveRondaScreen> {
   }
 
   List<LatLng> get _trackingPath {
-    final pathData = _rondaLog['path_data'];
+    final pathData = _activeRondaLog['path_data'];
     if (pathData is! List) return [];
     return pathData
         .whereType<Map>()
@@ -229,14 +222,100 @@ class _LiveRondaScreenState extends State<LiveRondaScreen> {
   }
 
   String get _trackingStats {
-    final distance = _rondaLog['distance_covered'] ?? 0.0;
-    final duration = _rondaLog['duration'] ?? 0;
-    final hours = (duration / 3600).floor();
-    final minutes = ((duration % 3600) / 60).floor();
-    final durationText = hours > 0
-        ? '$hours jam $minutes menit'
-        : '$minutes menit';
-    return 'Jarak: ${distance.toStringAsFixed(2)} km • Durasi: $durationText';
+    final log = _activeRondaLog;
+    final pathData = log['path_data'];
+    final lastPoint = pathData is List && pathData.isNotEmpty
+        ? pathData.last
+        : null;
+    final timestamp = lastPoint is Map
+        ? lastPoint['time'] ??
+              lastPoint['timestamp'] ??
+              log['updated_at'] ??
+              log['created_at']
+        : log['updated_at'] ?? log['created_at'];
+    final date = parseWibDateTime(timestamp);
+
+    if (date == null) return '-';
+
+    return DateFormat('dd MMM yyyy, HH:mm').format(date);
+  }
+
+  Widget _checkpointMarker(Map<String, dynamic> checkpoint, bool isScanned) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: isScanned ? AppColors.success : Colors.blue,
+            border: Border.all(color: Colors.white, width: 3),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black26,
+                blurRadius: 4,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Center(
+            child: Icon(
+              isScanned ? Icons.check : Icons.place,
+              color: Colors.white,
+              size: 16,
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
+          ),
+          child: Text(
+            checkpoint['name']?.toString() ?? 'Checkpoint',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF0D1B2A),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _coordinatorAvatar(Map<String, dynamic> coordinator) {
+    final name = coordinator['full_name']?.toString() ?? 'RT';
+    final photoUrl = coordinator['profile_picture_url']?.toString() ?? '';
+
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: AppColors.primary, width: 3),
+        boxShadow: const [
+          BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 3)),
+        ],
+      ),
+      child: CircleAvatar(
+        backgroundColor: AppColors.primary,
+        backgroundImage: photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
+        child: photoUrl.isEmpty
+            ? Text(
+                name.isNotEmpty ? name[0].toUpperCase() : 'R',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              )
+            : null,
+      ),
+    );
   }
 
   @override
@@ -250,6 +329,8 @@ class _LiveRondaScreenState extends State<LiveRondaScreen> {
             options: MapOptions(
               initialCenter: _checkpoints.isNotEmpty
                   ? _checkpoints.first['location'] as LatLng
+                  : _trackingPath.isNotEmpty
+                  ? _trackingPath.last
                   : const LatLng(-6.200000, 106.816666),
               initialZoom: 16.5,
             ),
@@ -264,18 +345,9 @@ class _LiveRondaScreenState extends State<LiveRondaScreen> {
                   if (_trackingPath.isNotEmpty)
                     Polyline(
                       points: _trackingPath,
-                      color: Colors.orange.withOpacity(0.7),
+                      color: Colors.orange.withValues(alpha: 0.7),
                       strokeWidth: 3.0,
                     ),
-                  // Route checkpoint (dashed line)
-                  Polyline(
-                    points: _checkpoints
-                        .map((c) => c['location'] as LatLng)
-                        .toList(),
-                    color: AppColors.primary.withOpacity(0.5),
-                    strokeWidth: 4.0,
-                    pattern: StrokePattern.dashed(segments: [10.0, 10.0]),
-                  ),
                 ],
               ),
               MarkerLayer(
@@ -285,64 +357,26 @@ class _LiveRondaScreenState extends State<LiveRondaScreen> {
                     final bool isScanned = checkpoint['isScanned'];
                     return Marker(
                       point: checkpoint['location'],
-                      width: 40,
-                      height: 40,
+                      width: 120,
+                      height: 76,
                       child: Tooltip(
                         message: checkpoint['name'],
-                        child: Container(
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: isScanned ? AppColors.success : Colors.blue,
-                            border: Border.all(color: Colors.white, width: 3),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Colors.black26,
-                                blurRadius: 4,
-                                offset: Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Center(
-                            child: Icon(
-                              isScanned ? Icons.check : Icons.place,
-                              color: Colors.white,
-                              size: 16,
-                            ),
-                          ),
-                        ),
+                        child: _checkpointMarker(checkpoint, isScanned),
                       ),
                     );
                   }),
-                  // Markers for participants
-                  ..._participants.map((person) {
-                    return Marker(
-                      point: person['location'],
-                      width: 50,
-                      height: 50,
+                  if (_trackingPath.isNotEmpty)
+                    Marker(
+                      point: _trackingPath.last,
+                      width: 54,
+                      height: 54,
                       child: Tooltip(
-                        message: person['name'],
-                        child: Container(
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: AppColors.primary,
-                              width: 3,
-                            ),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Colors.black26,
-                                blurRadius: 6,
-                                offset: Offset(0, 3),
-                              ),
-                            ],
-                          ),
-                          child: CircleAvatar(
-                            backgroundImage: NetworkImage(person['image']),
-                          ),
-                        ),
+                        message:
+                            _coordinator['full_name']?.toString() ??
+                            'Koordinator',
+                        child: _coordinatorAvatar(_coordinator),
                       ),
-                    );
-                  }),
+                    ),
                 ],
               ),
             ],
@@ -360,7 +394,7 @@ class _LiveRondaScreenState extends State<LiveRondaScreen> {
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
+                          color: Colors.black.withValues(alpha: 0.1),
                           blurRadius: 10,
                           offset: const Offset(0, 2),
                         ),
@@ -385,7 +419,7 @@ class _LiveRondaScreenState extends State<LiveRondaScreen> {
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
+                          color: Colors.black.withValues(alpha: 0.1),
                           blurRadius: 10,
                           offset: const Offset(0, 2),
                         ),
@@ -488,7 +522,9 @@ class _LiveRondaScreenState extends State<LiveRondaScreen> {
                                     vertical: 6,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: AppColors.success.withOpacity(0.1),
+                                    color: AppColors.success.withValues(
+                                      alpha: 0.1,
+                                    ),
                                     borderRadius: BorderRadius.circular(20),
                                   ),
                                   child: Text(
@@ -515,7 +551,7 @@ class _LiveRondaScreenState extends State<LiveRondaScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Riwayat Tracking',
+                                    'Timestamp Ronda',
                                     style: GoogleFonts.plusJakartaSans(
                                       fontSize: 12,
                                       color: Colors.grey[600],

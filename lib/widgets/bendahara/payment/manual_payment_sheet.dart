@@ -3,7 +3,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:wargify/core/constants/colors.dart';
 import 'package:wargify/services/api_service.dart';
 import 'package:wargify/core/constants/api_endpoints.dart';
-import 'package:dio/dio.dart';
 
 class ManualPaymentSheet extends StatefulWidget {
   final String periodId; // Dioper dari ShowContributionQrScreen

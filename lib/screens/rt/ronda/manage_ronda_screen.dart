@@ -5,7 +5,9 @@ import 'package:wargify/core/constants/api_endpoints.dart';
 import 'package:wargify/core/constants/colors.dart';
 import 'package:wargify/services/api_service.dart';
 import 'add_ronda_screen.dart';
+import 'edit_checkpoints_screen.dart';
 import 'edit_ronda_screen.dart';
+import 'ronda_history_screen.dart';
 
 class RondaSchedule {
   final String id;
@@ -170,26 +172,6 @@ class _ManageRondaScreenState extends State<ManageRondaScreen> {
       default:
         return Colors.grey[100]!;
     }
-  }
-
-  Future<void> _deleteSchedule(int index) async {
-    final sch = _getFilteredSchedules()[index];
-    await _apiService.patch('${ApiEndpoints.rondaSchedules}/${sch.id}', {
-      'status': 'MISSED',
-    });
-    await _fetchSchedules();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Jadwal untuk ${sch.groupId} berhasil dihapus.',
-          style: GoogleFonts.plusJakartaSans(),
-        ),
-        backgroundColor: Colors.grey[800],
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
   }
 
   void _showSchedulePreview(RondaSchedule item) {
@@ -402,103 +384,144 @@ class _ManageRondaScreenState extends State<ManageRondaScreen> {
             fontSize: 18,
           ),
         ),
-      ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: 10),
-
-          // Header title & count
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Daftar Jadwal Ronda',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: const Color(0xFF0D1B2A),
-                  ),
-                ),
-                Text(
-                  '${filteredSchedules.length} Jadwal',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey[500],
-                  ),
-                ),
-              ],
+        actions: [
+          IconButton(
+            tooltip: 'Edit Checkpoint',
+            icon: const Icon(
+              Icons.edit_location_alt_rounded,
+              color: AppColors.primary,
             ),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const EditCheckpointsScreen(),
+                ),
+              );
+            },
           ),
-
-          // Filter Status Chips (NO checkmark!)
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: ['SEMUA', 'SCHEDULED', 'ONGOING', 'COMPLETED', 'MISSED']
-                  .map((filter) {
-                    final isSelected = _selectedFilter == filter;
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: ChoiceChip(
-                        label: Text(filter),
-                        selected: isSelected,
-                        showCheckmark: false,
-                        onSelected: (selected) {
-                          if (selected) {
-                            setState(() => _selectedFilter = filter);
-                          }
-                        },
-                        selectedColor: AppColors.primary,
-                        backgroundColor: Colors.white,
-                        labelStyle: GoogleFonts.plusJakartaSans(
-                          fontSize: 11,
-                          fontWeight: isSelected
-                              ? FontWeight.bold
-                              : FontWeight.w500,
-                          color: isSelected ? Colors.white : Colors.grey[600],
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          side: BorderSide(
-                            color: isSelected
-                                ? AppColors.primary
-                                : Colors.grey.withOpacity(0.12),
-                          ),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                      ),
-                    );
-                  })
-                  .toList(),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // Schedules List
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : filteredSchedules.isEmpty
-                ? _buildEmptyState()
-                : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 100),
-                    physics: const BouncingScrollPhysics(),
-                    itemCount: filteredSchedules.length,
-                    itemBuilder: (context, index) {
-                      final item = filteredSchedules[index];
-                      return _buildScheduleCard(item, index);
-                    },
-                  ),
+          IconButton(
+            icon: const Icon(Icons.history_rounded, color: AppColors.primary),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const RondaHistoryScreen(),
+                ),
+              );
+            },
           ),
         ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: _fetchSchedules,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 10),
+
+            // Header title & count
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Daftar Jadwal Ronda',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF0D1B2A),
+                    ),
+                  ),
+                  Text(
+                    '${filteredSchedules.length} Jadwal',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey[500],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Filter Status Chips (NO checkmark!)
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children:
+                    [
+                      'SEMUA',
+                      'SCHEDULED',
+                      'ONGOING',
+                      'COMPLETED',
+                      'MISSED',
+                    ].map((filter) {
+                      final isSelected = _selectedFilter == filter;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: ChoiceChip(
+                          label: Text(filter),
+                          selected: isSelected,
+                          showCheckmark: false,
+                          onSelected: (selected) {
+                            if (selected) {
+                              setState(() => _selectedFilter = filter);
+                            }
+                          },
+                          selectedColor: AppColors.primary,
+                          backgroundColor: Colors.white,
+                          labelStyle: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.w500,
+                            color: isSelected ? Colors.white : Colors.grey[600],
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            side: BorderSide(
+                              color: isSelected
+                                  ? AppColors.primary
+                                  : Colors.grey.withOpacity(0.12),
+                            ),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Schedules List
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : filteredSchedules.isEmpty
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        SizedBox(height: 420, child: _buildEmptyState()),
+                      ],
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 100),
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      itemCount: filteredSchedules.length,
+                      itemBuilder: (context, index) {
+                        final item = filteredSchedules[index];
+                        return _buildScheduleCard(item, index);
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
@@ -735,14 +758,6 @@ class _ManageRondaScreenState extends State<ManageRondaScreen> {
                     );
                     if (result == true) _fetchSchedules();
                   },
-                ),
-                IconButton(
-                  icon: const Icon(
-                    Icons.delete_outline_rounded,
-                    color: Colors.red,
-                    size: 20,
-                  ),
-                  onPressed: () => _deleteSchedule(index),
                 ),
               ],
             ),

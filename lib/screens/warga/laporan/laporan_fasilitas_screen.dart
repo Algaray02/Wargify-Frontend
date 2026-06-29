@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:wargify/core/constants/api_endpoints.dart';
 import 'package:wargify/core/constants/colors.dart';
+import 'package:wargify/core/utils/wib_datetime.dart';
 import 'package:wargify/services/api_service.dart';
 
 class LaporanFasilitasScreen extends StatefulWidget {
@@ -83,7 +84,7 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
   }
 
   String _formatDate(dynamic value) {
-    final date = DateTime.tryParse(value?.toString() ?? '')?.toLocal();
+    final date = parseWibDateTime(value);
     if (date == null) return '-';
     return DateFormat('dd MMM yyyy').format(date);
   }
@@ -117,11 +118,11 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
   Color _statusBgColor(String? status) {
     switch (status) {
       case 'SUBMITTED':
-        return const Color(0xFFE65100).withOpacity(0.1);
+        return const Color(0xFFE65100).withValues(alpha: 0.1);
       case 'IN_PROGRESS':
-        return const Color(0xFF0D47A1).withOpacity(0.1);
+        return const Color(0xFF0D47A1).withValues(alpha: 0.1);
       case 'RESOLVED':
-        return const Color(0xFF2E7D32).withOpacity(0.1);
+        return const Color(0xFF2E7D32).withValues(alpha: 0.1);
       default:
         return Colors.white;
     }
@@ -260,7 +261,9 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: label == 'Kategori' ? AppColors.primary : const Color(0xFF0D1B2A),
+                color: label == 'Kategori'
+                    ? AppColors.primary
+                    : const Color(0xFF0D1B2A),
               ),
             ),
           ),
@@ -380,11 +383,7 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
             fontSize: 14,
             color: Colors.grey[400],
           ),
-          icon: const Icon(
-            Icons.search_rounded,
-            size: 22,
-            color: Colors.grey,
-          ),
+          icon: const Icon(Icons.search_rounded, size: 22, color: Colors.grey),
         ),
       ),
     );
@@ -447,7 +446,7 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withOpacity(0.18),
+            color: AppColors.primary.withValues(alpha: 0.18),
             blurRadius: 18,
             offset: const Offset(0, 10),
           ),
@@ -478,7 +477,7 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
           Text(
             'Terima kasih atas kontribusi Anda dalam menjaga fasilitas lingkungan.',
             style: GoogleFonts.plusJakartaSans(
-              color: Colors.white.withOpacity(0.72),
+              color: Colors.white.withValues(alpha: 0.72),
               fontSize: 15,
               height: 1.35,
             ),
@@ -607,18 +606,14 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
     );
   }
 
-   Widget _buildErrorState() {
+  Widget _buildErrorState() {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 48),
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.error_outline_rounded,
-              size: 48,
-              color: Colors.red[400],
-            ),
+            Icon(Icons.error_outline_rounded, size: 48, color: Colors.red[400]),
             const SizedBox(height: 16),
             Text(
               _errorMessage ?? 'Terjadi kesalahan',
@@ -667,7 +662,13 @@ class _AddFacilityReportSheetState extends State<_AddFacilityReportSheet> {
   XFile? _image;
   bool _isSaving = false;
 
-  static const _categoryValues = ['Listrik', 'Air', 'Jalan', 'Kebersihan', 'Lainnya'];
+  static const _categoryValues = [
+    'Listrik',
+    'Air',
+    'Jalan',
+    'Kebersihan',
+    'Lainnya',
+  ];
 
   IconData _categoryIconFromValue(String value) {
     switch (value) {
@@ -728,9 +729,7 @@ class _AddFacilityReportSheetState extends State<_AddFacilityReportSheet> {
                 hasValue ? _selectedCategory! : 'Pilih Kategori',
                 style: GoogleFonts.plusJakartaSans(
                   fontWeight: FontWeight.w800,
-                  color: hasValue
-                      ? const Color(0xFF0D1B2A)
-                      : Colors.grey[400],
+                  color: hasValue ? const Color(0xFF0D1B2A) : Colors.grey[400],
                 ),
               ),
             ),
@@ -781,18 +780,22 @@ class _AddFacilityReportSheetState extends State<_AddFacilityReportSheet> {
                       ),
                       decoration: BoxDecoration(
                         color: active
-                            ? AppColors.primary.withOpacity(0.08)
+                            ? AppColors.primary.withValues(alpha: 0.08)
                             : const Color(0xFFF4F8FC),
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
-                          color: active ? AppColors.primary : const Color(0xFFE9F1F8),
+                          color: active
+                              ? AppColors.primary
+                              : const Color(0xFFE9F1F8),
                         ),
                       ),
                       child: Row(
                         children: [
                           Icon(
                             _categoryIconFromValue(value),
-                            color: active ? AppColors.primary : Colors.grey[600],
+                            color: active
+                                ? AppColors.primary
+                                : Colors.grey[600],
                           ),
                           const SizedBox(width: 12),
                           Text(
