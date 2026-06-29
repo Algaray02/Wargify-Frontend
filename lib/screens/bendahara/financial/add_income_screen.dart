@@ -240,7 +240,7 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
   Widget _buildTextField({required TextEditingController controller, required String hint}) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.black,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE0E6ED)),
       ),

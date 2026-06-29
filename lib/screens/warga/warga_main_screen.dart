@@ -195,11 +195,12 @@ class _WargaMainScreenState extends State<WargaMainScreen> {
                 ),
                 child: SafeArea(
                   top: false,
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
+                  child: SingleChildScrollView(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
                         Container(
                           width: 40,
                           height: 4,
@@ -288,7 +289,46 @@ class _WargaMainScreenState extends State<WargaMainScreen> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => const WargaQrTampilScreen(),
+                                builder: (context) => const WargaQrTampilScreen(isFamilyQr: true),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        const Divider(),
+                        const SizedBox(height: 8),
+                        ListTile(
+                          leading: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.qr_code_2_rounded,
+                              color: Colors.orange,
+                            ),
+                          ),
+                          title: Text(
+                            'Tampilkan QR Rumah',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          subtitle: Text(
+                            'Tunjukkan QR ini ke petugas/RT untuk konfirmasi hunian',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const WargaQrTampilScreen(isFamilyQr: false),
                               ),
                             );
                           },
@@ -299,7 +339,8 @@ class _WargaMainScreenState extends State<WargaMainScreen> {
                   ),
                 ),
               ),
-            );
+            ),
+          );
           },
           backgroundColor: AppColors.primary,
           elevation: 4,
