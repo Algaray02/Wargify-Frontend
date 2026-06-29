@@ -1165,38 +1165,76 @@ class _RondaScreenState extends State<RondaScreen> {
                             final isMain = m['isMain'] as bool;
                             return Marker(
                               point: m['location'] as latlong2.LatLng,
-                              width: 40,
-                              height: 40,
-                              child: Tooltip(
-                                message: m['name'] as String,
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: isScanned
-                                        ? AppColors.success
-                                        : (isMain
-                                              ? AppColors.primary
-                                              : Colors.blue),
-                                    border: Border.all(
-                                      color: Colors.white,
-                                      width: 3,
-                                    ),
-                                    boxShadow: const [
-                                      BoxShadow(
-                                        color: Colors.black26,
-                                        blurRadius: 4,
-                                        offset: Offset(0, 2),
+                              width: 80,
+                              height: 60,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 28,
+                                    height: 28,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: isScanned
+                                          ? AppColors.success
+                                          : (isMain
+                                                ? Colors.orange[700]
+                                                : Colors.blue),
+                                      border: Border.all(
+                                        color: Colors.white,
+                                        width: 2.5,
                                       ),
-                                    ],
-                                  ),
-                                  child: Center(
-                                    child: Icon(
-                                      isScanned ? Icons.check : Icons.place,
-                                      color: Colors.white,
-                                      size: 16,
+                                      boxShadow: const [
+                                        BoxShadow(
+                                          color: Colors.black26,
+                                          blurRadius: 4,
+                                          offset: Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Center(
+                                      child: Icon(
+                                        isScanned
+                                            ? Icons.check
+                                            : (isMain ? Icons.home_filled : Icons.place),
+                                        color: Colors.white,
+                                        size: 13,
+                                      ),
                                     ),
                                   ),
-                                ),
+                                  const SizedBox(height: 4),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 2.5,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: Colors.grey.shade300,
+                                        width: 1,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.08),
+                                          blurRadius: 3,
+                                          offset: const Offset(0, 1),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Text(
+                                      m['name'] as String,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 8.5,
+                                        fontWeight: FontWeight.bold,
+                                        color: const Color(0xFF0D1B2A),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             );
                           }),
