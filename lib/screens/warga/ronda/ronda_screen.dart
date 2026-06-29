@@ -51,6 +51,7 @@ class _RondaScreenState extends State<RondaScreen> {
 
   // --- Map ---
   final MapController _mapController = MapController();
+  bool _isAutoCenter = true;
 
   // --- Data dari API ---
   bool _isLoading = true;
@@ -420,6 +421,7 @@ class _RondaScreenState extends State<RondaScreen> {
   }
 
   void _startLiveLocationTracking({required bool allowRondaLogs}) {
+    _isAutoCenter = true;
     _isLiveLocationPreviewActive = true;
     _gpsSubscription?.cancel();
     _gpsSubscription =
@@ -447,7 +449,7 @@ class _RondaScreenState extends State<RondaScreen> {
               _sendLiveLocation();
             });
           }
-          if (_rondaBerjalan || _isLiveLocationPreviewActive) {
+          if (_isAutoCenter && (_rondaBerjalan || _isLiveLocationPreviewActive)) {
             _mapController.move(
               latLng,
               _mapController.camera.zoom,
@@ -906,111 +908,127 @@ class _RondaScreenState extends State<RondaScreen> {
                 topLeft: Radius.circular(16),
                 topRight: Radius.circular(16),
               ),
-              child: FlutterMap(
-                mapController: _mapController,
-                options: MapOptions(
-                  initialCenter: latlong2.LatLng(centerLat, centerLng),
-                  initialZoom: 16.0,
-                ),
-                children: [
-                  TileLayer(
-                    urlTemplate:
-                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    userAgentPackageName: 'com.example.wargify',
-                  ),
-                  if (checkpointMarkers.isNotEmpty)
-                    PolylineLayer(
-                      polylines: [
-                        Polyline(
-                          points: checkpointMarkers
-                              .map((m) => m['location'] as latlong2.LatLng)
-                              .toList(),
-                          color: Colors.orange.withValues(alpha: 0.4),
-                          strokeWidth: 2.0,
-                          pattern: StrokePattern.dashed(segments: [8.0, 6.0]),
-                        ),
-                      ],
+              child: ValueListenableBuilder<Position?>(
+                valueListenable: _livePositionNotifier,
+                builder: (context, livePos, _) {
+                  final livePoint = livePos != null
+                      ? _safeLatLng(livePos.latitude, livePos.longitude)
+                      : null;
+                  return FlutterMap(
+                    mapController: _mapController,
+                    options: MapOptions(
+                      initialCenter: latlong2.LatLng(centerLat, centerLng),
+                      initialZoom: 16.0,
+                      onPositionChanged: (position, hasGesture) {
+                        if (hasGesture && _isAutoCenter) {
+                          setState(() {
+                            _isAutoCenter = false;
+                          });
+                        }
+                      },
                     ),
-                  MarkerLayer(
-                    markers: [
-                      ...checkpointMarkers.map((m) {
-                        final isScanned = m['isScanned'] as bool;
-                        final isMain = m['isMain'] as bool;
-                        return Marker(
-                          point: m['location'] as latlong2.LatLng,
-                          width: 40,
-                          height: 40,
-                          child: Tooltip(
-                            message: m['name'] as String,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: isScanned
-                                    ? AppColors.success
-                                    : (isMain
-                                          ? AppColors.primary
-                                          : Colors.blue),
-                                border: Border.all(
-                                  color: Colors.white,
-                                  width: 3,
-                                ),
-                                boxShadow: const [
-                                  BoxShadow(
-                                    color: Colors.black26,
-                                    blurRadius: 4,
-                                    offset: Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Center(
-                                child: Icon(
-                                  isScanned ? Icons.check : Icons.place,
-                                  color: Colors.white,
-                                  size: 16,
-                                ),
-                              ),
+                    children: [
+                      TileLayer(
+                        urlTemplate:
+                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName: 'com.example.wargify',
+                      ),
+                      PolylineLayer(
+                        polylines: [
+                          if (checkpointMarkers.isNotEmpty)
+                            Polyline(
+                              points: checkpointMarkers
+                                  .map((m) => m['location'] as latlong2.LatLng)
+                                  .toList(),
+                              color: Colors.orange.withValues(alpha: 0.4),
+                              strokeWidth: 2.0,
+                              pattern: StrokePattern.dashed(segments: [8.0, 6.0]),
                             ),
-                          ),
-                        );
-                      }),
-                      if (_currentPosition != null)
-                        if (_safeLatLng(
-                              _currentPosition!.latitude,
-                              _currentPosition!.longitude,
-                            )
-                            case final latlong2.LatLng livePoint?)
-                          Marker(
-                            point: livePoint,
-                            width: 30,
-                            height: 30,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.blue,
-                                border: Border.all(color: Colors.white, width: 3),
-                                boxShadow: const [
-                                  BoxShadow(
-                                    color: Colors.black26,
-                                    blurRadius: 4,
-                                    offset: Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Center(
+                          if (_pathPoints.isNotEmpty)
+                            Polyline(
+                              points: _pathPoints,
+                              color: AppColors.success,
+                              strokeWidth: 4.0,
+                            ),
+                        ],
+                      ),
+                      MarkerLayer(
+                        markers: [
+                          ...checkpointMarkers.map((m) {
+                            final isScanned = m['isScanned'] as bool;
+                            final isMain = m['isMain'] as bool;
+                            return Marker(
+                              point: m['location'] as latlong2.LatLng,
+                              width: 40,
+                              height: 40,
+                              child: Tooltip(
+                                message: m['name'] as String,
                                 child: Container(
-                                  width: 12,
-                                  height: 12,
-                                  decoration: const BoxDecoration(
+                                  decoration: BoxDecoration(
                                     shape: BoxShape.circle,
-                                    color: Colors.white,
+                                    color: isScanned
+                                        ? AppColors.success
+                                        : (isMain
+                                              ? AppColors.primary
+                                              : Colors.blue),
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 3,
+                                    ),
+                                    boxShadow: const [
+                                      BoxShadow(
+                                        color: Colors.black26,
+                                        blurRadius: 4,
+                                        offset: Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Center(
+                                    child: Icon(
+                                      isScanned ? Icons.check : Icons.place,
+                                      color: Colors.white,
+                                      size: 16,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
+                          if (livePoint != null)
+                            Marker(
+                              point: livePoint,
+                              width: 30,
+                              height: 30,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.blue,
+                                  border: Border.all(color: Colors.white, width: 3),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Colors.black26,
+                                      blurRadius: 4,
+                                      offset: Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Center(
+                                  child: Container(
+                                    width: 12,
+                                    height: 12,
+                                    decoration: const BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: Colors.white,
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-                          ),
+                        ],
+                      ),
                     ],
-                  ),
-                ],
+                  );
+                },
               ),
             ),
           ),
@@ -1035,6 +1053,9 @@ class _RondaScreenState extends State<RondaScreen> {
       return;
     }
 
+    setState(() {
+      _isAutoCenter = true;
+    });
     _mapController.move(latLng, 16.0);
   }
 
