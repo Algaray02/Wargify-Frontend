@@ -151,25 +151,25 @@ class RondaPersiapanCard extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
               decoration: BoxDecoration(
-                color: Colors.red.shade50,
+                color: Colors.grey.shade100,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.red.shade200),
+                border: Border.all(color: Colors.grey.shade300),
               ),
               child: Row(
                 children: [
                   Icon(
-                    Icons.error_outline,
-                    color: Colors.red.shade700,
+                    Icons.info_outline,
+                    color: Colors.grey.shade600,
                     size: 20,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Anda bukan anggota kelompok ronda untuk jadwal ini.',
+                      'Tidak ada jadwal ronda.',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: Colors.red.shade700,
+                        color: Colors.grey.shade600,
                       ),
                     ),
                   ),

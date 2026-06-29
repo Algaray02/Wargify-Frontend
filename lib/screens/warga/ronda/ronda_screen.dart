@@ -213,14 +213,14 @@ class _RondaScreenState extends State<RondaScreen> {
 
     final schedule = _selectedSchedule;
     final log = schedule?['ronda_log'] ?? schedule?['rondaLog'];
-    final currentDurationMinutes = log != null ? (int.tryParse(log['duration']?.toString() ?? '0') ?? 0) : 0;
+    final currentDurationSeconds = log != null ? (int.tryParse(log['duration']?.toString() ?? '0') ?? 0) : 0;
 
     _initGps().then((_) {
       if (!_gpsReady) return;
       setState(() {
         _rondaBerjalan = true;
         _pathPoints = _parsePathDataFromDatabase(schedule);
-        _detikBerjalan = currentDurationMinutes * 60;
+        _detikBerjalan = currentDurationSeconds;
       });
 
       final initialLatLng = _currentPosition == null
@@ -339,10 +339,10 @@ class _RondaScreenState extends State<RondaScreen> {
               });
             } else {
               final log = selected['ronda_log'] ?? selected['rondaLog'];
-              final currentDurationMinutes = log != null ? (int.tryParse(log['duration']?.toString() ?? '0') ?? 0) : 0;
+              final currentDurationSeconds = log != null ? (int.tryParse(log['duration']?.toString() ?? '0') ?? 0) : 0;
               setState(() {
                 _rondaBerjalan = true;
-                _detikBerjalan = currentDurationMinutes * 60;
+                _detikBerjalan = currentDurationSeconds;
                 _pathPoints = _parsePathDataFromDatabase(selected);
               });
               _startLocalTimerOnly();
@@ -462,9 +462,6 @@ class _RondaScreenState extends State<RondaScreen> {
 
     final scheduleDate = schedule['schedule_date']?.toString();
 
-    final log = schedule['ronda_log'] ?? schedule['rondaLog'];
-    final currentDuration = log != null ? (int.tryParse(log['duration']?.toString() ?? '0') ?? 0) : 0;
-
     try {
       await _apiService.post(
         '${ApiEndpoints.rondaSchedules}/$scheduleId/logs',
@@ -478,7 +475,7 @@ class _RondaScreenState extends State<RondaScreen> {
                 },
               )
               .toList(),
-          'duration': currentDuration + 1,
+          'duration': _detikBerjalan,
           'distance_covered': _calculateDistanceCovered(),
           'session_date': scheduleDate,
         },
@@ -552,9 +549,6 @@ class _RondaScreenState extends State<RondaScreen> {
 
     final scheduleDate = schedule['schedule_date']?.toString();
 
-    final log = schedule['ronda_log'] ?? schedule['rondaLog'];
-    final currentDuration = log != null ? (int.tryParse(log['duration']?.toString() ?? '0') ?? 0) : 0;
-
     _isSendingLiveLocation = true;
     try {
       await _apiService.post(
@@ -569,11 +563,20 @@ class _RondaScreenState extends State<RondaScreen> {
                 },
               )
               .toList(),
-          'duration': currentDuration + 1,
+          'duration': _detikBerjalan,
           'distance_covered': _calculateDistanceCovered(),
           'session_date': scheduleDate,
         },
       );
+      if (schedule['ronda_log'] != null) {
+        schedule['ronda_log']['duration'] = _detikBerjalan;
+      } else if (schedule['rondaLog'] != null) {
+        schedule['rondaLog']['duration'] = _detikBerjalan;
+      } else {
+        schedule['ronda_log'] = {
+          'duration': _detikBerjalan,
+        };
+      }
       debugPrint('Sending live ronda location');
     } catch (e) {
       debugPrint('Failed to send live ronda location: $e');
@@ -618,7 +621,7 @@ class _RondaScreenState extends State<RondaScreen> {
           if (allowRondaLogs && !_hasLiveLocationFix) {
             _hasLiveLocationFix = true;
             _liveLocationTimer?.cancel();
-            _liveLocationTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+            _liveLocationTimer = Timer.periodic(const Duration(seconds: 5), (_) {
               _sendLiveLocation();
             });
           }
@@ -749,10 +752,10 @@ class _RondaScreenState extends State<RondaScreen> {
         _startRondaAutomatically();
       } else if (isMainPos && !isCoordinator) {
         final log = _selectedSchedule?['ronda_log'] ?? _selectedSchedule?['rondaLog'];
-        final currentDurationMinutes = log != null ? (int.tryParse(log['duration']?.toString() ?? '0') ?? 0) : 0;
+        final currentDurationSeconds = log != null ? (int.tryParse(log['duration']?.toString() ?? '0') ?? 0) : 0;
         setState(() {
           _rondaBerjalan = true;
-          _detikBerjalan = currentDurationMinutes * 60;
+          _detikBerjalan = currentDurationSeconds;
         });
         _startLocalTimerOnly();
       }
