@@ -26,6 +26,18 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     super.dispose();
   }
 
+  // 🌟 HELPER MONTH CONVERTER: Menerjemahkan angka bulan ke Teks Bahasa Indonesia
+  String _getNamaBulanIndo(int monthNumber) {
+    const List<String> months = [
+      "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+      "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+    ];
+    if (monthNumber >= 1 && monthNumber <= 12) {
+      return months[monthNumber - 1];
+    }
+    return "Periode Lain";
+  }
+
   // 🌟 HELPER REGEX: Memvalidasi apakah kode yang dipindai adalah UUID murni yang sah
   bool _isValidUuid(String str) {
     final regExp = RegExp(
@@ -230,6 +242,15 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
               ],
             ),
           ),
+          
+          // Overlay Indikator Loading Saat Berlangsung Request API
+          if (_isProcessingScan)
+            Container(
+              color: Colors.black54,
+              child: const Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
+              ),
+            ),
         ],
       ),
     );
@@ -283,16 +304,44 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     final List<dynamic> details = data['details'] ?? [];
     final Set<String> selectedPeriods = {};
 
+    // 🌟 KUNCI: Kelompokkan data tunggakan iuran secara dinamis berdasar bulan & tahun
+    final Map<String, List<dynamic>> groupedByMonth = {};
+    for (var item in details) {
+      final int monthVal = int.tryParse(item['month']?.toString() ?? '') ?? 0;
+      final int yearVal = int.tryParse(item['year']?.toString() ?? '') ?? 0;
+      String headerKey = "";
+
+      if (monthVal >= 1 && monthVal <= 12 && yearVal > 0) {
+        headerKey = "${_getNamaBulanIndo(monthVal)} $yearVal".toUpperCase();
+      } else {
+        // Fallback cerdas menggunakan parsing regex dari period_name
+        final String rawPeriodName = item['period_name'] ?? 'Periode Lain';
+        final regExp = RegExp(r'(Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember)\s+\d{4}', caseSensitive: false);
+        final match = regExp.firstMatch(rawPeriodName);
+        if (match != null) {
+          headerKey = match.group(0)!.toUpperCase();
+        } else {
+          headerKey = rawPeriodName.toUpperCase();
+        }
+      }
+
+      if (!groupedByMonth.containsKey(headerKey)) {
+        groupedByMonth[headerKey] = [];
+      }
+      groupedByMonth[headerKey]!.add(item);
+    }
+
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF121212),
+      backgroundColor: Colors.white, // 🌟 Light Theme Putih Bersih
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
+            // Hitung akumulasi iuran terpilih
             final double selectedTotal = details
                 .where(
                   (item) =>
@@ -305,6 +354,8 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                       (num.tryParse(item['amount']?.toString() ?? '0') ?? 0)
                           .toDouble(),
                 );
+
+            // Hitung total tunggakan iuran
             final double totalOutstanding = details.fold(
               0,
               (sum, item) =>
@@ -329,7 +380,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                       width: 50,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: Colors.white24,
+                        color: Colors.grey[300],
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -339,7 +390,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                     children: [
                       const Icon(
                         Icons.receipt_long_rounded,
-                        color: Colors.amber,
+                        color: Color(0xFF004E92),
                         size: 24,
                       ),
                       const SizedBox(width: 10),
@@ -349,7 +400,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                            color: const Color(0xFF0D1B2A),
                           ),
                         ),
                       ),
@@ -357,13 +408,13 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Kode KK: ${data['family_id']}',
+                    'Kode KK: $familyId',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 12,
-                      color: Colors.white54,
+                      color: Colors.grey[600],
                     ),
                   ),
-                  const Divider(color: Colors.white10, height: 24),
+                  const Divider(color: Color(0xFFE5EEF5), height: 24),
 
                   if (details.isEmpty)
                     Center(
@@ -372,7 +423,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                         child: Text(
                           '🎉 Semua iuran keluarga ini LUNAS!',
                           style: GoogleFonts.plusJakartaSans(
-                            color: Colors.greenAccent,
+                            color: Colors.green[700],
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -387,7 +438,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: Colors.white70,
+                            color: const Color(0xFF0D1B2A),
                           ),
                         ),
                         TextButton(
@@ -407,7 +458,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                                 ? 'Batal Semua'
                                 : 'Pilih Semua',
                             style: GoogleFonts.plusJakartaSans(
-                              color: AppColors.primary,
+                              color: const Color(0xFF004E92),
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
                             ),
@@ -416,118 +467,163 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                       ],
                     ),
                     const SizedBox(height: 10),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 200),
-                      child: ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: details.length,
-                        itemBuilder: (context, index) {
-                          final item = details[index];
-                          final periodId = item['period_id'].toString();
-                          final isSelected = selectedPeriods.contains(periodId);
 
-                          return GestureDetector(
-                            onTap: () {
-                              setModalState(() {
-                                if (isSelected) {
-                                  selectedPeriods.remove(periodId);
-                                } else {
-                                  selectedPeriods.add(periodId);
-                                }
-                              });
-                            },
-                            child: Container(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.04),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: isSelected
-                                      ? AppColors.primary
-                                      : Colors.transparent,
-                                ),
+                    // 🌟 DROPDOWN GROUP BULAN: List iuran terlipat rapi per bulannya
+                    ConstrainedBox(
+                      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.4),
+                      child: ListView(
+                        shrinkWrap: true,
+                        children: groupedByMonth.entries.map((entry) {
+                          final String monthHeader = entry.key;
+                          final List<dynamic> itemsInGroup = entry.value;
+
+                          // Hitung berapa banyak iuran tercetak aktif yang dicentang di bulan ini
+                          final int selectedInGroup = itemsInGroup
+                              .where((item) => selectedPeriods.contains(item['period_id'].toString()))
+                              .length;
+
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFAFBFC),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: const Color(0xFFE5EEF5)),
+                            ),
+                            child: Theme(
+                              data: Theme.of(context).copyWith(
+                                dividerColor: Colors.transparent,
+                                splashColor: Colors.transparent,
+                                highlightColor: Colors.transparent,
                               ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 22,
-                                    height: 22,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: isSelected
-                                          ? AppColors.primary
-                                          : Colors.transparent,
-                                      border: Border.all(
-                                        color: isSelected
-                                            ? AppColors.primary
-                                            : Colors.white24,
+                              child: ExpansionTile(
+                                initiallyExpanded: true, // Biarkan langsung terbuka secara default
+                                title: Text(
+                                  monthHeader,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: const Color(0xFF004E92),
+                                  ),
+                                ),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (selectedInGroup > 0)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF004E92).withOpacity(0.08),
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: Text(
+                                          '$selectedInGroup Terpilih',
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: const Color(0xFF004E92),
+                                          ),
+                                        ),
+                                      ),
+                                    const SizedBox(width: 6),
+                                    const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF004E92)),
+                                  ],
+                                ),
+                                children: itemsInGroup.map((item) {
+                                  final periodId = item['period_id'].toString();
+                                  final isSelected = selectedPeriods.contains(periodId);
+
+                                  return InkWell(
+                                    onTap: () {
+                                      setModalState(() {
+                                        if (isSelected) {
+                                          selectedPeriods.remove(periodId);
+                                        } else {
+                                          selectedPeriods.add(periodId);
+                                        }
+                                      });
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                      decoration: BoxDecoration(
+                                        border: Border(
+                                          top: BorderSide(color: Colors.grey[200]!),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          // Custom Checkbox Bulat Estetis
+                                          Container(
+                                            width: 20,
+                                            height: 20,
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color: isSelected
+                                                  ? const Color(0xFF004E92)
+                                                  : Colors.transparent,
+                                              border: Border.all(
+                                                color: isSelected
+                                                    ? const Color(0xFF004E92)
+                                                    : Colors.grey[400]!,
+                                                width: 1.5,
+                                              ),
+                                            ),
+                                            child: isSelected
+                                                ? const Icon(
+                                                    Icons.check,
+                                                    color: Colors.white,
+                                                    size: 12,
+                                                  )
+                                                : null,
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Text(
+                                              item['category_name'] ?? 'Iuran',
+                                              style: GoogleFonts.plusJakartaSans(
+                                                fontSize: 13,
+                                                color: const Color(0xFF0D1B2A),
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                          Text(
+                                            _formatRupiah(item['amount']),
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.bold,
+                                              color: isSelected
+                                                  ? const Color(0xFF004E92)
+                                                  : Colors.red[700],
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                    child: isSelected
-                                        ? const Icon(
-                                            Icons.check,
-                                            color: Colors.white,
-                                            size: 14,
-                                          )
-                                        : null,
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          item['period_name'] ?? '',
-                                          style: GoogleFonts.plusJakartaSans(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 13,
-                                          ),
-                                        ),
-                                        Text(
-                                          item['category_name'] ?? '',
-                                          style: GoogleFonts.plusJakartaSans(
-                                            color: Colors.white38,
-                                            fontSize: 11,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Text(
-                                    _formatRupiah(item['amount']),
-                                    style: GoogleFonts.plusJakartaSans(
-                                      color: Colors.amber[200],
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ],
+                                  );
+                                }).toList(),
                               ),
                             ),
                           );
-                        },
+                        }).toList(),
                       ),
                     ),
                   ],
 
-                  const Divider(color: Colors.white10, height: 24),
+                  const Divider(color: Color(0xFFE5EEF5), height: 24),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
                         'Total Outstanding:',
                         style: GoogleFonts.plusJakartaSans(
-                          color: Colors.white70,
+                          color: Colors.grey[700],
                           fontSize: 14,
                         ),
                       ),
                       Text(
                         _formatRupiah(totalOutstanding),
                         style: GoogleFonts.plusJakartaSans(
-                          color: Colors.greenAccent,
+                          color: Colors.red[700],
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
                         ),
@@ -542,14 +638,14 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                         Text(
                           'Total Dipilih:',
                           style: GoogleFonts.plusJakartaSans(
-                            color: Colors.white54,
+                            color: Colors.grey[700],
                             fontSize: 13,
                           ),
                         ),
                         Text(
                           _formatRupiah(selectedTotal),
                           style: GoogleFonts.plusJakartaSans(
-                            color: Colors.white,
+                            color: const Color(0xFF004E92),
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
                           ),
@@ -558,6 +654,8 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                     ),
                   ],
                   const SizedBox(height: 24),
+                  
+                  // Tombol Aksi Bawah
                   Row(
                     children: [
                       Expanded(
@@ -567,7 +665,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                             controller.start();
                           },
                           style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Colors.white24),
+                            side: const BorderSide(color: Color(0xFFE5EEF5)),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14),
                             ),
@@ -576,7 +674,8 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                           child: Text(
                             'Batal',
                             style: GoogleFonts.plusJakartaSans(
-                              color: Colors.white,
+                              color: const Color(0xFF0D1B2A),
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
@@ -585,19 +684,20 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                       if (details.isNotEmpty)
                         Expanded(
                           child: ElevatedButton(
+                            // 🌟 KUNCI: Menggunakan variabel selectedPeriods murni sesuai deklarasi di atas
                             onPressed: selectedPeriods.isEmpty
                                 ? null
                                 : () async {
                                     Navigator.pop(context);
                                     _processDirectPayment(
                                       selectedPeriods.toList(),
-                                      data['family_id'],
+                                      familyId,
                                     );
                                   },
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primary,
-                              disabledBackgroundColor: Colors.white10,
-                              disabledForegroundColor: Colors.white38,
+                              backgroundColor: const Color(0xFF004E92),
+                              disabledBackgroundColor: Colors.grey[200],
+                              disabledForegroundColor: Colors.grey[400],
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(14),
                               ),
@@ -693,8 +793,8 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
               Navigator.pop(context);
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: AppColors.white,
+              backgroundColor: const Color(0xFF004E92),
+              foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
               ),
