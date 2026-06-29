@@ -59,7 +59,7 @@ class _WargaQrTampilScreenState extends State<WargaQrTampilScreen> {
     final family = _asMap(_profileData?['family']);
     final household = _asMap(family?['household']);
 
-    final rawFamilyId = family?['qr_code_data']?.toString() ?? family?['family_id']?.toString() ?? family?['id']?.toString();
+    final rawFamilyId = family?['family_id']?.toString() ?? family?['id']?.toString();
     final familyId = rawFamilyId?.replaceAll(RegExp(r'\s+'), '').trim();
 
     final rawHouseholdQr = household?['qr_code_data']?.toString();
@@ -264,22 +264,22 @@ class _WargaQrTampilScreenState extends State<WargaQrTampilScreen> {
                                 ),
                                 const SizedBox(height: 20),
                                 // Dynamic ID Badge
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primary.withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Text(
-                                    displayCode,
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.blue[100],
-                                      letterSpacing: 1,
-                                    ),
-                                  ),
-                                ),
+                                // Container(
+                                //   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                //   decoration: BoxDecoration(
+                                //     color: AppColors.primary.withOpacity(0.2),
+                                //     borderRadius: BorderRadius.circular(10),
+                                //   ),
+                                //   child: Text(
+                                //     displayCode,
+                                //     style: GoogleFonts.plusJakartaSans(
+                                //       fontSize: 12,
+                                //       fontWeight: FontWeight.w600,
+                                //       color: Colors.blue[100],
+                                //       letterSpacing: 1,
+                                //     ),
+                                //   ),
+                                // ),
                                 const SizedBox(height: 16),
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.center,

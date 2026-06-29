@@ -68,6 +68,7 @@ class _WargaMainScreenState extends State<WargaMainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: AppColors.background,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(80),
@@ -160,8 +161,10 @@ class _WargaMainScreenState extends State<WargaMainScreen> {
                     ],
                   ),
                   IconButton(
-                    icon:
-                        const Icon(Icons.notifications_none_rounded, size: 28),
+                    icon: const Icon(
+                      Icons.notifications_none_rounded,
+                      size: 28,
+                    ),
                     onPressed: () {
                       Navigator.push(
                         context,
@@ -177,30 +180,54 @@ class _WargaMainScreenState extends State<WargaMainScreen> {
           ),
         ),
       ),
-      body: IndexedStack(index: _currentIndex, children: _pages),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      floatingActionButton: Container(
-        height: 65,
-        width: 65,
-        margin: const EdgeInsets.only(top: 30),
-        child: FloatingActionButton(
-          onPressed: () {
-            showModalBottomSheet(
-              context: context,
-              backgroundColor: Colors.transparent,
-              builder: (context) => Container(
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                ),
-                child: SafeArea(
-                  top: false,
-                  child: SingleChildScrollView(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 96),
+            child: SafeArea(
+              child: IndexedStack(index: _currentIndex, children: _pages),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: _buildBottomNavigationBar(),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 80,
+            child: Center(child: _buildQrButton()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQrButton() {
+    return SizedBox(
+      height: 65,
+      width: 65,
+      child: FloatingActionButton(
+        onPressed: () {
+          showModalBottomSheet(
+            context: context,
+            backgroundColor: Colors.transparent,
+            builder: (context) => Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: SafeArea(
+                top: false,
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
                         Container(
                           width: 40,
                           height: 4,
@@ -289,7 +316,8 @@ class _WargaMainScreenState extends State<WargaMainScreen> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => const WargaQrTampilScreen(isFamilyQr: true),
+                                builder: (context) =>
+                                    const WargaQrTampilScreen(isFamilyQr: true),
                               ),
                             );
                           },
@@ -328,7 +356,9 @@ class _WargaMainScreenState extends State<WargaMainScreen> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => const WargaQrTampilScreen(isFamilyQr: false),
+                                builder: (context) => const WargaQrTampilScreen(
+                                  isFamilyQr: false,
+                                ),
                               ),
                             );
                           },
@@ -341,34 +371,36 @@ class _WargaMainScreenState extends State<WargaMainScreen> {
               ),
             ),
           );
-          },
-          backgroundColor: AppColors.primary,
-          elevation: 4,
-          shape: const CircleBorder(),
-          child: const Icon(
-            Icons.qr_code_scanner_rounded,
-            color: Colors.white,
-            size: 30,
-          ),
+        },
+        backgroundColor: AppColors.primary,
+        elevation: 4,
+        shape: const CircleBorder(),
+        child: const Icon(
+          Icons.qr_code_scanner_rounded,
+          color: Colors.white,
+          size: 30,
         ),
       ),
-      bottomNavigationBar: BottomAppBar(
-        color: const Color(0xFFF8FBFE),
-        elevation: 10,
-        padding: EdgeInsets.zero,
-        child: SafeArea(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            height: 60,
-            child: Row(
-              children: [
-                _buildNavItem(Icons.home_rounded, 'Home', 0),
-                _buildNavItem(Icons.receipt_long_rounded, 'Iuran', 1),
-                const SizedBox(width: 48),
-                _buildNavItem(Icons.photo_library_rounded, 'Gallery', 2),
-                _buildNavItem(Icons.shield_rounded, 'Ronda', 3),
-              ],
-            ),
+    );
+  }
+
+  Widget _buildBottomNavigationBar() {
+    return BottomAppBar(
+      color: const Color(0xFFF8FBFE),
+      elevation: 10,
+      padding: EdgeInsets.zero,
+      child: SafeArea(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          height: 60,
+          child: Row(
+            children: [
+              _buildNavItem(Icons.home_rounded, 'Home', 0),
+              _buildNavItem(Icons.receipt_long_rounded, 'Iuran', 1),
+              const SizedBox(width: 48),
+              _buildNavItem(Icons.photo_library_rounded, 'Gallery', 2),
+              _buildNavItem(Icons.shield_rounded, 'Ronda', 3),
+            ],
           ),
         ),
       ),

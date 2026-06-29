@@ -59,6 +59,7 @@ class _RTMainScreenState extends State<RTMainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: AppColors.background,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(80),
@@ -170,50 +171,74 @@ class _RTMainScreenState extends State<RTMainScreen> {
           ),
         ),
       ),
-      body: SafeArea(
-        child: IndexedStack(index: _currentIndex, children: _pages),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      floatingActionButton: Container(
-        height: 65,
-        width: 65,
-        margin: const EdgeInsets.only(top: 30),
-        child: FloatingActionButton(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const HomeQrScannerScreen(),
-              ),
-            );
-          },
-          backgroundColor: AppColors.primary,
-          elevation: 4,
-          shape: const CircleBorder(),
-          child: const Icon(
-            Icons.qr_code_scanner_rounded,
-            color: Colors.white,
-            size: 30,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 96),
+            child: SafeArea(
+              child: IndexedStack(index: _currentIndex, children: _pages),
+            ),
           ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: _buildBottomNavigationBar(),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 80,
+            child: Center(child: _buildQrButton()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQrButton() {
+    return SizedBox(
+      height: 65,
+      width: 65,
+      child: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const HomeQrScannerScreen(),
+            ),
+          );
+        },
+        backgroundColor: AppColors.primary,
+        elevation: 4,
+        shape: const CircleBorder(),
+        child: const Icon(
+          Icons.qr_code_scanner_rounded,
+          color: Colors.white,
+          size: 30,
         ),
       ),
-      bottomNavigationBar: BottomAppBar(
-        color: const Color(0xFFF8FBFE),
-        elevation: 10,
-        padding: EdgeInsets.zero,
-        child: SafeArea(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            height: 60,
-            child: Row(
-              children: [
-                _buildNavItem(Icons.home_rounded, 'HOME', 0),
-                _buildNavItem(Icons.people_alt_rounded, 'KEGIATAN', 1),
-                const SizedBox(width: 48), // Space for FAB
-                _buildNavItem(Icons.collections_bookmark_rounded, 'GALLERY', 2),
-                _buildNavItem(Icons.report_gmailerrorred_rounded, 'RONDA', 3),
-              ],
-            ),
+    );
+  }
+
+  Widget _buildBottomNavigationBar() {
+    return BottomAppBar(
+      color: const Color(0xFFF8FBFE),
+      elevation: 10,
+      padding: EdgeInsets.zero,
+      child: SafeArea(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          height: 60,
+          child: Row(
+            children: [
+              _buildNavItem(Icons.home_rounded, 'HOME', 0),
+              _buildNavItem(Icons.people_alt_rounded, 'KEGIATAN', 1),
+              const SizedBox(width: 48),
+              _buildNavItem(Icons.collections_bookmark_rounded, 'GALLERY', 2),
+              _buildNavItem(Icons.report_gmailerrorred_rounded, 'RONDA', 3),
+            ],
           ),
         ),
       ),
