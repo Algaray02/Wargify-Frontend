@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'package:wargify/core/constants/colors.dart';
 import 'package:wargify/services/api_service.dart';
 import 'package:wargify/core/constants/api_endpoints.dart';
@@ -35,9 +36,11 @@ class _AuditScreenState extends State<AuditScreen> {
         _errorMsg = null;
       });
 
-      final response = await _apiService.getMap(ApiEndpoints.treasuryAuditSummary);
+      final response = await _apiService.getMap(
+        ApiEndpoints.treasuryAuditSummary,
+      );
 
-      if (response != null && response.containsKey('summary')) {
+      if (response.containsKey('summary')) {
         if (!mounted) return;
         setState(() {
           // 🔄 Kita bypass langsung tembak ke root JSON tanpa response['data']
@@ -63,7 +66,9 @@ class _AuditScreenState extends State<AuditScreen> {
   }
 
   String _formatRupiah(Object? value) {
-    final amount = value is num ? value : num.tryParse(value?.toString() ?? '') ?? 0;
+    final amount = value is num
+        ? value
+        : num.tryParse(value?.toString() ?? '') ?? 0;
     final raw = amount.round().toString();
     final buffer = StringBuffer();
     for (var i = 0; i < raw.length; i++) {
@@ -76,33 +81,85 @@ class _AuditScreenState extends State<AuditScreen> {
     return 'Rp $buffer';
   }
 
+  String _cleanExpenseName(Object? value) {
+    final text = (value?.toString().trim().isNotEmpty ?? false)
+        ? value.toString().trim()
+        : 'Pengeluaran Kas';
+    return text
+        .replaceAll('_', ' ')
+        .split(RegExp(r'\s+'))
+        .map(
+          (word) => word.isEmpty
+              ? word
+              : '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}',
+        )
+        .join(' ');
+  }
+
+  Map<String, List<dynamic>> get _expensesByMonth {
+    final grouped = <String, List<dynamic>>{};
+    for (final expense in _expenseList) {
+      final rawDate = expense is Map ? expense['created_at'] : null;
+      final date =
+          DateTime.tryParse(rawDate?.toString() ?? '') ?? DateTime.now();
+      final label = DateFormat('MMMM yyyy', 'id_ID').format(date);
+      grouped.putIfAbsent(label, () => []).add(expense);
+    }
+    return grouped;
+  }
+
+  num _expenseTotal(List<dynamic> expenses) {
+    return expenses.fold<num>(0, (total, expense) {
+      final amount = expense is Map ? expense['amount'] : 0;
+      return total +
+          (amount is num
+              ? amount
+              : num.tryParse(amount?.toString() ?? '') ?? 0);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Scaffold(
         backgroundColor: AppColors.background,
-        body: Center(child: CircularProgressIndicator(color: Color(0xFF004E92))),
+        body: Center(
+          child: CircularProgressIndicator(color: Color(0xFF004E92)),
+        ),
       );
     }
 
     if (_errorMsg != null) {
       return Scaffold(
         backgroundColor: AppColors.background,
-        body: Center(child: Text(_errorMsg!, style: GoogleFonts.plusJakartaSans(color: Colors.red))),
+        body: Center(
+          child: Text(
+            _errorMsg!,
+            style: GoogleFonts.plusJakartaSans(color: Colors.red),
+          ),
+        ),
       );
     }
 
-    double pemasukan = double.tryParse(_summaryData['total_income']?.toString() ?? '0') ?? 0.0;
-    double pengeluaran = double.tryParse(_summaryData['total_expense']?.toString() ?? '0') ?? 0.0;
-    double saldoAkhir = double.tryParse(_summaryData['current_balance']?.toString() ?? '0') ?? 0.0;
+    double pemasukan =
+        double.tryParse(_summaryData['total_income']?.toString() ?? '0') ?? 0.0;
+    double pengeluaran =
+        double.tryParse(_summaryData['total_expense']?.toString() ?? '0') ??
+        0.0;
+    double saldoAkhir =
+        double.tryParse(_summaryData['current_balance']?.toString() ?? '0') ??
+        0.0;
 
     // Ekstrak statistik iuran bulanan
     int totalKk = int.tryParse(_iuranStats['total_kk']?.toString() ?? '0') ?? 0;
-    int sudahBayar = int.tryParse(_iuranStats['sudah_bayar_kk']?.toString() ?? '0') ?? 0;
+    int sudahBayar =
+        int.tryParse(_iuranStats['sudah_bayar_kk']?.toString() ?? '0') ?? 0;
     int belumBayar = totalKk - sudahBayar;
-    
+
     double progressPercent = totalKk > 0 ? (sudahBayar / totalKk) : 0.0;
-    double totalIuranTerkumpul = double.tryParse(_iuranStats['total_collected']?.toString() ?? '0') ?? 0.0;
+    double totalIuranTerkumpul =
+        double.tryParse(_iuranStats['total_collected']?.toString() ?? '0') ??
+        0.0;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -121,7 +178,10 @@ class _AuditScreenState extends State<AuditScreen> {
                 child: Column(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFFE3F2FD),
                         borderRadius: BorderRadius.circular(4),
@@ -148,7 +208,7 @@ class _AuditScreenState extends State<AuditScreen> {
                 ),
               ),
               const SizedBox(height: 32),
-              
+
               // Financial Summary Cards
               _buildReportCard(
                 label: 'TOTAL PEMASUKAN',
@@ -164,7 +224,7 @@ class _AuditScreenState extends State<AuditScreen> {
                 color: Colors.red[700]!,
               ),
               const SizedBox(height: 16),
-              
+
               // Saldo Akhir Card
               Container(
                 padding: const EdgeInsets.all(24),
@@ -172,7 +232,11 @@ class _AuditScreenState extends State<AuditScreen> {
                   color: const Color(0xFF004E92),
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
-                    BoxShadow(color: const Color(0xFF004E92).withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4)),
+                    BoxShadow(
+                      color: const Color(0xFF004E92).withValues(alpha: 0.3),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
                   ],
                 ),
                 child: Row(
@@ -186,7 +250,7 @@ class _AuditScreenState extends State<AuditScreen> {
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
-                            color: Colors.white.withOpacity(0.7),
+                            color: Colors.white.withValues(alpha: 0.7),
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -200,12 +264,16 @@ class _AuditScreenState extends State<AuditScreen> {
                         ),
                       ],
                     ),
-                    Icon(Icons.account_balance_wallet_rounded, color: Colors.white.withOpacity(0.3), size: 32),
+                    Icon(
+                      Icons.account_balance_wallet_rounded,
+                      color: Colors.white.withValues(alpha: 0.3),
+                      size: 32,
+                    ),
                   ],
                 ),
               ),
               const SizedBox(height: 32),
-              
+
               // Iuran Bulanan Section
               _buildSectionHeader('Iuran Bulanan'),
               Container(
@@ -220,8 +288,21 @@ class _AuditScreenState extends State<AuditScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Koleksi Iuran', style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.bold)),
-                        Text('${(progressPercent * 100).toStringAsFixed(0)}% Selesai', style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.primary, fontWeight: FontWeight.bold)),
+                        Text(
+                          'Koleksi Iuran',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          '${(progressPercent * 100).toStringAsFixed(0)}% Selesai',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13,
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -231,23 +312,45 @@ class _AuditScreenState extends State<AuditScreen> {
                         value: progressPercent,
                         minHeight: 10,
                         backgroundColor: const Color(0xFFE5EEF5),
-                        valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF004E92)),
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                          Color(0xFF004E92),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 24),
                     Row(
                       children: [
-                        Expanded(child: _buildMiniStat('Total KK', '$totalKk KK')),
+                        Expanded(
+                          child: _buildMiniStat('Total KK', '$totalKk KK'),
+                        ),
                         const SizedBox(width: 12),
-                        Expanded(child: _buildMiniStat('Sudah Bayar', '$sudahBayar KK')),
+                        Expanded(
+                          child: _buildMiniStat(
+                            'Sudah Bayar',
+                            '$sudahBayar KK',
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 12),
                     Row(
                       children: [
-                        Expanded(child: _buildMiniStat('Belum Bayar', '$belumBayar KK', valueColor: Colors.red[700])),
+                        Expanded(
+                          child: _buildMiniStat(
+                            'Belum Bayar',
+                            '$belumBayar KK',
+                            valueColor: Colors.red[700],
+                          ),
+                        ),
                         const SizedBox(width: 12),
-                        Expanded(child: _buildMiniStat('Nominal/KK', _formatRupiah(_iuranStats['tariff_per_kk'] ?? 150000))),
+                        Expanded(
+                          child: _buildMiniStat(
+                            'Nominal/KK',
+                            _formatRupiah(
+                              _iuranStats['tariff_per_kk'] ?? 150000,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 24),
@@ -256,15 +359,27 @@ class _AuditScreenState extends State<AuditScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Total Terkumpul', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold)),
-                        Text(_formatRupiah(totalIuranTerkumpul), style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w800, color: const Color(0xFF004E92))),
+                        Text(
+                          'Total Terkumpul',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          _formatRupiah(totalIuranTerkumpul),
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF004E92),
+                          ),
+                        ),
                       ],
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 32),
-              
+
               // Rincian Pengeluaran Section
               _buildSectionHeader('Rincian Pengeluaran'),
               Container(
@@ -276,23 +391,61 @@ class _AuditScreenState extends State<AuditScreen> {
                 child: Column(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                       color: const Color(0xFFF0F5F9),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('Pengeluaran', style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey[600])),
-                          Text('Nominal', style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey[600])),
+                          Text(
+                            'Pengeluaran',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          Text(
+                            'Nominal',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey[600],
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                    
-                    // Loop Dinamis List Pengeluaran dari Database
-                    ..._expenseList.map((expense) => _buildExpenseItem(
-                          expense['title'] ?? 'Pengeluaran',
-                          expense['notes'] ?? 'Keterangan',
-                          _formatRupiah(expense['amount']),
-                        )),
+
+                    if (_expensesByMonth.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(
+                          'Belum ada pengeluaran pada periode ini.',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      )
+                    else
+                      ..._expensesByMonth.entries.expand(
+                        (entry) => [
+                          _buildMonthHeader(
+                            entry.key,
+                            _formatRupiah(_expenseTotal(entry.value)),
+                          ),
+                          ...entry.value.map(
+                            (expense) => _buildExpenseItem(
+                              _cleanExpenseName(expense['title']),
+                              expense['notes'] ?? 'Keterangan',
+                              _formatRupiah(expense['amount']),
+                            ),
+                          ),
+                        ],
+                      ),
 
                     Container(
                       padding: const EdgeInsets.all(16),
@@ -300,8 +453,20 @@ class _AuditScreenState extends State<AuditScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('Total Pengeluaran', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, color: Colors.red[800])),
-                          Text(_formatRupiah(pengeluaran), style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, color: Colors.red[800])),
+                          Text(
+                            'Total Pengeluaran',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.red[800],
+                            ),
+                          ),
+                          Text(
+                            _formatRupiah(pengeluaran),
+                            style: GoogleFonts.plusJakartaSans(
+                              fontWeight: FontWeight.w800,
+                              color: Colors.red[800],
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -328,8 +493,13 @@ class _AuditScreenState extends State<AuditScreen> {
                   backgroundColor: const Color(0xFF004E92),
                   foregroundColor: Colors.white,
                   minimumSize: const Size(double.infinity, 56),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  textStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  textStyle: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
                   elevation: 0,
                 ),
               ),
@@ -341,7 +511,12 @@ class _AuditScreenState extends State<AuditScreen> {
     );
   }
 
-  Widget _buildReportCard({required String label, required String value, required IconData icon, required Color color}) {
+  Widget _buildReportCard({
+    required String label,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -357,12 +532,20 @@ class _AuditScreenState extends State<AuditScreen> {
             children: [
               Text(
                 label,
-                style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey[500]),
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[500],
+                ),
               ),
               const SizedBox(height: 8),
               Text(
                 value,
-                style: GoogleFonts.plusJakartaSans(fontSize: 22, fontWeight: FontWeight.w800, color: const Color(0xFF0D1B2A)),
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFF0D1B2A),
+                ),
               ),
             ],
           ),
@@ -377,7 +560,11 @@ class _AuditScreenState extends State<AuditScreen> {
       padding: const EdgeInsets.only(bottom: 16),
       child: Text(
         title,
-        style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w800, color: const Color(0xFF0D1B2A)),
+        style: GoogleFonts.plusJakartaSans(
+          fontSize: 18,
+          fontWeight: FontWeight.w800,
+          color: const Color(0xFF0D1B2A),
+        ),
       ),
     );
   }
@@ -392,9 +579,22 @@ class _AuditScreenState extends State<AuditScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 10, color: Colors.grey[600])),
+          Text(
+            label,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 10,
+              color: Colors.grey[600],
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(value, style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.bold, color: valueColor ?? const Color(0xFF004E92))),
+          Text(
+            value,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: valueColor ?? const Color(0xFF004E92),
+            ),
+          ),
         ],
       ),
     );
@@ -410,12 +610,58 @@ class _AuditScreenState extends State<AuditScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.bold)),
-                Text(subtitle, style: GoogleFonts.plusJakartaSans(fontSize: 10, color: Colors.grey[500])),
+                Text(
+                  title,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 10,
+                    color: Colors.grey[500],
+                  ),
+                ),
               ],
             ),
           ),
-          Text(amount, style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600)),
+          Text(
+            amount,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMonthHeader(String month, String total) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: const Color(0xFFEAF2F8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            month,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: const Color(0xFF004E92),
+            ),
+          ),
+          Text(
+            total,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              color: Colors.red[800],
+            ),
+          ),
         ],
       ),
     );

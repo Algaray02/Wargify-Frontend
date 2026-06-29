@@ -333,7 +333,7 @@ class _BendaharaHomePageState extends State<BendaharaHomePage> {
                       side: BorderSide(color: AppColors.primary.withOpacity(0.5)),
                     ),
                     child: Text(
-                      'Tampilkan QR Iuran',
+                      'Tampilkan Iuran',
                       style: GoogleFonts.plusJakartaSans(
                         fontWeight: FontWeight.bold, 
                         color: (_activePeriod == null || _activePeriod!.isEmpty) ? Colors.grey : AppColors.primary

@@ -289,7 +289,7 @@ class _KegiatanScreenState extends State<KegiatanScreen> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                  border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
                 ),
                 child: QrImageView(
                   key: ValueKey(qrData),
@@ -410,7 +410,7 @@ class _KegiatanScreenState extends State<KegiatanScreen> {
           Text(
             'AGENDA WARGA',
             style: GoogleFonts.plusJakartaSans(
-              color: Colors.white.withOpacity(0.72),
+              color: Colors.white.withValues(alpha: 0.72),
               fontWeight: FontWeight.w900,
               fontSize: 10,
               letterSpacing: 0.8,
@@ -444,9 +444,9 @@ class _KegiatanScreenState extends State<KegiatanScreen> {
         margin: const EdgeInsets.only(right: 8),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.12),
+          color: Colors.white.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withOpacity(0.14)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -463,7 +463,7 @@ class _KegiatanScreenState extends State<KegiatanScreen> {
               label,
               overflow: TextOverflow.ellipsis,
               style: GoogleFonts.plusJakartaSans(
-                color: Colors.white.withOpacity(0.78),
+                color: Colors.white.withValues(alpha: 0.78),
                 fontWeight: FontWeight.w600,
                 fontSize: 10,
               ),
@@ -626,6 +626,260 @@ class _KegiatanScreenState extends State<KegiatanScreen> {
     );
   }
 
+  Future<void> _showActivityDetail(ActivityItem activity) async {
+    try {
+      final detail = await _apiService.getMap(
+        '${ApiEndpoints.activities}/${activity.id}',
+      );
+      if (!mounted) return;
+      await _showActivityDetailSheet(detail);
+    } catch (_) {
+      if (!mounted) return;
+      _showSnack('Gagal memuat detail kegiatan.', isError: true);
+    }
+  }
+
+  Future<void> _showActivityDetailSheet(Map<String, dynamic> detail) {
+    final participants = detail['participants'] is List
+        ? detail['participants'] as List
+        : const [];
+    final presentIds = participants
+        .whereType<Map>()
+        .map((row) => row['user_id']?.toString())
+        .whereType<String>()
+        .toSet();
+    final invited = <Map<String, dynamic>>[];
+
+    for (final group
+        in (detail['target_groups'] as List? ?? const []).whereType<Map>()) {
+      for (final member
+          in (group['members'] as List? ?? const []).whereType<Map>()) {
+        final data = Map<String, dynamic>.from(member);
+        if (!invited.any(
+          (item) => item['user_id']?.toString() == data['user_id']?.toString(),
+        )) {
+          invited.add(data);
+        }
+      }
+    }
+
+    for (final user
+        in (detail['invited_users'] as List? ?? const []).whereType<Map>()) {
+      final data = Map<String, dynamic>.from(user);
+      if (!invited.any(
+        (item) => item['user_id']?.toString() == data['user_id']?.toString(),
+      )) {
+        invited.add(data);
+      }
+    }
+
+    final rows = invited.isEmpty
+        ? participants
+              .whereType<Map>()
+              .map((row) => Map<String, dynamic>.from(row))
+              .toList()
+        : invited;
+
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.78,
+        minChildSize: 0.45,
+        maxChildSize: 0.92,
+        builder: (context, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: AppColors.background,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: ListView(
+            controller: scrollController,
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+            children: [
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [AppColors.primary, Color(0xFF0B63B6)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      detail['title']?.toString() ?? 'Kegiatan',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      detail['description']?.toString() ?? '-',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        color: Colors.white.withValues(alpha: 0.82),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        _detailSummary('Undangan', rows.length.toString()),
+                        const SizedBox(width: 10),
+                        _detailSummary('Hadir', presentIds.length.toString()),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                invited.isEmpty ? 'Warga yang Sudah Hadir' : 'Daftar Anggota',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: const Color(0xFF0D1B2A),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (rows.isEmpty)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Text(
+                    'Belum ada anggota/peserta.',
+                    style: GoogleFonts.plusJakartaSans(color: Colors.grey[600]),
+                  ),
+                )
+              else
+                ...rows.map((user) {
+                  final present = presentIds.contains(
+                    user['user_id']?.toString(),
+                  );
+                  return _participantRow(user, present, invited.isEmpty);
+                }),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _detailSummary(String label, String value) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              value,
+              style: GoogleFonts.plusJakartaSans(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                color: Colors.white.withValues(alpha: 0.74),
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _participantRow(
+    Map<String, dynamic> user,
+    bool present,
+    bool presentOnly,
+  ) {
+    final name = user['full_name']?.toString() ?? 'Warga';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE9F1F8)),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: AppColors.primary,
+            child: Text(
+              name.isNotEmpty ? name[0].toUpperCase() : 'W',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Text(
+                  user['phone_number']?.toString() ??
+                      user['role']?.toString() ??
+                      '-',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _buildBadge(
+            present || presentOnly ? 'Hadir' : 'Belum hadir',
+            present || presentOnly
+                ? AppColors.success
+                : const Color(0xFF6B7280),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildActivityCard(ActivityItem activity) {
     final dayFormatter = DateFormat('dd');
     final monthFormatter = DateFormat('MMM');
@@ -651,7 +905,7 @@ class _KegiatanScreenState extends State<KegiatanScreen> {
         border: Border.all(color: const Color(0xFFE9F1F8)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.015),
+            color: Colors.black.withValues(alpha: 0.015),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -757,6 +1011,28 @@ class _KegiatanScreenState extends State<KegiatanScreen> {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
+                  onPressed: () => _showActivityDetail(activity),
+                  icon: const Icon(Icons.visibility_outlined, size: 18),
+                  label: Text(
+                    'Detail',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    side: BorderSide(
+                      color: AppColors.primary.withValues(alpha: 0.25),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
                   onPressed: typeIsMeeting && activity.status == 'ANNOUNCED'
                       ? () => _showQrDialog(activity)
                       : null,
@@ -770,7 +1046,7 @@ class _KegiatanScreenState extends State<KegiatanScreen> {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.primary,
                     side: BorderSide(
-                      color: AppColors.primary.withOpacity(0.25),
+                      color: AppColors.primary.withValues(alpha: 0.25),
                     ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -832,7 +1108,7 @@ class _KegiatanScreenState extends State<KegiatanScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(

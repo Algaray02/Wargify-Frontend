@@ -4,10 +4,10 @@ import '../../../core/constants/colors.dart';
 import '../../../services/auth/auth_service.dart';
 import '../../../models/user_model.dart';
 import 'package:wargify/screens/auth/login_screen.dart';
-import 'package:wargify/screens/common/qr/qr_scanner_screen.dart';
 import 'kegiatan/kegiatan_screen.dart';
 import 'gallery/gallery_screen.dart';
 import 'home/home_screen.dart';
+import 'home/home_qr_scanner_screen.dart';
 import 'ronda/ronda_screen.dart';
 import 'package:wargify/screens/profile/profile_screen.dart';
 import 'package:wargify/screens/common/notifikasi/notifikasi_log_screen.dart';
@@ -151,7 +151,10 @@ class _RTMainScreenState extends State<RTMainScreen> {
                     ],
                   ),
                   IconButton(
-                    icon: const Icon(Icons.notifications_none_rounded, size: 28),
+                    icon: const Icon(
+                      Icons.notifications_none_rounded,
+                      size: 28,
+                    ),
                     onPressed: () {
                       Navigator.push(
                         context,
@@ -179,7 +182,9 @@ class _RTMainScreenState extends State<RTMainScreen> {
           onPressed: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => const QrScannerScreen()),
+              MaterialPageRoute(
+                builder: (context) => const HomeQrScannerScreen(),
+              ),
             );
           },
           backgroundColor: AppColors.primary,

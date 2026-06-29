@@ -15,9 +15,10 @@ class _ActivityScreenState extends State<ActivityScreen> {
   final ApiService _apiService = ApiService();
 
   String _selectedStatus = 'Semua';
+  String _searchQuery = '';
+  String _dateFilterMode = '';
   bool _isLoading = true;
-  String _errorMessage = '';
-  
+
   List<Map<String, dynamic>> _activities = [];
   String _totalBulanan = 'Rp 0';
 
@@ -27,20 +28,133 @@ class _ActivityScreenState extends State<ActivityScreen> {
   bool _isDateFiltered = false;
 
   final List<String> _months = [
-    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    'Januari',
+    'Februari',
+    'Maret',
+    'April',
+    'Mei',
+    'Juni',
+    'Juli',
+    'Agustus',
+    'September',
+    'Oktober',
+    'November',
+    'Desember',
   ];
 
   String _formatNumber(dynamic value) {
     if (value == null) return '0';
-    String cleanStr = value.toString().split('.')[0]; 
+    String cleanStr = value.toString().split('.')[0];
     int? numValue = int.tryParse(cleanStr);
     if (numValue == null) return value.toString();
-    
+
     RegExp reg = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
-    return numValue.toString().replaceAllMapped(reg, (Match match) => '${match[1]}.');
+    return numValue.toString().replaceAllMapped(
+      reg,
+      (Match match) => '${match[1]}.',
+    );
   }
-  
+
+  bool _sameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  String _cleanText(dynamic value) {
+    return (value?.toString() ?? '').replaceAll('_', ' ').trim();
+  }
+
+  String _logTitle(Map<String, dynamic> item) {
+    final source = _cleanText(item['source']);
+    return source.isEmpty ? 'IURAN' : source;
+  }
+
+  String _logDescription(Map<String, dynamic> item) {
+    final description = _cleanText(item['description']);
+    return description.isEmpty ? 'Catatan kas warga' : description;
+  }
+
+  bool _isExpenseLog(Map<String, dynamic> item) {
+    return item['type']?.toString().toUpperCase() == 'EXPENSE';
+  }
+
+  String _logStatus(Map<String, dynamic> item) {
+    return _isExpenseLog(item) ? 'Keluar' : 'Lunas';
+  }
+
+  DateTime? _logDate(Map<String, dynamic> item) {
+    final raw = (item['created_at'] ?? item['date'] ?? item['updated_at'])
+        ?.toString()
+        .trim();
+    if (raw == null || raw.isEmpty) return null;
+
+    final parsed = DateTime.tryParse(raw);
+    if (parsed != null) return parsed.toLocal();
+
+    final parts = raw.split(RegExp(r'[-/]'));
+    if (parts.length >= 3) {
+      final first = int.tryParse(parts[0]);
+      final second = int.tryParse(parts[1]);
+      final third = int.tryParse(parts[2].split(' ').first);
+      if (first != null && second != null && third != null) {
+        return first > 31
+            ? DateTime(first, second, third)
+            : DateTime(third, second, first);
+      }
+    }
+
+    return null;
+  }
+
+  String _logDateText(Map<String, dynamic> item) {
+    final date = _logDate(item);
+    if (date == null) return _cleanText(item['created_at']);
+    return '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+
+  bool _matchesDateFilter(Map<String, dynamic> item) {
+    if (!_isDateFiltered) return true;
+
+    final date = _logDate(item);
+    if (date == null) return false;
+
+    final now = DateTime.now();
+    if (_dateFilterMode == 'week') {
+      final start = DateTime(
+        now.year,
+        now.month,
+        now.day,
+      ).subtract(Duration(days: now.weekday - 1));
+      final end = start.add(const Duration(days: 7));
+      return !date.isBefore(start) && date.isBefore(end);
+    }
+
+    if (_dateFilterMode == 'month') {
+      return date.year == now.year && date.month == now.month;
+    }
+
+    if (_dateFilterMode == 'year') {
+      return date.year == now.year;
+    }
+
+    return _sameDay(date, DateTime(_year, _month, _day));
+  }
+
+  bool _matchesSearch(Map<String, dynamic> item) {
+    final query = _searchQuery.trim().toLowerCase();
+    if (query.isEmpty) return true;
+
+    final searchable = [
+      _logTitle(item),
+      _logDescription(item),
+      _logStatus(item),
+      _formatNumber(item['amount']),
+      _logDateText(item),
+      item['recorder'] is Map ? item['recorder']['full_name'] : null,
+    ].whereType<Object>().join(' ').toLowerCase();
+
+    return searchable.contains(query);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -50,23 +164,21 @@ class _ActivityScreenState extends State<ActivityScreen> {
   Future<void> _fetchDataAktivitas() async {
     setState(() {
       _isLoading = true;
-      _errorMessage = '';
     });
-    
+
     try {
       final summary = await _apiService.getMap(ApiEndpoints.treasurySummary);
       final logs = await _apiService.getList(ApiEndpoints.treasuryLogs);
-      
+
       setState(() {
         _activities = List<Map<String, dynamic>>.from(logs);
-        
+
         final balance = summary['current_balance'] ?? '0';
         _totalBulanan = 'Rp ${_formatNumber(balance)}';
         _isLoading = false;
       });
     } catch (e) {
       setState(() {
-        _errorMessage = "Gagal memuat data dari server";
         _isLoading = false;
       });
     }
@@ -156,10 +268,26 @@ class _ActivityScreenState extends State<ActivityScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                _buildDatePresetItem('Minggu Ini', Icons.calendar_view_week_rounded),
-                _buildDatePresetItem('Bulan Ini', Icons.calendar_view_month_rounded),
-                _buildDatePresetItem('Tahun Ini', Icons.calendar_today_rounded),
-                _buildDatePresetItem('Custom Tanggal', Icons.edit_calendar_rounded, isCustom: true),
+                _buildDatePresetItem(
+                  'Minggu Ini',
+                  Icons.calendar_view_week_rounded,
+                  mode: 'week',
+                ),
+                _buildDatePresetItem(
+                  'Bulan Ini',
+                  Icons.calendar_view_month_rounded,
+                  mode: 'month',
+                ),
+                _buildDatePresetItem(
+                  'Tahun Ini',
+                  Icons.calendar_today_rounded,
+                  mode: 'year',
+                ),
+                _buildDatePresetItem(
+                  'Custom Tanggal',
+                  Icons.edit_calendar_rounded,
+                  isCustom: true,
+                ),
                 const SizedBox(height: 20),
               ],
             ),
@@ -169,7 +297,12 @@ class _ActivityScreenState extends State<ActivityScreen> {
     );
   }
 
-  Widget _buildDatePresetItem(String label, IconData icon, {bool isCustom = false}) {
+  Widget _buildDatePresetItem(
+    String label,
+    IconData icon, {
+    bool isCustom = false,
+    String mode = '',
+  }) {
     return InkWell(
       onTap: () {
         Navigator.pop(context);
@@ -178,6 +311,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
         } else {
           setState(() {
             _isDateFiltered = true;
+            _dateFilterMode = mode;
           });
         }
       },
@@ -248,7 +382,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
                       ],
                     ),
                     const SizedBox(height: 24),
-                    
+
                     Row(
                       children: [
                         Expanded(
@@ -257,11 +391,15 @@ class _ActivityScreenState extends State<ActivityScreen> {
                             label: 'Tanggal',
                             value: _day.toString().padLeft(2, '0'),
                             onTap: () => _showWheelPicker(
-                              context, 
+                              context,
                               title: 'Pilih Tanggal',
-                              items: List.generate(31, (i) => (i + 1).toString().padLeft(2, '0')),
+                              items: List.generate(
+                                31,
+                                (i) => (i + 1).toString().padLeft(2, '0'),
+                              ),
                               initialIndex: _day - 1,
-                              onChanged: (val) => setModalState(() => _day = val + 1),
+                              onChanged: (val) =>
+                                  setModalState(() => _day = val + 1),
                             ),
                           ),
                         ),
@@ -276,7 +414,8 @@ class _ActivityScreenState extends State<ActivityScreen> {
                               title: 'Pilih Bulan',
                               items: _months,
                               initialIndex: _month - 1,
-                              onChanged: (val) => setModalState(() => _month = val + 1),
+                              onChanged: (val) =>
+                                  setModalState(() => _month = val + 1),
                             ),
                           ),
                         ),
@@ -289,17 +428,21 @@ class _ActivityScreenState extends State<ActivityScreen> {
                             onTap: () => _showWheelPicker(
                               context,
                               title: 'Pilih Tahun',
-                              items: List.generate(11, (i) => (2020 + i).toString()),
+                              items: List.generate(
+                                11,
+                                (i) => (2020 + i).toString(),
+                              ),
                               initialIndex: _year - 2020,
-                              onChanged: (val) => setModalState(() => _year = 2020 + val),
+                              onChanged: (val) =>
+                                  setModalState(() => _year = 2020 + val),
                             ),
                           ),
                         ),
                       ],
                     ),
-                    
+
                     const SizedBox(height: 32),
-                    
+
                     Row(
                       children: [
                         Expanded(
@@ -307,6 +450,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
                             onPressed: () {
                               setState(() {
                                 _isDateFiltered = false;
+                                _dateFilterMode = '';
                                 _day = DateTime.now().day;
                                 _month = DateTime.now().month;
                                 _year = DateTime.now().year;
@@ -315,7 +459,9 @@ class _ActivityScreenState extends State<ActivityScreen> {
                             },
                             style: OutlinedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
                               side: const BorderSide(color: Color(0xFFE5EEF5)),
                             ),
                             child: Text(
@@ -332,13 +478,18 @@ class _ActivityScreenState extends State<ActivityScreen> {
                           flex: 2,
                           child: ElevatedButton(
                             onPressed: () {
-                              setState(() => _isDateFiltered = true);
+                              setState(() {
+                                _isDateFiltered = true;
+                                _dateFilterMode = 'custom';
+                              });
                               Navigator.pop(context);
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.primary,
                               padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
                               elevation: 0,
                             ),
                             child: Text(
@@ -357,13 +508,17 @@ class _ActivityScreenState extends State<ActivityScreen> {
                 ),
               ),
             );
-          }
+          },
         );
       },
     );
   }
 
-  Widget _buildPickerCard({required String label, required String value, required VoidCallback onTap}) {
+  Widget _buildPickerCard({
+    required String label,
+    required String value,
+    required VoidCallback onTap,
+  }) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
@@ -401,7 +556,11 @@ class _ActivityScreenState extends State<ActivityScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Colors.grey),
+                const Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  size: 18,
+                  color: Colors.grey,
+                ),
               ],
             ),
           ],
@@ -410,7 +569,8 @@ class _ActivityScreenState extends State<ActivityScreen> {
     );
   }
 
-  void _showWheelPicker(BuildContext context, {
+  void _showWheelPicker(
+    BuildContext context, {
     required String title,
     required List<String> items,
     required int initialIndex,
@@ -440,7 +600,9 @@ class _ActivityScreenState extends State<ActivityScreen> {
                   itemExtent: 40,
                   physics: const FixedExtentScrollPhysics(),
                   onSelectedItemChanged: onChanged,
-                  controller: FixedExtentScrollController(initialItem: initialIndex),
+                  controller: FixedExtentScrollController(
+                    initialItem: initialIndex,
+                  ),
                   childDelegate: ListWheelChildBuilderDelegate(
                     childCount: items.length,
                     builder: (context, index) {
@@ -464,9 +626,14 @@ class _ActivityScreenState extends State<ActivityScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   minimumSize: const Size(double.infinity, 50),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
-                child: const Text('Pilih', style: TextStyle(color: Colors.white)),
+                child: const Text(
+                  'Pilih',
+                  style: TextStyle(color: Colors.white),
+                ),
               ),
             ],
           ),
@@ -477,22 +644,29 @@ class _ActivityScreenState extends State<ActivityScreen> {
 
   @override
   Widget build(BuildContext context) {
-    String dateDisplay = _isDateFiltered ? '$_day ${_months[_month-1].substring(0,3)} $_year' : 'Date';
+    String dateDisplay = !_isDateFiltered
+        ? 'Date'
+        : _dateFilterMode == 'week'
+        ? 'Minggu Ini'
+        : _dateFilterMode == 'month'
+        ? 'Bulan Ini'
+        : _dateFilterMode == 'year'
+        ? 'Tahun Ini'
+        : '$_day ${_months[_month - 1].substring(0, 3)} $_year';
 
     List<Map<String, dynamic>> filteredActivities = _activities.where((item) {
-      final bool isExpense = item['type'] == 'EXPENSE';
-      String itemStatus = isExpense ? 'Keluar' : 'Lunas';
+      final itemStatus = _logStatus(item);
 
       if (_selectedStatus == 'Lunas' && itemStatus != 'Lunas') return false;
       if (_selectedStatus == 'Keluar' && itemStatus != 'Keluar') return false;
-      
-      return true;
+
+      return _matchesDateFilter(item) && _matchesSearch(item);
     }).toList();
 
     return RefreshIndicator(
       onRefresh: _fetchDataAktivitas,
       child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(), 
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -531,7 +705,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
                       Expanded(
                         child: _buildHeaderStat(
                           label: 'TOTAL BULANAN',
-                          value: _totalBulanan, 
+                          value: _totalBulanan,
                           color: AppColors.primary,
                           isPrimary: true,
                         ),
@@ -550,7 +724,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            
+
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -574,8 +748,10 @@ class _ActivityScreenState extends State<ActivityScreen> {
                     children: [
                       Expanded(
                         child: _buildFilterButton(
-                          Icons.tune_rounded, 
-                          _selectedStatus == 'Semua' ? 'Status' : _selectedStatus,
+                          Icons.tune_rounded,
+                          _selectedStatus == 'Semua'
+                              ? 'Status'
+                              : _selectedStatus,
                           onTap: _showStatusFilter,
                           isActive: _selectedStatus != 'Semua',
                         ),
@@ -583,7 +759,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: _buildFilterButton(
-                          Icons.calendar_month_outlined, 
+                          Icons.calendar_month_outlined,
                           dateDisplay,
                           onTap: _showDateFilter,
                           isActive: _isDateFiltered,
@@ -595,7 +771,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            
+
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
@@ -604,16 +780,23 @@ class _ActivityScreenState extends State<ActivityScreen> {
                 border: Border.all(color: const Color(0xFFE5EEF5)),
               ),
               child: TextField(
+                onChanged: (value) => setState(() => _searchQuery = value),
                 decoration: InputDecoration(
                   hintText: 'Search records...',
-                  hintStyle: GoogleFonts.plusJakartaSans(color: Colors.grey[400], fontSize: 14),
-                  prefixIcon: const Icon(Icons.search_rounded, color: Colors.grey),
+                  hintStyle: GoogleFonts.plusJakartaSans(
+                    color: Colors.grey[400],
+                    fontSize: 14,
+                  ),
+                  prefixIcon: const Icon(
+                    Icons.search_rounded,
+                    color: Colors.grey,
+                  ),
                   border: InputBorder.none,
                 ),
               ),
             ),
             const SizedBox(height: 24),
-            
+
             Container(
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -623,10 +806,15 @@ class _ActivityScreenState extends State<ActivityScreen> {
               child: Column(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 16,
+                    ),
                     decoration: const BoxDecoration(
                       color: Color(0xFFF8FBFE),
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(24),
+                      ),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -658,61 +846,66 @@ class _ActivityScreenState extends State<ActivityScreen> {
                           child: Center(child: CircularProgressIndicator()),
                         )
                       : filteredActivities.isEmpty
-                          ? Padding(
-                              padding: const EdgeInsets.all(32.0),
-                              child: Center(
-                                child: Text(
-                                  'Belum ada riwayat aktivitas.',
-                                  style: GoogleFonts.plusJakartaSans(color: Colors.grey),
-                                ),
+                      ? Padding(
+                          padding: const EdgeInsets.all(32.0),
+                          child: Center(
+                            child: Text(
+                              'Belum ada riwayat aktivitas.',
+                              style: GoogleFonts.plusJakartaSans(
+                                color: Colors.grey,
                               ),
-                            )
-                          : Column(
-                              children: [
-                                ...List.generate(filteredActivities.length, (index) {
-                                  final item = filteredActivities[index];
-                                  
-                                  final String rawSource = item['source'] ?? 'IURAN';
-                                  final String title = rawSource.replaceAll('_', ' '); 
-                                  final String category = item['description'] ?? 'Catatan kas warga';
-                                  
-                                  final String rawDate = item['created_at'] ?? '';
-                                  final String date = rawDate.length > 10 ? rawDate.substring(0, 10) : rawDate;
-                                  
-                                  final bool isExpense = item['type'] == 'EXPENSE';
-                                  final String amount = '${isExpense ? '-' : ''}Rp ${_formatNumber(item['amount'])}';
-                                  
-                                  String itemStatusText = isExpense ? 'Keluar' : 'Lunas';
-
-                                  return Column(
-                                    children: [
-                                      _buildLedgerItem(
-                                        title, 
-                                        category, 
-                                        date, 
-                                        amount, 
-                                        itemStatusText == 'Lunas', 
-                                        isExpense: isExpense
-                                      ),
-                                      if (index < filteredActivities.length - 1) _buildDivider(),
-                                    ],
-                                  );
-                                }),
-                              ],
                             ),
-                  
+                          ),
+                        )
+                      : Column(
+                          children: [
+                            ...List.generate(filteredActivities.length, (
+                              index,
+                            ) {
+                              final item = filteredActivities[index];
+
+                              final title = _logTitle(item);
+                              final category = _logDescription(item);
+                              final date = _logDateText(item);
+                              final isExpense = _isExpenseLog(item);
+                              final String amount =
+                                  '${isExpense ? '-' : ''}Rp ${_formatNumber(item['amount'])}';
+
+                              return Column(
+                                children: [
+                                  _buildLedgerItem(
+                                    title,
+                                    category,
+                                    date,
+                                    amount,
+                                    !isExpense,
+                                    isExpense: isExpense,
+                                  ),
+                                  if (index < filteredActivities.length - 1)
+                                    _buildDivider(),
+                                ],
+                              );
+                            }),
+                          ],
+                        ),
+
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: const BoxDecoration(
                       color: Color(0xFFF8FBFE),
-                      borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
+                      borderRadius: BorderRadius.vertical(
+                        bottom: Radius.circular(24),
+                      ),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
                           'Show records',
-                          style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.grey[600]),
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            color: Colors.grey[600],
+                          ),
                         ),
                         Row(
                           children: [
@@ -734,7 +927,12 @@ class _ActivityScreenState extends State<ActivityScreen> {
     );
   }
 
-  Widget _buildHeaderStat({required String label, required String value, required Color color, bool isPrimary = false}) {
+  Widget _buildHeaderStat({
+    required String label,
+    required String value,
+    required Color color,
+    bool isPrimary = false,
+  }) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -749,7 +947,9 @@ class _ActivityScreenState extends State<ActivityScreen> {
             style: GoogleFonts.plusJakartaSans(
               fontSize: 9,
               fontWeight: FontWeight.bold,
-              color: isPrimary ? Colors.white.withOpacity(0.7) : Colors.grey[600],
+              color: isPrimary
+                  ? Colors.white.withValues(alpha: 0.7)
+                  : Colors.grey[600],
               letterSpacing: 1.1,
             ),
           ),
@@ -767,28 +967,41 @@ class _ActivityScreenState extends State<ActivityScreen> {
     );
   }
 
-  Widget _buildFilterButton(IconData icon, String label, {VoidCallback? onTap, bool isActive = false}) {
+  Widget _buildFilterButton(
+    IconData icon,
+    String label, {
+    VoidCallback? onTap,
+    bool isActive = false,
+  }) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: isActive ? AppColors.primary.withOpacity(0.05) : Colors.white,
+          color: isActive
+              ? AppColors.primary.withValues(alpha: 0.05)
+              : Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: isActive ? AppColors.primary : const Color(0xFFE5EEF5)),
+          border: Border.all(
+            color: isActive ? AppColors.primary : const Color(0xFFE5EEF5),
+          ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 18, color: isActive ? AppColors.primary : Colors.grey[600]),
+            Icon(
+              icon,
+              size: 18,
+              color: isActive ? AppColors.primary : Colors.grey[600],
+            ),
             const SizedBox(width: 8),
             Text(
               label,
               style: GoogleFonts.plusJakartaSans(
-                fontSize: 14, 
-                fontWeight: FontWeight.w600, 
-                color: isActive ? AppColors.primary : const Color(0xFF0D1B2A)
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: isActive ? AppColors.primary : const Color(0xFF0D1B2A),
               ),
             ),
           ],
@@ -797,7 +1010,14 @@ class _ActivityScreenState extends State<ActivityScreen> {
     );
   }
 
-  Widget _buildLedgerItem(String title, String category, String date, String amount, bool isLunas, {bool isExpense = false}) {
+  Widget _buildLedgerItem(
+    String title,
+    String category,
+    String date,
+    String amount,
+    bool isLunas, {
+    bool isExpense = false,
+  }) {
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Row(
@@ -806,7 +1026,9 @@ class _ActivityScreenState extends State<ActivityScreen> {
             width: 45,
             height: 45,
             decoration: BoxDecoration(
-              color: isExpense ? const Color(0xFFE8F0F7) : const Color(0xFFE3F2FD),
+              color: isExpense
+                  ? const Color(0xFFE8F0F7)
+                  : const Color(0xFFE3F2FD),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Center(
@@ -822,9 +1044,28 @@ class _ActivityScreenState extends State<ActivityScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 14, color: const Color(0xFF0D1B2A))),
-                Text(category, style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.grey[600])),
-                Text(date, style: GoogleFonts.plusJakartaSans(fontSize: 10, color: Colors.grey[400])),
+                Text(
+                  title,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: const Color(0xFF0D1B2A),
+                  ),
+                ),
+                Text(
+                  category,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                Text(
+                  date,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 10,
+                    color: Colors.grey[400],
+                  ),
+                ),
               ],
             ),
           ),
@@ -836,14 +1077,18 @@ class _ActivityScreenState extends State<ActivityScreen> {
                 style: GoogleFonts.plusJakartaSans(
                   fontWeight: FontWeight.w800,
                   fontSize: 14,
-                  color: isExpense ? const Color(0xFFD32F2F) : const Color(0xFF0D1B2A),
+                  color: isExpense
+                      ? const Color(0xFFD32F2F)
+                      : const Color(0xFF0D1B2A),
                 ),
               ),
               const SizedBox(height: 4),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: isLunas ? const Color(0xFFE8F5E9) : const Color(0xFFFFEBEE),
+                  color: isLunas
+                      ? const Color(0xFFE8F5E9)
+                      : const Color(0xFFFFEBEE),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
@@ -863,7 +1108,13 @@ class _ActivityScreenState extends State<ActivityScreen> {
   }
 
   Widget _buildDivider() {
-    return Divider(height: 1, thickness: 1, color: const Color(0xFFE5EEF5).withOpacity(0.5), indent: 20, endIndent: 20);
+    return Divider(
+      height: 1,
+      thickness: 1,
+      color: const Color(0xFFE5EEF5).withValues(alpha: 0.5),
+      indent: 20,
+      endIndent: 20,
+    );
   }
 
   Widget _buildPageNavButton(IconData icon) {
