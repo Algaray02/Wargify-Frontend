@@ -8,7 +8,8 @@ import 'package:wargify/services/api_service.dart';
 import 'package:wargify/models/user_model.dart';
 
 class WargaQrTampilScreen extends StatefulWidget {
-  const WargaQrTampilScreen({super.key});
+  final bool isFamilyQr;
+  const WargaQrTampilScreen({super.key, this.isFamilyQr = true});
 
   @override
   State<WargaQrTampilScreen> createState() => _WargaQrTampilScreenState();
@@ -19,10 +20,12 @@ class _WargaQrTampilScreenState extends State<WargaQrTampilScreen> {
   final _apiService = ApiService();
   UserModel? _currentUser;
   Map<String, dynamic>? _profileData;
+  late bool _isFamilyQr;
 
   @override
   void initState() {
     super.initState();
+    _isFamilyQr = widget.isFamilyQr;
     _fetchUser();
   }
 
@@ -56,12 +59,42 @@ class _WargaQrTampilScreenState extends State<WargaQrTampilScreen> {
     final family = _asMap(_profileData?['family']);
     final household = _asMap(family?['household']);
 
-    final rawFamilyId = family?['family_id']?.toString() ?? family?['id']?.toString();
+    final rawFamilyId = family?['qr_code_data']?.toString() ?? family?['family_id']?.toString() ?? family?['id']?.toString();
     final familyId = rawFamilyId?.replaceAll(RegExp(r'\s+'), '').trim();
 
-    final displayCode = (familyId != null && familyId.isNotEmpty)
-        ? familyId
-        : 'QR-FAMILY-BELUM-TERSEDIA';
+    final rawHouseholdQr = household?['qr_code_data']?.toString();
+    final householdQr = rawHouseholdQr?.replaceAll(RegExp(r'\s+'), '').trim();
+
+    final String displayCode;
+    final bool hasCode;
+    final String badgeLabel;
+    final String cardTitle;
+    final String description;
+    final String bottomDescription;
+
+    if (_isFamilyQr) {
+      displayCode = (familyId != null && familyId.isNotEmpty) ? familyId : 'QR-FAMILY-BELUM-TERSEDIA';
+      hasCode = familyId != null && familyId.isNotEmpty;
+      badgeLabel = 'QR FAMILY';
+      cardTitle = 'QR Family';
+      description = hasCode
+          ? 'Tunjukkan QR ini ke pengurus RT untuk konfirmasi iuran bulanan'
+          : 'Family belum terhubung, QR family belum tersedia';
+      bottomDescription = hasCode
+          ? 'QR ini digunakan untuk verifikasi family dan iuran'
+          : 'Lengkapi data family agar QR bisa digunakan';
+    } else {
+      displayCode = (householdQr != null && householdQr.isNotEmpty) ? householdQr : 'QR-RUMAH-BELUM-TERSEDIA';
+      hasCode = householdQr != null && householdQr.isNotEmpty;
+      badgeLabel = 'QR RUMAH';
+      cardTitle = 'QR Rumah';
+      description = hasCode
+          ? 'Tunjukkan QR ini ke petugas/RT untuk konfirmasi data hunian'
+          : 'Data hunian belum terhubung, QR rumah belum tersedia';
+      bottomDescription = hasCode
+          ? 'QR ini digunakan untuk verifikasi data rumah/tempat tinggal'
+          : 'Lengkapi data hunian agar QR bisa digunakan';
+    }
 
     final blockNumber = household?['block_number']?.toString();
     final houseNumber = household?['house_number']?.toString();
@@ -69,7 +102,6 @@ class _WargaQrTampilScreenState extends State<WargaQrTampilScreen> {
       if (blockNumber != null && blockNumber.isNotEmpty) 'Blok $blockNumber',
       if (houseNumber != null && houseNumber.isNotEmpty) 'No. $houseNumber',
     ].join(' / ');
-    final hasFamilyQr = familyId != null && familyId.isNotEmpty;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -135,6 +167,7 @@ class _WargaQrTampilScreenState extends State<WargaQrTampilScreen> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
+
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                             decoration: BoxDecoration(
@@ -148,7 +181,7 @@ class _WargaQrTampilScreenState extends State<WargaQrTampilScreen> {
                                 const Icon(Icons.qr_code_2, size: 18, color: Colors.blue),
                                 const SizedBox(width: 8),
                                 Text(
-                                  'QR FAMILY',
+                                  badgeLabel,
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
@@ -160,7 +193,7 @@ class _WargaQrTampilScreenState extends State<WargaQrTampilScreen> {
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            'QR Family',
+                            cardTitle,
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 26,
                               fontWeight: FontWeight.w800,
@@ -169,9 +202,7 @@ class _WargaQrTampilScreenState extends State<WargaQrTampilScreen> {
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            hasFamilyQr
-                                ? 'Tunjukkan QR ini ke pengurus RT untuk konfirmasi iuran bulanan'
-                                : 'Family belum terhubung, QR family belum tersedia',
+                            description,
                             textAlign: TextAlign.center,
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 13,
@@ -257,9 +288,7 @@ class _WargaQrTampilScreenState extends State<WargaQrTampilScreen> {
                                     const SizedBox(width: 6),
                                     Expanded(
                                       child: Text(
-                                        hasFamilyQr
-                                            ? 'QR ini digunakan untuk verifikasi family dan iuran'
-                                            : 'Lengkapi data family agar QR bisa digunakan',
+                                        bottomDescription,
                                         textAlign: Navigator.canPop(context) ? TextAlign.start : TextAlign.center,
                                         style: GoogleFonts.plusJakartaSans(
                                           fontSize: 11,
