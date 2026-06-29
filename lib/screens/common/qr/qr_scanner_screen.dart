@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:dio/dio.dart';
+import '../../../core/utils/app_error.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -538,16 +538,9 @@ Future<void> _handleScannedCode(String? code) async {
 
     if (!mounted) return;
     await _showScanResultDialog(result);
-  } on DioException catch (e) {
-    final message = e.response?.data is Map
-        ? (e.response?.data['message']?.toString() ?? 'QR gagal diproses.')
-        : 'QR gagal diproses.';
-
+  } catch (e) {
     if (!mounted) return;
-    await _showScanErrorDialog(message);
-  } catch (_) {
-    if (!mounted) return;
-    await _showScanErrorDialog('Terjadi kesalahan saat memproses QR.');
+    await _showScanErrorDialog(AppError.userFriendly(e));
   } finally {
     if (mounted) {
       setState(() => _isProcessingScan = false);

@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:wargify/core/constants/api_endpoints.dart';
 import 'package:wargify/services/api_service.dart';
 import 'package:dio/dio.dart';
+import '../../../core/utils/app_error.dart';
 
 class AddExpenseScreen extends StatefulWidget {
   const AddExpenseScreen({super.key});
@@ -130,14 +131,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (e) {
       if (!mounted) return;
-      String errorMessage = e.toString();
-      if (e is DioException && e.response != null) {
-        errorMessage =
-            "Eror ${e.response?.statusCode}: ${e.response?.data['message'] ?? e.response?.data.toString()}";
-      }
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Gagal menyimpan: $errorMessage')));
+      ).showSnackBar(SnackBar(content: Text('Gagal menyimpan: ${AppError.userFriendly(e)}')));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }

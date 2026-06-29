@@ -1,4 +1,4 @@
-import 'package:dio/dio.dart';
+import '../../../core/utils/app_error.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -49,17 +49,9 @@ class _HomeQrScannerScreenState extends State<HomeQrScannerScreen> {
       } else {
         await _showHouseholdDetail(household);
       }
-    } on DioException catch (error) {
-      final message = error.response?.data is Map
-          ? error.response?.data['message']?.toString() ??
-                'Gagal memuat data rumah.'
-          : 'Gagal memuat data rumah.';
+    } catch (error) {
       if (mounted) {
-        await _showError(message);
-      }
-    } catch (_) {
-      if (mounted) {
-        await _showError('Terjadi kesalahan saat memproses QR rumah.');
+        await _showError(AppError.userFriendly(error));
       }
     } finally {
       if (mounted) setState(() => _isProcessing = false);

@@ -8,7 +8,7 @@ import '../../../../widgets/bendahara/payment/manual_payment_sheet.dart';
 import '../contribution/add_contribution_screen.dart';
 import '../financial/add_income_screen.dart';
 import '../financial/add_expense_screen.dart';
-import 'package:dio/dio.dart';
+import '../../../../core/utils/app_error.dart';
 import '../../../../core/constants/api_endpoints.dart';
 
 class BendaharaHomePage extends StatefulWidget {
@@ -73,11 +73,7 @@ class _BendaharaHomePageState extends State<BendaharaHomePage> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        if (e is DioException && e.response != null) {
-          _errorMessage = "Error ${e.response?.statusCode}: ${e.response?.data['message'] ?? e.response?.data.toString()}";
-        } else {
-          _errorMessage = e.toString();
-        }
+        _errorMessage = 'Gagal memuat data keuangan: ${AppError.userFriendly(e)}';
         _isLoading = false;
       });
     }

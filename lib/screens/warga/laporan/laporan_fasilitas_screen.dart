@@ -62,7 +62,7 @@ class _LaporanFasilitasScreenState extends State<LaporanFasilitasScreen> {
         });
       }
       // Logging untuk debugging
-      debugPrint('Error fetching reports: $e');
+      // error fetching reports
     }
   }
 

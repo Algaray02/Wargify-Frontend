@@ -48,7 +48,7 @@ class _AttendanceScannerScreenState extends State<AttendanceScannerScreen> {
             onDetect: (capture) {
               final List<Barcode> barcodes = capture.barcodes;
               for (final barcode in barcodes) {
-                debugPrint('Barcode found! ${barcode.rawValue}');
+                // barcode detected
                 _handleScannedCode(barcode.rawValue);
               }
             },

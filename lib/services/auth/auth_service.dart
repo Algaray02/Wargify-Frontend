@@ -38,19 +38,10 @@ class AuthService {
     } on DioException catch (e) {
       if (e.response != null) {
         throw Exception(
-          e.response?.data['message'] ??
-              'Server error (${e.response?.statusCode})',
+          e.response?.data['message'] ?? 'ID Warga atau Password salah.',
         );
       } else {
-        String message = 'Koneksi gagal';
-        if (e.type == DioExceptionType.connectionTimeout) {
-          message = 'Koneksi timeout';
-        }
-        if (e.type == DioExceptionType.connectionError) {
-          message = 'Server tidak ditemukan/tidak aktif';
-        }
-        // Tambahkan detail error untuk debugging
-        throw Exception('$message: ${e.error ?? e.message ?? e.type}');
+        throw Exception('Koneksi ke server gagal. Pastikan jaringan aktif.');
       }
     }
   }

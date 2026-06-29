@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import '../../../core/utils/app_error.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -92,7 +93,7 @@ class _AddGalleryScreenState extends State<AddGalleryScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _isLoadingActivities = false);
-      _showSnack('Gagal memuat daftar kegiatan: $error', isError: true);
+      _showSnack('Gagal memuat daftar kegiatan: ${AppError.userFriendly(error)}', isError: true);
     }
   }
 
@@ -129,7 +130,7 @@ class _AddGalleryScreenState extends State<AddGalleryScreen> {
     } catch (error) {
       if (!mounted) return;
       _showSnack(
-        'Gagal menyimpan galeri: ${_errorMessage(error)}',
+        'Gagal menyimpan galeri: ${AppError.userFriendly(error)}',
         isError: true,
       );
     } finally {
@@ -152,31 +153,6 @@ class _AddGalleryScreenState extends State<AddGalleryScreen> {
       '${ApiEndpoints.galleries}/$galleryId/images',
       formData,
     );
-  }
-
-  String _errorMessage(Object error) {
-    if (error is DioException) {
-      final data = error.response?.data;
-      if (data is Map) {
-        final errors = data['errors'];
-        if (errors is Map) {
-          final messages = errors.values
-              .whereType<List>()
-              .expand((items) => items)
-              .map((item) => item.toString())
-              .where((message) => message.isNotEmpty)
-              .toList();
-          if (messages.isNotEmpty) return messages.join('\n');
-        }
-
-        final message = data['message']?.toString();
-        if (message != null && message.isNotEmpty) return message;
-      }
-
-      return 'Server menolak foto yang dipilih.';
-    }
-
-    return error.toString();
   }
 
   void _showSnack(String message, {bool isError = false}) {

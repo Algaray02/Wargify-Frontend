@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:dio/dio.dart';
+import '../../../../core/utils/app_error.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:wargify/core/constants/api_endpoints.dart';
@@ -284,16 +284,9 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       }
 
       await _showArrearsBottomSheet(dataToPass);
-    } on DioException catch (e) {
-      final message = e.response?.data is Map
-          ? (e.response?.data['message']?.toString() ??
-                'QR tidak valid atau gagal memeriksa tunggakan.')
-          : 'QR tidak valid atau gagal memeriksa tunggakan.';
-      if (!mounted) return;
-      await _showScanErrorDialog(message);
     } catch (e) {
       if (!mounted) return;
-      await _showScanErrorDialog('Terjadi kesalahan memproses data keluarga.');
+      await _showScanErrorDialog(AppError.userFriendly(e));
     } finally {
       if (mounted) setState(() => _isProcessingScan = false);
     }

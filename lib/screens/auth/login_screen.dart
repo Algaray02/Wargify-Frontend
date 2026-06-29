@@ -45,7 +45,9 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+          SnackBar(content: Text(e is Exception
+              ? e.toString().replaceAll('Exception: ', '')
+              : 'Login gagal. Periksa koneksi Anda.')),
         );
       }
     } finally {

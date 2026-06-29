@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:wargify/core/constants/api_endpoints.dart';
 import 'package:wargify/core/constants/colors.dart';
 import 'package:wargify/services/api_service.dart';
+import '../../../core/utils/app_error.dart';
 
 class WargaSosScreen extends StatefulWidget {
   const WargaSosScreen({super.key});
@@ -84,7 +85,9 @@ class _WargaSosScreenState extends State<WargaSosScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _locationError = error.toString().replaceFirst('Exception: ', '');
+        _locationError = error is Exception
+            ? error.toString().replaceFirst('Exception: ', '')
+            : 'Gagal mendapatkan lokasi GPS.';
         _isLoadingLocation = false;
       });
     }
@@ -185,7 +188,7 @@ class _WargaSosScreenState extends State<WargaSosScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Gagal mengirim SOS: $error',
+          content: Text('Gagal mengirim SOS: ${AppError.userFriendly(error)}',
               style: GoogleFonts.plusJakartaSans()),
           backgroundColor: AppColors.danger,
         ),

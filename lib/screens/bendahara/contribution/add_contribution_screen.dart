@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:wargify/core/constants/colors.dart';
 import 'package:wargify/services/api_service.dart';
 import 'package:wargify/core/constants/api_endpoints.dart';
-import 'package:dio/dio.dart';
+import '../../../core/utils/app_error.dart';
 
 class AddContributionScreen extends StatefulWidget {
   const AddContributionScreen({super.key});
@@ -109,14 +109,9 @@ class _AddContributionScreenState extends State<AddContributionScreen> {
 
     } catch (e) {
       if (!mounted) return;
-      String pesanEror = e.toString();
-      if (e is DioException && e.response != null) {
-        pesanEror = "Eror ${e.response?.statusCode}: ${e.response?.data['message'] ?? e.response?.data.toString()}";
-      }
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Gagal menyimpan iuran: $pesanEror'),
+          content: Text('Gagal menyimpan iuran: ${AppError.userFriendly(e)}'),
           duration: const Duration(seconds: 5),
         ),
       );

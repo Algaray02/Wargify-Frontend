@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:wargify/core/constants/colors.dart';
 import 'package:wargify/services/api_service.dart';
 import 'package:wargify/core/constants/api_endpoints.dart';
-import 'package:dio/dio.dart';
+import '../../../core/utils/app_error.dart';
 
 class WargaQrScanScreen extends StatefulWidget {
   const WargaQrScanScreen({super.key});
@@ -309,13 +309,9 @@ class _WargaQrScanScreenState extends State<WargaQrScanScreen> with SingleTicker
       final result = await _apiService.post(ApiEndpoints.qrScan, {'code': scanned});
       if (!mounted) return;
       await _showScanResultDialog(result);
-    } on DioException catch (e) {
-      final message = e.response?.data is Map ? (e.response?.data['message']?.toString() ?? 'QR gagal diproses.') : 'QR gagal diproses.';
+    } catch (e) {
       if (!mounted) return;
-      await _showScanErrorDialog(message);
-    } catch (_) {
-      if (!mounted) return;
-      await _showScanErrorDialog('Terjadi kesalahan saat memproses QR.');
+      await _showScanErrorDialog(AppError.userFriendly(e));
     } finally {
       if (mounted) setState(() => _isProcessingScan = false);
     }

@@ -13,6 +13,7 @@ import 'package:wargify/core/constants/colors.dart';
 import 'package:wargify/models/user_model.dart';
 import 'package:wargify/services/api_service.dart';
 import 'package:wargify/services/auth/auth_service.dart';
+import '../../../core/utils/app_error.dart';
 import 'package:wargify/widgets/common/ronda/ronda_timer_card.dart';
 import 'package:wargify/widgets/common/ronda/ronda_persiapan_card.dart';
 import 'package:wargify/widgets/common/ronda/jadwal_ronda_card.dart';
@@ -127,7 +128,7 @@ class _RondaScreenState extends State<RondaScreen> {
         setState(() => _currentUser = user);
       }
     } catch (e) {
-      debugPrint('Error loading current user: $e');
+      // error loading user
     }
   }
 
@@ -889,15 +890,12 @@ class _RondaScreenState extends State<RondaScreen> {
               'status': 'COMPLETED',
             },
           );
-        } on DioException catch (e) {
-          final message = e.response?.data is Map
-              ? (e.response?.data['message']?.toString() ?? 'Gagal memperbarui status di server.')
-              : 'Gagal memperbarui status di server.';
+        } catch (e) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  'Error: $message',
+                  'Error: ${AppError.userFriendly(e)}',
                   style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
                 ),
                 backgroundColor: AppColors.danger,
@@ -908,7 +906,7 @@ class _RondaScreenState extends State<RondaScreen> {
               ),
             );
           }
-        } catch (_) {}
+        }
       }
       await _uploadRondaLog();
     }
