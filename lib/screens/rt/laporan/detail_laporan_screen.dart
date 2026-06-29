@@ -1,3 +1,4 @@
+import 'package:wargify/core/utils/app_error.dart';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -131,7 +132,7 @@ class _DetailLaporanScreenState extends State<DetailLaporanScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _isSaving = false);
-      _showSnack('Gagal memperbarui laporan: $error', isError: true);
+      _showSnack('Gagal memperbarui laporan: ${AppError.userFriendly(error)}', isError: true);
     }
   }
 

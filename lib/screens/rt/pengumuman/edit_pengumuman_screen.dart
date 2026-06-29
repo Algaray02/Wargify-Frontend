@@ -1,3 +1,4 @@
+import 'package:wargify/core/utils/app_error.dart';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -136,7 +137,7 @@ class _EditPengumumanScreenState extends State<EditPengumumanScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Gagal memperbarui draf: $error',
+            'Gagal memperbarui draf: ${AppError.userFriendly(error)}',
             style: GoogleFonts.plusJakartaSans(),
           ),
           backgroundColor: AppColors.danger,

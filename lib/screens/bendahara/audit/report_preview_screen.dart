@@ -1,6 +1,7 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import '../../../core/utils/app_error.dart';
 import 'package:flutter/rendering.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -116,7 +117,7 @@ class _ReportPreviewScreenState extends State<ReportPreviewScreen> {
     } catch (error) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal mengunduh laporan: $error')),
+        SnackBar(content: Text('Gagal mengunduh laporan: ${AppError.userFriendly(error)}')),
       );
     }
   }

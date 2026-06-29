@@ -198,7 +198,7 @@ class _WargaMainScreenState extends State<WargaMainScreen> {
           Positioned(
             left: 0,
             right: 0,
-            bottom: 80,
+            bottom: 50,
             child: Center(child: _buildQrButton()),
           ),
         ],

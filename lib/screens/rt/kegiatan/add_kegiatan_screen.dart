@@ -1,3 +1,4 @@
+import 'package:wargify/core/utils/app_error.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -170,7 +171,7 @@ class _AddKegiatanScreenState extends State<AddKegiatanScreen> {
       if (!mounted) return;
       setState(() => _isLoadingOptions = false);
       _showSnack(
-        'Gagal memuat kelompok, warga, atau rumah: $error',
+        'Gagal memuat kelompok, warga, atau rumah: ${AppError.userFriendly(error)}',
         isError: true,
       );
     }
@@ -258,7 +259,7 @@ class _AddKegiatanScreenState extends State<AddKegiatanScreen> {
       Navigator.pop(context, true);
     } catch (error) {
       if (!mounted) return;
-      _showSnack('Gagal menjadwalkan kegiatan: $error', isError: true);
+      _showSnack('Gagal menjadwalkan kegiatan: ${AppError.userFriendly(error)}', isError: true);
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }

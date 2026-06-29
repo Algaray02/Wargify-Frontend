@@ -368,7 +368,7 @@ class _RondaScreenState extends State<RondaScreen> {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _errorMessage = 'Gagal memuat jadwal ronda.\n${e.toString()}';
+        _errorMessage = 'Gagal memuat jadwal ronda.\n${AppError.userFriendly(e)}';
       });
     }
   }
@@ -427,7 +427,7 @@ class _RondaScreenState extends State<RondaScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Gagal presensi: ${e.toString()}',
+            'Gagal presensi: ${AppError.userFriendly(e)}',
             style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
           ),
           backgroundColor: AppColors.danger,
@@ -580,7 +580,7 @@ class _RondaScreenState extends State<RondaScreen> {
       }
       debugPrint('Sending live ronda location');
     } catch (e) {
-      debugPrint('Failed to send live ronda location: $e');
+      debugPrint('Failed to send live ronda location: ${AppError.userFriendly(e)}');
     } finally {
       _isSendingLiveLocation = false;
     }
@@ -765,7 +765,7 @@ class _RondaScreenState extends State<RondaScreen> {
     } catch (e) {
       if (!mounted) return;
       _showSnackBar(
-        'Gagal mencatat checkpoint: ${e.toString()}',
+        'Gagal mencatat checkpoint: ${AppError.userFriendly(e)}',
         backgroundColor: AppColors.danger,
       );
     }

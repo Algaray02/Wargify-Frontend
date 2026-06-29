@@ -1,3 +1,4 @@
+import 'package:wargify/core/utils/app_error.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:wargify/core/constants/colors.dart';
@@ -196,7 +197,7 @@ class _PengumumanScreenState extends State<PengumumanScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Gagal menerbitkan pengumuman: $error',
+            'Gagal menerbitkan pengumuman: ${AppError.userFriendly(error)}',
             style: GoogleFonts.plusJakartaSans(),
           ),
           backgroundColor: AppColors.danger,
@@ -259,7 +260,7 @@ class _PengumumanScreenState extends State<PengumumanScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Gagal menghapus draf: $error',
+            'Gagal menghapus draf: ${AppError.userFriendly(error)}',
             style: GoogleFonts.plusJakartaSans(),
           ),
           backgroundColor: AppColors.danger,

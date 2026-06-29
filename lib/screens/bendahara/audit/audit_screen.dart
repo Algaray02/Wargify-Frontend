@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:wargify/core/constants/colors.dart';
 import 'package:wargify/services/api_service.dart';
+import '../../../core/utils/app_error.dart';
 import 'package:wargify/core/constants/api_endpoints.dart';
 import 'report_preview_screen.dart';
 
@@ -59,7 +60,7 @@ class _AuditScreenState extends State<AuditScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMsg = "Koneksi bermasalah: $e";
+        _errorMsg = "Gagal: ${AppError.userFriendly(e)}";
         _isLoading = false;
       });
     }

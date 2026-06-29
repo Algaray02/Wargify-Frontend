@@ -1,3 +1,4 @@
+import 'package:wargify/core/utils/app_error.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -201,7 +202,7 @@ class _KegiatanScreenState extends State<KegiatanScreen> {
       _showSnack(successMessage);
     } catch (error) {
       if (!mounted) return;
-      _showSnack('Gagal memproses kegiatan: $error', isError: true);
+      _showSnack('Gagal memproses kegiatan: ${AppError.userFriendly(error)}', isError: true);
     } finally {
       if (mounted) setState(() => _isMutating = false);
     }

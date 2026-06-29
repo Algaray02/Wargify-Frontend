@@ -1,3 +1,4 @@
+import 'package:wargify/core/utils/app_error.dart';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -143,7 +144,7 @@ class _AddPengumumanScreenState extends State<AddPengumumanScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Gagal membuat pengumuman: $error',
+            'Gagal membuat pengumuman: ${AppError.userFriendly(error)}',
             style: GoogleFonts.plusJakartaSans(),
           ),
           backgroundColor: AppColors.danger,

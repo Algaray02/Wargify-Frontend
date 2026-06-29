@@ -1,3 +1,4 @@
+import 'package:wargify/core/utils/app_error.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -88,7 +89,7 @@ class _EditRondaScreenState extends State<EditRondaScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      _showSnack('Gagal memuat data ronda: $error', true);
+      _showSnack('Gagal memuat data ronda: ${AppError.userFriendly(error)}', true);
     }
   }
 
@@ -219,7 +220,7 @@ class _EditRondaScreenState extends State<EditRondaScreen> {
       });
       if (mounted) Navigator.pop(context, true);
     } catch (error) {
-      if (mounted) _showSnack('Gagal menyimpan perubahan: $error', true);
+      if (mounted) _showSnack('Gagal menyimpan perubahan: ${AppError.userFriendly(error)}', true);
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }

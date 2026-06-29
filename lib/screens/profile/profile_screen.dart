@@ -246,8 +246,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _infoRow(Icons.home_outlined, 'Rumah', _houseLabel),
             _infoRow(
               Icons.qr_code_2_rounded,
-              'QR Family',
-              _family?['qr_code_data']?.toString() ?? '-',
+              'QR Rumah',
+              _household?['qr_code_data']?.toString() ?? '-',
             ),
           ]),
           const SizedBox(height: 24),
@@ -342,7 +342,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               _buildBadge(
                 Icons.verified,
-                'DATA BACKEND',
+                'DATA TERVERIFIKASI',
                 const Color(0xFFC1F3AF),
                 const Color(0xFF2A6B2C),
               ),

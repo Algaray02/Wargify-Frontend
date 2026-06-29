@@ -1,3 +1,4 @@
+import 'package:wargify/core/utils/app_error.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -75,7 +76,7 @@ class _SosTriggerScreenState extends State<SosTriggerScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _locationError = error.toString().replaceFirst('Exception: ', '');
+        _locationError = AppError.userFriendly(error);
         _isLoadingLocation = false;
       });
     }
@@ -152,7 +153,7 @@ class _SosTriggerScreenState extends State<SosTriggerScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Gagal mengirim SOS: $error',
+            'Gagal mengirim SOS: ${AppError.userFriendly(error)}',
             style: GoogleFonts.plusJakartaSans(),
           ),
           backgroundColor: AppColors.danger,

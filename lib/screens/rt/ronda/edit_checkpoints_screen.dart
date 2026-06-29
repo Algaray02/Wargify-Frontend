@@ -1,3 +1,4 @@
+import 'package:wargify/core/utils/app_error.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:wargify/core/constants/api_endpoints.dart';
@@ -89,7 +90,7 @@ class _EditCheckpointsScreenState extends State<EditCheckpointsScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      _showSnack('Gagal memuat checkpoint: $error', Colors.red);
+      _showSnack('Gagal memuat checkpoint: ${AppError.userFriendly(error)}', Colors.red);
     }
   }
 
@@ -511,7 +512,7 @@ class _EditCheckpointsScreenState extends State<EditCheckpointsScreen> {
                             if (context.mounted) Navigator.pop(context);
                           } catch (error) {
                             _showSnack(
-                              'Gagal menyimpan checkpoint: $error',
+                              'Gagal menyimpan checkpoint: ${AppError.userFriendly(error)}',
                               Colors.red,
                             );
                           }

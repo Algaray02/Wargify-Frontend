@@ -1,3 +1,4 @@
+import 'package:wargify/core/utils/app_error.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -56,7 +57,7 @@ class _SosDashboardScreenState extends State<SosDashboardScreen> {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _errorMessage = 'Gagal mengambil data SOS: $error';
+          _errorMessage = 'Gagal mengambil data SOS: ${AppError.userFriendly(error)}';
         });
       }
     }
@@ -94,7 +95,7 @@ class _SosDashboardScreenState extends State<SosDashboardScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Gagal resolve SOS: $error',
+            'Gagal resolve SOS: ${AppError.userFriendly(error)}',
             style: GoogleFonts.plusJakartaSans(),
           ),
           backgroundColor: AppColors.danger,
@@ -165,10 +166,7 @@ class _SosDashboardScreenState extends State<SosDashboardScreen> {
           });
     } catch (error) {
       if (!mounted) return;
-      _rtLocationErrorNotifier.value = error.toString().replaceFirst(
-        'Exception: ',
-        '',
-      );
+      _rtLocationErrorNotifier.value = AppError.userFriendly(error);
     }
   }
 

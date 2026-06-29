@@ -51,8 +51,7 @@ class _BendaharaMainScreenState extends State<BendaharaMainScreen> {
   Future<void> _handleLogout() async {
     try {
       await AppNotificationService().initialize(registerToken: false);
-    } catch (e) {
-      debugPrint("Gagal mencabut token FCM di server: $e");
+    } catch (_) {
     }
 
     await _authService.logout();
@@ -192,7 +191,7 @@ class _BendaharaMainScreenState extends State<BendaharaMainScreen> {
           Positioned(
             left: 0,
             right: 0,
-            bottom: 80,
+            bottom: 50,
             child: Center(child: _buildQrButton()),
           ),
         ],

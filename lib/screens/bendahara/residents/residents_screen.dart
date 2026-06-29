@@ -1,3 +1,4 @@
+import 'package:wargify/core/utils/app_error.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:wargify/core/constants/colors.dart';
@@ -56,7 +57,7 @@ class _ResidentsScreenState extends State<ResidentsScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMsg = "Gagal memuat data warga: $e";
+        _errorMsg = "Gagal memuat data warga: ${AppError.userFriendly(e)}";
         _isLoading = false;
       });
     }
