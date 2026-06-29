@@ -83,6 +83,7 @@ class KegiatanListScreen extends StatelessWidget {
               ),
             )
           : ListView.separated(
+              physics: const ClampingScrollPhysics(),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               itemCount: activities.length,
               separatorBuilder: (_, __) => const SizedBox(height: 10),

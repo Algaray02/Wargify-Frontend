@@ -693,8 +693,106 @@ class _AddFacilityReportSheetState extends State<_AddFacilityReportSheet> {
   }
 
   Future<void> _pickImage() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Pilih Sumber Foto',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      color: const Color(0xFF0D1B2A),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  InkWell(
+                    onTap: () => Navigator.pop(ctx, ImageSource.camera),
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF4F8FC),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFE9F1F8)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.camera_alt_outlined,
+                            color: AppColors.primary,
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Ambil Foto dari Kamera',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF0D1B2A),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  InkWell(
+                    onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF4F8FC),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFE9F1F8)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.image_outlined, color: AppColors.primary),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Pilih dari Galeri',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF0D1B2A),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    if (source == null) return;
+
     final image = await widget.imagePicker.pickImage(
-      source: ImageSource.gallery,
+      source: source,
       imageQuality: 82,
       maxWidth: 1600,
     );
@@ -747,81 +845,82 @@ class _AddFacilityReportSheetState extends State<_AddFacilityReportSheet> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (ctx) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Pilih Kategori',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                  color: const Color(0xFF0D1B2A),
-                ),
-              ),
-              const SizedBox(height: 16),
-              ..._categoryValues.map((value) {
-                final active = value == _selectedCategory;
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: InkWell(
-                    onTap: () {
-                      setState(() => _selectedCategory = value);
-                      Navigator.pop(ctx);
-                    },
-                    borderRadius: BorderRadius.circular(14),
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
-                      decoration: BoxDecoration(
-                        color: active
-                            ? AppColors.primary.withValues(alpha: 0.08)
-                            : const Color(0xFFF4F8FC),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: active
-                              ? AppColors.primary
-                              : const Color(0xFFE9F1F8),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            _categoryIconFromValue(value),
-                            color: active
-                                ? AppColors.primary
-                                : Colors.grey[600],
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            value,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: active
-                                  ? AppColors.primary
-                                  : const Color(0xFF0D1B2A),
-                            ),
-                          ),
-                          const Spacer(),
-                          if (active)
-                            const Icon(
-                              Icons.check_circle_rounded,
-                              color: AppColors.primary,
-                              size: 22,
-                            ),
-                        ],
-                      ),
+        return SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Pilih Kategori',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      color: const Color(0xFF0D1B2A),
                     ),
                   ),
-                );
-              }),
-            ],
+                  const SizedBox(height: 16),
+                  ..._categoryValues.map((value) {
+                    final active = value == _selectedCategory;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: InkWell(
+                        onTap: () {
+                          setState(() => _selectedCategory = value);
+                          Navigator.pop(ctx);
+                        },
+                        borderRadius: BorderRadius.circular(14),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                          decoration: BoxDecoration(
+                            color: active
+                                ? AppColors.primary.withOpacity(0.08)
+                                : const Color(0xFFF4F8FC),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: active ? AppColors.primary : const Color(0xFFE9F1F8),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                _categoryIconFromValue(value),
+                                color: active ? AppColors.primary : Colors.grey[600],
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                value,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: active
+                                      ? AppColors.primary
+                                      : const Color(0xFF0D1B2A),
+                                ),
+                              ),
+                              const Spacer(),
+                              if (active)
+                                const Icon(
+                                  Icons.check_circle_rounded,
+                                  color: AppColors.primary,
+                                  size: 22,
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
           ),
         );
       },
@@ -880,80 +979,83 @@ class _AddFacilityReportSheetState extends State<_AddFacilityReportSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 24,
-        right: 24,
-        top: 24,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Tambah Laporan',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
-                color: const Color(0xFF0D1B2A),
-              ),
-            ),
-            const SizedBox(height: 18),
-            _textField(_titleController, 'Judul Laporan'),
-            const SizedBox(height: 12),
-            _buildCategoryPicker(),
-            const SizedBox(height: 12),
-            _textField(_descriptionController, 'Deskripsi', maxLines: 4),
-            const SizedBox(height: 14),
-            InkWell(
-              onTap: _pickImage,
-              borderRadius: BorderRadius.circular(14),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF4F8FC),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFD7E8FF)),
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 24,
+          right: 24,
+          top: 24,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Tambah Laporan',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  color: const Color(0xFF0D1B2A),
                 ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.image_outlined, color: AppColors.primary),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        _image?.name ?? 'Upload Foto Fasilitas',
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontWeight: FontWeight.w800,
-                          color: const Color(0xFF0D1B2A),
+              ),
+              const SizedBox(height: 18),
+              _textField(_titleController, 'Judul Laporan'),
+              const SizedBox(height: 12),
+              _buildCategoryPicker(),
+              const SizedBox(height: 12),
+              _textField(_descriptionController, 'Deskripsi', maxLines: 4),
+              const SizedBox(height: 14),
+              InkWell(
+                onTap: _pickImage,
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF4F8FC),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFD7E8FF)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.image_outlined, color: AppColors.primary),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          _image?.name ?? 'Upload Foto Fasilitas',
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF0D1B2A),
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _isSaving ? null : _submit,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    ],
                   ),
                 ),
-                child: Text(_isSaving ? 'Mengirim...' : 'Kirim Laporan'),
               ),
-            ),
-          ],
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _isSaving ? null : _submit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: Text(_isSaving ? 'Mengirim...' : 'Kirim Laporan'),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

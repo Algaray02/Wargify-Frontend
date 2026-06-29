@@ -6,6 +6,7 @@ import 'package:wargify/core/constants/colors.dart';
 import 'package:wargify/models/user_model.dart';
 import 'package:wargify/screens/warga/gallery/gallery_screen.dart';
 import 'package:wargify/screens/warga/kegiatan/kegiatan_detail_screen.dart';
+import 'package:wargify/screens/warga/kegiatan/kegiatan_list_screen.dart';
 import 'package:wargify/screens/warga/laporan/laporan_fasilitas_screen.dart';
 import 'package:wargify/screens/warga/sos/sos_screen.dart';
 import 'package:wargify/services/api_service.dart';
@@ -47,6 +48,7 @@ class _WargaHomePageState extends State<WargaHomePage> {
 
   // --- Dari GET /activities ---
   List<Map<String, dynamic>> _upcomingEvents = [];
+  List<Map<String, dynamic>> _allActivities = [];
 
   // --- Dari GET /galleries ---
   List<Map<String, dynamic>> _galleryAlbums = [];
@@ -131,11 +133,27 @@ class _WargaHomePageState extends State<WargaHomePage> {
           _totalTagihan = 'Rp 0';
         }
 
+        // ── All Activities ──
+        final allActivitiesList = activityRows
+            .map((e) => Map<String, dynamic>.from(e))
+            .where((act) =>
+                act['status']?.toString() == 'ANNOUNCED' ||
+                act['status']?.toString() == 'COMPLETED')
+            .toList();
+        allActivitiesList.sort((a, b) {
+          final aDate = DateTime.tryParse(a['activity_date']?.toString() ?? '');
+          final bDate = DateTime.tryParse(b['activity_date']?.toString() ?? '');
+          if (aDate == null && bDate == null) return 0;
+          if (aDate == null) return 1;
+          if (bDate == null) return -1;
+          return bDate.compareTo(aDate);
+        });
+
         // ── Upcoming Events ──
         final now = DateTime.now();
         final upcoming = <Map<String, dynamic>>[];
 
-        for (final act in activityRows.map((e) => Map<String, dynamic>.from(e))) {
+        for (final act in allActivitiesList) {
           final status = act['status']?.toString() ?? '';
           final dateStr = act['activity_date']?.toString();
           final date = dateStr != null ? DateTime.tryParse(dateStr) : null;
@@ -152,6 +170,7 @@ class _WargaHomePageState extends State<WargaHomePage> {
         });
 
         _upcomingEvents = upcoming;
+        _allActivities = allActivitiesList;
 
         // ── Galeri ──
         _galleryAlbums = galleryRaw is List
@@ -185,7 +204,7 @@ class _WargaHomePageState extends State<WargaHomePage> {
       onRefresh: _fetchDashboardData,
       color: AppColors.primary,
       child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
+        physics: const AlwaysScrollableScrollPhysics(parent: ClampingScrollPhysics()),
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -468,7 +487,45 @@ class _WargaHomePageState extends State<WargaHomePage> {
               ),
             const SizedBox(height: 24),
 
-            // --- Upcoming Events ---
+            // --- Upcoming Events Header ---
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Kegiatan Mendatang',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                InkWell(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => KegiatanListScreen(
+                          activities: _allActivities,
+                        ),
+                      ),
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Text(
+                      'Lihat Semua',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
             ..._upcomingEvents.map(
               (event) => Padding(
                 padding: const EdgeInsets.only(bottom: 16),
