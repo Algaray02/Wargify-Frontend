@@ -5,7 +5,7 @@ import '../../../core/constants/colors.dart';
 class RondaPersiapanCard extends StatelessWidget {
   final bool sudahScan;
   final VoidCallback onScanTap;
-  final VoidCallback onMulaiTap;
+  final VoidCallback? onMulaiTap;
   final bool isUserMember;
   final bool isUserCoordinator;
   final bool isOngoing;
@@ -14,7 +14,7 @@ class RondaPersiapanCard extends StatelessWidget {
     super.key,
     required this.sudahScan,
     required this.onScanTap,
-    required this.onMulaiTap,
+    this.onMulaiTap,
     this.isUserMember = false,
     this.isUserCoordinator = false,
     this.isOngoing = false,
@@ -51,133 +51,133 @@ class RondaPersiapanCard extends StatelessWidget {
               ),
             ),
           ),
-           const SizedBox(height: 16),
+          const SizedBox(height: 16),
 
-           // Scan QR Button - Only for coordinators
-           if (isUserCoordinator) ...[
-             if (!sudahScan) ...[
-               GestureDetector(
-                 onTap: onScanTap,
-                 child: Container(
-                   width: double.infinity,
-                   padding: const EdgeInsets.symmetric(vertical: 24),
-                   decoration: BoxDecoration(
-                     color: AppColors.secondary,
-                     borderRadius: BorderRadius.circular(12),
-                   ),
-                   child: Column(
-                     children: [
-                       Icon(
-                         Icons.qr_code_scanner,
-                         size: 40,
-                         color: sudahScan ? AppColors.primary : AppColors.primary,
-                       ),
-                       const SizedBox(height: 8),
-                       Text(
-                         'Scan QR Pos',
-                         style: GoogleFonts.plusJakartaSans(
-                           fontSize: 14,
-                           fontWeight: FontWeight.w600,
-                           color: AppColors.textPrimary,
-                         ),
-                       ),
-                     ],
-                   ),
-                 ),
-               ),
-               const SizedBox(height: 12),
-             ],
+          if (isOngoing && (isUserCoordinator || isUserMember)) ...[
+            if (!sudahScan) ...[
+              GestureDetector(
+                onTap: onScanTap,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  decoration: BoxDecoration(
+                    color: AppColors.secondary,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      const Icon(
+                        Icons.qr_code_scanner,
+                        size: 40,
+                        color: AppColors.primary,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        isUserCoordinator
+                            ? 'Scan QR Pos Utama'
+                            : 'Scan QR Pos Utama (Presensi)',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
 
-             // Status scan
-             Row(
-               mainAxisAlignment: MainAxisAlignment.center,
-               children: [
-                 Icon(
-                   sudahScan ? Icons.check_circle : Icons.check_circle_outline,
-                   size: 16,
-                   color: sudahScan ? AppColors.primary : AppColors.textSecondary,
-                 ),
-                 const SizedBox(width: 6),
-                 Text(
-                   sudahScan ? 'POS TERSCAN' : 'BELUM SCAN',
-                   style: GoogleFonts.plusJakartaSans(
-                     fontSize: 11,
-                     fontWeight: FontWeight.w600,
-                     color: sudahScan ? AppColors.primary : AppColors.textSecondary,
-                     letterSpacing: 0.5,
-                   ),
-                 ),
-               ],
-             ),
-             const SizedBox(height: 16),
-           ] else if (isUserMember) ...[
-             // Non-coordinator member: Show info that only coordinator can scan
-             Container(
-               width: double.infinity,
-               padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-               decoration: BoxDecoration(
-                 color: Colors.amber.shade50,
-                 borderRadius: BorderRadius.circular(12),
-                 border: Border.all(color: Colors.amber.shade200),
-               ),
-               child: Row(
-                 children: [
-                   Icon(
-                     Icons.info_outline,
-                     color: Colors.amber.shade700,
-                     size: 20,
-                   ),
-                   const SizedBox(width: 12),
-                   Expanded(
-                     child: Text(
-                       'Hanya koordinator yang bisa scan QR checkpoint.',
-                       style: GoogleFonts.plusJakartaSans(
-                         fontSize: 12,
-                         fontWeight: FontWeight.w600,
-                         color: Colors.amber.shade700,
-                       ),
-                     ),
-                   ),
-                 ],
-               ),
-             ),
-             const SizedBox(height: 16),
-           ],
-
-           // Tombol Mulai Ronda
-           SizedBox(
-             width: double.infinity,
-             height: 52,
-             child: ElevatedButton.icon(
-               onPressed: (isUserMember && sudahScan && isOngoing) ? onMulaiTap : null,
-               icon: Icon(
-                 (isUserMember && sudahScan && isOngoing) ? Icons.play_arrow_rounded : Icons.lock_outline,
-                 size: 20,
-               ),
-               label: Text(
-                 !isUserMember
-                     ? 'BUKAN ANGGOTA GRUP'
-                     : !isOngoing
-                         ? 'JADWAL BELUM MULAI'
-                         : 'MULAI RONDA',
-                 style: GoogleFonts.plusJakartaSans(
-                   fontSize: 14,
-                   fontWeight: FontWeight.bold,
-                   letterSpacing: 1,
-                 ),
-               ),
-               style: ElevatedButton.styleFrom(
-                 backgroundColor: (isUserMember && sudahScan && isOngoing) ? AppColors.success : Colors.grey.shade300,
-                 foregroundColor: (isUserMember && sudahScan && isOngoing) ? AppColors.white : Colors.grey.shade500,
-                 shape: RoundedRectangleBorder(
-                   borderRadius: BorderRadius.circular(12),
-                 ),
-                 elevation: 0,
-                 disabledBackgroundColor: Colors.grey.shade300,
-                 disabledForegroundColor: Colors.grey.shade500,
-               ),
-             ),
-           ),
+            // Status scan / presensi
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  sudahScan ? Icons.check_circle : Icons.check_circle_outline,
+                  size: 16,
+                  color: sudahScan ? AppColors.primary : AppColors.textSecondary,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  sudahScan
+                      ? (isUserCoordinator ? 'POS UTAMA TERSCAN' : 'PRESENSI BERHASIL')
+                      : (isUserCoordinator ? 'BELUM SCAN' : 'BELUM PRESENSI'),
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: sudahScan ? AppColors.primary : AppColors.textSecondary,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ] else if (!isOngoing && (isUserCoordinator || isUserMember)) ...[
+            // Schedule has not started yet
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.lock_clock,
+                    color: Colors.grey.shade600,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Jadwal ronda belum berlangsung.',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ] else ...[
+            // Not a group member
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.red.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    color: Colors.red.shade700,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Anda bukan anggota kelompok ronda untuk jadwal ini.',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.red.shade700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
         ],
       ),
     );

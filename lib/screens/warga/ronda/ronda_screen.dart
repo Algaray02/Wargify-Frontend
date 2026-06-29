@@ -157,6 +157,84 @@ class _RondaScreenState extends State<RondaScreen> {
     return coordinator['user_id']?.toString() == _currentUser!.userId;
   }
 
+  /// Check if current user has already marked attendance today for this schedule
+  bool _hasMarkedAttendanceToday(Map<String, dynamic>? schedule) {
+    if (schedule == null || _currentUser == null) return false;
+
+    final attendances = schedule['attendances'];
+    if (attendances is! List) return false;
+
+    final userId = _currentUser!.userId;
+    return attendances.any(
+      (att) => (att is Map) && att['user_id']?.toString() == userId,
+    );
+  }
+
+  List<latlong2.LatLng> _parsePathDataFromDatabase(Map<String, dynamic>? schedule) {
+    final List<latlong2.LatLng> points = [];
+    if (schedule == null) return points;
+
+    final log = schedule['ronda_log'] ?? schedule['rondaLog'];
+    if (log == null) return points;
+
+    final pathData = log['path_data'];
+    if (pathData is List) {
+      for (final item in pathData) {
+        if (item is Map) {
+          final lat = double.tryParse(item['lat']?.toString() ?? '');
+          final lng = double.tryParse(item['lng']?.toString() ?? '');
+          if (lat != null && lng != null) {
+            final latLng = _safeLatLng(lat, lng);
+            if (latLng != null) {
+              points.add(latLng);
+            }
+          }
+        }
+      }
+    }
+    return points;
+  }
+
+  void _startLocalTimerOnly() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        setState(() => _detikBerjalan++);
+        if (_detikBerjalan % 10 == 0) {
+          _fetchSchedules(background: true);
+        }
+      }
+    });
+  }
+
+  void _startRondaAutomatically() {
+    if (_rondaBerjalan) return;
+    if (!_isUserCoordinator(_selectedSchedule)) return;
+
+    final schedule = _selectedSchedule;
+    final log = schedule?['ronda_log'] ?? schedule?['rondaLog'];
+    final currentDurationMinutes = log != null ? (int.tryParse(log['duration']?.toString() ?? '0') ?? 0) : 0;
+
+    _initGps().then((_) {
+      if (!_gpsReady) return;
+      setState(() {
+        _rondaBerjalan = true;
+        _pathPoints = _parsePathDataFromDatabase(schedule);
+        _detikBerjalan = currentDurationMinutes * 60;
+      });
+
+      final initialLatLng = _currentPosition == null
+          ? null
+          : _safeLatLng(_currentPosition!.latitude, _currentPosition!.longitude);
+      if (initialLatLng != null && !_pathPoints.contains(initialLatLng)) {
+        _pathPoints.add(initialLatLng);
+      }
+
+      _startLiveLocationTracking(allowRondaLogs: true);
+      _startLocalTimerOnly();
+    });
+  }
+
   // ─────────────────────────────────────────────────────────────
   //  API CALLS
   // ─────────────────────────────────────────────────────────────
@@ -171,9 +249,13 @@ class _RondaScreenState extends State<RondaScreen> {
 
     try {
       final raw = await _apiService.getList(ApiEndpoints.rondaSchedules);
-      final schedules = raw
+      final allParsed = raw
           .whereType<Map>()
           .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+
+      final schedules = allParsed
+          .where((s) => _isUserCoordinator(s) || _isUserMemberOfGroup(s))
           .toList();
 
       if (_rondaBerjalan && _selectedSchedule != null) {
@@ -244,6 +326,43 @@ class _RondaScreenState extends State<RondaScreen> {
         _sudahScan = _hasScannedMainPos(selected);
         _isLoading = false;
       });
+
+      if (selected != null &&
+          selected['status']?.toString().toUpperCase() == 'ONGOING') {
+        final hasMarkedAtt = _hasMarkedAttendanceToday(selected);
+
+        if (hasMarkedAtt) {
+          if (!_rondaBerjalan) {
+            if (_isUserCoordinator(selected)) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _startRondaAutomatically();
+              });
+            } else {
+              final log = selected['ronda_log'] ?? selected['rondaLog'];
+              final currentDurationMinutes = log != null ? (int.tryParse(log['duration']?.toString() ?? '0') ?? 0) : 0;
+              setState(() {
+                _rondaBerjalan = true;
+                _detikBerjalan = currentDurationMinutes * 60;
+                _pathPoints = _parsePathDataFromDatabase(selected);
+              });
+              _startLocalTimerOnly();
+            }
+          } else {
+            if (!_isUserCoordinator(selected)) {
+              setState(() {
+                _pathPoints = _parsePathDataFromDatabase(selected);
+              });
+            }
+          }
+        } else {
+          if (_rondaBerjalan) {
+            setState(() {
+              _rondaBerjalan = false;
+            });
+            _timer?.cancel();
+          }
+        }
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -265,7 +384,30 @@ class _RondaScreenState extends State<RondaScreen> {
         'schedule_id': scheduleId,
       });
       if (!mounted) return;
-      setState(() => _sudahScan = true);
+      setState(() {
+        _sudahScan = true;
+        final userId = _currentUser?.userId;
+        if (userId != null) {
+          final attendances = schedule['attendances'];
+          if (attendances is List) {
+            final attendancesList = List<Map<String, dynamic>>.from(attendances);
+            if (!attendancesList.any((att) => att['user_id']?.toString() == userId)) {
+              attendancesList.add({
+                'user_id': userId,
+                'attended_at': DateTime.now().toIso8601String(),
+              });
+              schedule['attendances'] = attendancesList;
+            }
+          } else {
+            schedule['attendances'] = [
+              {
+                'user_id': userId,
+                'attended_at': DateTime.now().toIso8601String(),
+              }
+            ];
+          }
+        }
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -297,12 +439,31 @@ class _RondaScreenState extends State<RondaScreen> {
     }
   }
 
+  double _calculateDistanceCovered() {
+    if (_pathPoints.length < 2) return 0.0;
+    double totalDist = 0.0;
+    for (int i = 0; i < _pathPoints.length - 1; i++) {
+      totalDist += Geolocator.distanceBetween(
+        _pathPoints[i].latitude,
+        _pathPoints[i].longitude,
+        _pathPoints[i + 1].latitude,
+        _pathPoints[i + 1].longitude,
+      );
+    }
+    return totalDist / 1000.0; // convert to km
+  }
+
   Future<void> _uploadRondaLog() async {
     final schedule = _selectedSchedule;
     if (schedule == null) return;
 
     final scheduleId = schedule['schedule_id']?.toString();
     if (scheduleId == null) return;
+
+    final scheduleDate = schedule['schedule_date']?.toString();
+
+    final log = schedule['ronda_log'] ?? schedule['rondaLog'];
+    final currentDuration = log != null ? (int.tryParse(log['duration']?.toString() ?? '0') ?? 0) : 0;
 
     try {
       await _apiService.post(
@@ -317,7 +478,9 @@ class _RondaScreenState extends State<RondaScreen> {
                 },
               )
               .toList(),
-          'duration': _detikBerjalan,
+          'duration': currentDuration + 1,
+          'distance_covered': _calculateDistanceCovered(),
+          'session_date': scheduleDate,
         },
       );
     } catch (_) {}
@@ -382,25 +545,36 @@ class _RondaScreenState extends State<RondaScreen> {
     if (!_rondaBerjalan || _isSendingLiveLocation) return;
 
     final schedule = _selectedSchedule;
-    final position = _currentPosition;
-    if (schedule == null || position == null) return;
+    if (schedule == null) return;
 
     final scheduleId = schedule['schedule_id']?.toString();
     if (scheduleId == null) return;
 
-    final latLng = _safeLatLng(position.latitude, position.longitude);
-    if (latLng == null) return;
+    final scheduleDate = schedule['schedule_date']?.toString();
+
+    final log = schedule['ronda_log'] ?? schedule['rondaLog'];
+    final currentDuration = log != null ? (int.tryParse(log['duration']?.toString() ?? '0') ?? 0) : 0;
 
     _isSendingLiveLocation = true;
     try {
       await _apiService.post(
         '${ApiEndpoints.rondaSchedules}/$scheduleId/logs',
         {
-          'lat': latLng.latitude,
-          'long': latLng.longitude,
-          'time': DateTime.now().toIso8601String(),
+          'path_data': _pathPoints
+              .map(
+                (p) => {
+                  'lat': p.latitude,
+                  'lng': p.longitude,
+                  'time': DateTime.now().toIso8601String(),
+                },
+              )
+              .toList(),
+          'duration': currentDuration + 1,
+          'distance_covered': _calculateDistanceCovered(),
+          'session_date': scheduleDate,
         },
       );
+      debugPrint('Sending live ronda location');
     } catch (e) {
       debugPrint('Failed to send live ronda location: $e');
     } finally {
@@ -443,9 +617,8 @@ class _RondaScreenState extends State<RondaScreen> {
           });
           if (allowRondaLogs && !_hasLiveLocationFix) {
             _hasLiveLocationFix = true;
-            _sendLiveLocation();
             _liveLocationTimer?.cancel();
-            _liveLocationTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+            _liveLocationTimer = Timer.periodic(const Duration(minutes: 1), (_) {
               _sendLiveLocation();
             });
           }
@@ -477,10 +650,12 @@ class _RondaScreenState extends State<RondaScreen> {
       return;
     }
 
-    // Check if user is coordinator
-    if (!_isUserCoordinator(_selectedSchedule)) {
+    // Check if user is coordinator or member
+    final isCoordinator = _isUserCoordinator(_selectedSchedule);
+    final isMember = _isUserMemberOfGroup(_selectedSchedule);
+    if (!isCoordinator && !isMember) {
       _showSnackBar(
-        'Hanya koordinator ronda yang bisa scan QR checkpoint.',
+        'Anda bukan anggota kelompok ronda untuk jadwal ini.',
         backgroundColor: AppColors.danger,
       );
       return;
@@ -523,6 +698,15 @@ class _RondaScreenState extends State<RondaScreen> {
     final mainPos = _mainPosCheckpoint(_selectedSchedule);
     final mainPosId = mainPos?['checkpoint_id']?.toString();
     final isMainPos = checkpointId != null && checkpointId == mainPosId;
+
+    if (!isMainPos && !isCoordinator) {
+      _showSnackBar(
+        'Hanya koordinator yang bisa scan checkpoint ini.',
+        backgroundColor: AppColors.danger,
+      );
+      return;
+    }
+
     final hasScannedMainPos =
         mainPosId != null && scannedIds.contains(mainPosId);
 
@@ -535,18 +719,44 @@ class _RondaScreenState extends State<RondaScreen> {
     }
 
     try {
-      await _createCheckpointLog(checkpoint);
+      if (isCoordinator) {
+        await _createCheckpointLog(checkpoint);
+        if (!mounted) return;
+        _appendCheckpointLog(checkpoint);
+      }
+
+      if (isMainPos) {
+        if (!_hasMarkedAttendanceToday(_selectedSchedule)) {
+          await _markAttendance();
+        }
+      }
+
       if (!mounted) return;
-      _appendCheckpointLog(checkpoint);
       setState(() {
         _sudahScan = _hasScannedMainPos(_selectedSchedule);
       });
+
       _showSnackBar(
         isMainPos
-            ? 'Pos Utama berhasil discan. Ronda bisa dimulai.'
+            ? (isCoordinator 
+                ? 'Pos Utama berhasil discan. Ronda otomatis dimulai.'
+                : 'Presensi Pos Utama berhasil!')
             : 'Checkpoint berhasil discan.',
         backgroundColor: AppColors.primary,
       );
+
+      if (isMainPos && isCoordinator) {
+        _startRondaAutomatically();
+      } else if (isMainPos && !isCoordinator) {
+        final log = _selectedSchedule?['ronda_log'] ?? _selectedSchedule?['rondaLog'];
+        final currentDurationMinutes = log != null ? (int.tryParse(log['duration']?.toString() ?? '0') ?? 0) : 0;
+        setState(() {
+          _rondaBerjalan = true;
+          _detikBerjalan = currentDurationMinutes * 60;
+        });
+        _startLocalTimerOnly();
+      }
+
       _fetchSchedules();
     } catch (e) {
       if (!mounted) return;
@@ -598,7 +808,9 @@ class _RondaScreenState extends State<RondaScreen> {
     await _initGps();
     if (!_gpsReady) return;
 
-    await _markAttendance();
+    if (!_hasMarkedAttendanceToday(_selectedSchedule)) {
+      await _markAttendance();
+    }
 
     setState(() {
       _rondaBerjalan = true;
@@ -933,25 +1145,16 @@ class _RondaScreenState extends State<RondaScreen> {
                             'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                         userAgentPackageName: 'com.example.wargify',
                       ),
-                      PolylineLayer(
-                        polylines: [
-                          if (checkpointMarkers.isNotEmpty)
-                            Polyline(
-                              points: checkpointMarkers
-                                  .map((m) => m['location'] as latlong2.LatLng)
-                                  .toList(),
-                              color: Colors.orange.withValues(alpha: 0.4),
-                              strokeWidth: 2.0,
-                              pattern: StrokePattern.dashed(segments: [8.0, 6.0]),
-                            ),
-                          if (_pathPoints.isNotEmpty)
-                            Polyline(
-                              points: _pathPoints,
-                              color: AppColors.success,
-                              strokeWidth: 4.0,
-                            ),
-                        ],
-                      ),
+                       PolylineLayer(
+                         polylines: [
+                           if (_pathPoints.isNotEmpty)
+                             Polyline(
+                               points: _pathPoints,
+                               color: AppColors.success,
+                               strokeWidth: 4.0,
+                             ),
+                         ],
+                       ),
                       MarkerLayer(
                         markers: [
                           ...checkpointMarkers.map((m) {
@@ -1363,6 +1566,7 @@ class _RondaScreenState extends State<RondaScreen> {
       color: AppColors.primary,
       child: isEmpty
           ? ListView(
+              physics: const AlwaysScrollableScrollPhysics(parent: ClampingScrollPhysics()),
               children: [
                 SizedBox(
                   height: MediaQuery.of(context).size.height * 0.5,
@@ -1399,7 +1603,7 @@ class _RondaScreenState extends State<RondaScreen> {
               ],
             )
           : SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
+              physics: const AlwaysScrollableScrollPhysics(parent: ClampingScrollPhysics()),
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1417,9 +1621,10 @@ class _RondaScreenState extends State<RondaScreen> {
                   // --- Persiapan Card (hanya kalau belum mulai) ---
                   if (!_rondaBerjalan)
                     RondaPersiapanCard(
-                      sudahScan: _sudahScan,
+                      sudahScan: _isUserCoordinator(_selectedSchedule)
+                          ? _sudahScan
+                          : _hasMarkedAttendanceToday(_selectedSchedule),
                       onScanTap: _handleScanQr,
-                      onMulaiTap: _handleMulaiRonda,
                       isUserMember: _isUserMemberOfGroup(_selectedSchedule),
                       isUserCoordinator: _isUserCoordinator(_selectedSchedule),
                       isOngoing: _selectedSchedule?['status']?.toString().toUpperCase() == 'ONGOING',

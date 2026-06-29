@@ -62,104 +62,107 @@ class _RTMainScreenState extends State<RTMainScreen> {
       backgroundColor: AppColors.background,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(80),
-        child: SafeArea(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            color: AppColors.background,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    PopupMenuButton<String>(
-                      onSelected: (value) {
-                        if (value == 'logout') {
-                          _handleLogout();
-                        } else if (value == 'profile') {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  ProfileScreen(user: _currentUser),
+        child: Container(
+          color: AppColors.background,
+          child: SafeArea(
+            bottom: false,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      PopupMenuButton<String>(
+                        onSelected: (value) {
+                          if (value == 'logout') {
+                            _handleLogout();
+                          } else if (value == 'profile') {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    ProfileScreen(user: _currentUser),
+                              ),
+                            ).then((_) => _refreshProfile());
+                          }
+                        },
+                        offset: const Offset(0, 50),
+                        itemBuilder: (BuildContext context) => [
+                          PopupMenuItem<String>(
+                            value: 'profile',
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.person_outline,
+                                  size: 20,
+                                  color: AppColors.primary,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Lihat Profil',
+                                  style: GoogleFonts.plusJakartaSans(),
+                                ),
+                              ],
                             ),
-                          ).then((_) => _refreshProfile());
-                        }
-                      },
-                      offset: const Offset(0, 50),
-                      itemBuilder: (BuildContext context) => [
-                        PopupMenuItem<String>(
-                          value: 'profile',
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.person_outline,
-                                size: 20,
-                                color: AppColors.primary,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Lihat Profil',
-                                style: GoogleFonts.plusJakartaSans(),
-                              ),
-                            ],
                           ),
-                        ),
-                        PopupMenuItem<String>(
-                          value: 'logout',
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.logout,
-                                size: 20,
-                                color: Colors.red,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Keluar',
-                                style: GoogleFonts.plusJakartaSans(
+                          PopupMenuItem<String>(
+                            value: 'logout',
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.logout,
+                                  size: 20,
                                   color: Colors.red,
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Keluar',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    color: Colors.red,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        child: Container(
+                          width: 45,
+                          height: 45,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.grey[300],
+                            image: DecorationImage(
+                              image: _avatarProvider(_currentUser),
+                              fit: BoxFit.cover,
+                            ),
                           ),
                         ),
-                      ],
-                      child: Container(
-                        width: 45,
-                        height: 45,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.grey[300],
-                          image: DecorationImage(
-                            image: _avatarProvider(_currentUser),
-                            fit: BoxFit.cover,
-                          ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'WARGIFY',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.primary,
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      'WARGIFY',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  ],
-                ),
-                IconButton(
-                  icon: const Icon(Icons.notifications_none_rounded, size: 28),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const NotifikasiLogScreen(),
-                      ),
-                    );
-                  },
-                ),
-              ],
+                    ],
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.notifications_none_rounded, size: 28),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const NotifikasiLogScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
         ),

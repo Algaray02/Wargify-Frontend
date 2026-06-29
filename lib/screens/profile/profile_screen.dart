@@ -606,77 +606,176 @@ class _ProfileScreenState extends State<ProfileScreen> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 24,
-                right: 24,
-                top: 24,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Edit Profil',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: const Color(0xFF0D1B2A),
+            return SafeArea(
+              top: false,
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: 24,
+                  right: 24,
+                  top: 24,
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Edit Profil',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF0D1B2A),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 18),
-                    _buildPhotoPicker(
-                      selectedPhotoName: selectedPhoto?.name,
-                      onPick: () async {
-                        final photo = await _imagePicker.pickImage(
-                          source: ImageSource.gallery,
-                          imageQuality: 82,
-                          maxWidth: 1200,
-                        );
-                        if (photo != null) {
-                          setModalState(() => selectedPhoto = photo);
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    _buildTextField(nameController, 'Nama Lengkap'),
-                    const SizedBox(height: 12),
-                    _buildTextField(phoneController, 'Nomor Telepon'),
-                    const SizedBox(height: 12),
-                    _buildTextField(
-                      passwordController,
-                      'Password Baru',
-                      obscureText: true,
-                    ),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _isSaving
-                            ? null
-                            : () => _submitProfileUpdate(
-                                fullName: nameController.text,
-                                phoneNumber: phoneController.text,
-                                profilePhoto: selectedPhoto,
-                                password: passwordController.text,
-                              ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
+                      const SizedBox(height: 18),
+                      _buildPhotoPicker(
+                        selectedPhotoName: selectedPhoto?.name,
+                        onPick: () async {
+                          final source = await showModalBottomSheet<ImageSource>(
+                            context: context,
+                            shape: const RoundedRectangleBorder(
+                              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                            ),
+                            builder: (ctx) {
+                              return SafeArea(
+                                top: false,
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Pilih Sumber Foto',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.w900,
+                                          color: const Color(0xFF0D1B2A),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      InkWell(
+                                        onTap: () => Navigator.pop(ctx, ImageSource.camera),
+                                        borderRadius: BorderRadius.circular(14),
+                                        child: Container(
+                                          width: double.infinity,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 14,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFF4F8FC),
+                                            borderRadius: BorderRadius.circular(14),
+                                            border: Border.all(color: const Color(0xFFE9F1F8)),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              const Icon(
+                                                Icons.camera_alt_outlined,
+                                                color: AppColors.primary,
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Text(
+                                                'Ambil Foto dari Kamera',
+                                                style: GoogleFonts.plusJakartaSans(
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: const Color(0xFF0D1B2A),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      InkWell(
+                                        onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+                                        borderRadius: BorderRadius.circular(14),
+                                        child: Container(
+                                          width: double.infinity,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 14,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFF4F8FC),
+                                            borderRadius: BorderRadius.circular(14),
+                                            border: Border.all(color: const Color(0xFFE9F1F8)),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              const Icon(Icons.image_outlined, color: AppColors.primary),
+                                              const SizedBox(width: 12),
+                                              Text(
+                                                'Pilih dari Galeri',
+                                                style: GoogleFonts.plusJakartaSans(
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: const Color(0xFF0D1B2A),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+
+                          if (source != null) {
+                            final photo = await _imagePicker.pickImage(
+                              source: source,
+                              imageQuality: 82,
+                              maxWidth: 1200,
+                            );
+                            if (photo != null) {
+                              setModalState(() => selectedPhoto = photo);
+                            }
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      _buildTextField(nameController, 'Nama Lengkap'),
+                      const SizedBox(height: 12),
+                      _buildTextField(phoneController, 'Nomor Telepon'),
+                      const SizedBox(height: 12),
+                      _buildTextField(
+                        passwordController,
+                        'Password Baru',
+                        obscureText: true,
+                      ),
+                      const SizedBox(height: 20),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _isSaving
+                              ? null
+                              : () => _submitProfileUpdate(
+                                  fullName: nameController.text,
+                                  phoneNumber: phoneController.text,
+                                  profilePhoto: selectedPhoto,
+                                  password: passwordController.text,
+                                ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: Text(
+                            _isSaving ? 'Menyimpan...' : 'Simpan Profil',
                           ),
                         ),
-                        child: Text(
-                          _isSaving ? 'Menyimpan...' : 'Simpan Profil',
-                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             );
