@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:wargify/core/constants/api_endpoints.dart';
 import 'package:wargify/core/constants/colors.dart';
+import 'package:wargify/screens/common/sos/sos_detail_screen.dart';
 import 'package:wargify/services/api_service.dart';
 
 class ActivityLog {
@@ -10,6 +11,7 @@ class ActivityLog {
   final DateTime? createdAt;
   final String type;
   final IconData icon;
+  final String? refId;
 
   ActivityLog({
     required this.title,
@@ -17,6 +19,7 @@ class ActivityLog {
     required this.createdAt,
     required this.type,
     required this.icon,
+    this.refId,
   });
 }
 
@@ -120,6 +123,7 @@ class _NotifikasiLogScreenState extends State<NotifikasiLogScreen> {
         createdAt: _parseDate(item['created_at']),
         type: 'sos',
         icon: Icons.warning_rounded,
+        refId: item['alert_id']?.toString(),
       );
     }).toList();
   }
@@ -205,7 +209,7 @@ class _NotifikasiLogScreenState extends State<NotifikasiLogScreen> {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
+                  color: Colors.black.withValues(alpha: 0.04),
                   blurRadius: 10,
                   offset: const Offset(0, 2),
                 ),
@@ -271,84 +275,95 @@ class _NotifikasiLogScreenState extends State<NotifikasiLogScreen> {
         : Colors.white;
     final iconBgColor = isSos ? AppColors.danger : AppColors.primary;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: cardBgColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isSos
-              ? const Color(0xFFFADBD8)
-              : isSystem
-              ? const Color(0xFFD4E6F1)
-              : Colors.grey.withOpacity(0.08),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+    return InkWell(
+      onTap: isSos && (log.refId?.isNotEmpty ?? false)
+          ? () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => SosDetailScreen(alertId: log.refId!),
+              ),
+            )
+          : null,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: cardBgColor,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSos
+                ? const Color(0xFFFADBD8)
+                : isSystem
+                ? const Color(0xFFD4E6F1)
+                : Colors.grey.withValues(alpha: 0.08),
+            width: 1,
           ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              color: iconBgColor,
-              borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.02),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
-            child: Icon(log.icon, color: Colors.white, size: 26),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        log.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          color: isSos
-                              ? AppColors.danger
-                              : const Color(0xFF0D1B2A),
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: iconBgColor,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(log.icon, color: Colors.white, size: 26),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          log.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: isSos
+                                ? AppColors.danger
+                                : const Color(0xFF0D1B2A),
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      _relativeTime(log.createdAt),
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11,
-                        color: isSos ? AppColors.danger : Colors.grey[500],
+                      const SizedBox(width: 8),
+                      Text(
+                        _relativeTime(log.createdAt),
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          color: isSos ? AppColors.danger : Colors.grey[500],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  log.content,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13,
-                    color: Colors.grey[700],
-                    height: 1.4,
+                    ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 6),
+                  Text(
+                    log.content,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      color: Colors.grey[700],
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

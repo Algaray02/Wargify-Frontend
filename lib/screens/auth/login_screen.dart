@@ -35,7 +35,9 @@ class _LoginScreenState extends State<LoginScreen> {
         _usernameController.text,
         _passwordController.text,
       );
-      await AppNotificationService().initialize(registerToken: true);
+      AppNotificationService()
+          .initialize(registerToken: true)
+          .catchError((_) {});
 
       if (mounted) {
         Navigator.of(context).pushReplacement(
@@ -45,9 +47,13 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e is Exception
-              ? e.toString().replaceAll('Exception: ', '')
-              : 'Login gagal. Periksa koneksi Anda.')),
+          SnackBar(
+            content: Text(
+              e is Exception
+                  ? e.toString().replaceAll('Exception: ', '')
+                  : 'Login gagal. Periksa koneksi Anda.',
+            ),
+          ),
         );
       }
     } finally {

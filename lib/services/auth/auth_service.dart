@@ -65,7 +65,22 @@ class AuthService {
 
   Future<bool> isLoggedIn() async {
     final token = await _sessionStorage.getToken();
-    return token != null && token.isNotEmpty;
+    if (token == null || token.isEmpty) return false;
+
+    try {
+      final response = await _dio.get(
+        ApiEndpoints.me,
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      return response.statusCode == 200 && response.data['success'] == true;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401 || e.response?.statusCode == 419) {
+        await _sessionStorage.clear();
+      }
+      return false;
+    } catch (_) {
+      return true;
+    }
   }
 
   Future<UserModel?> getCurrentUser() async {

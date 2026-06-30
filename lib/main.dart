@@ -9,13 +9,14 @@ import 'screens/auth/login_screen.dart';
 import 'screens/dashboard/dashboard_wrapper.dart';
 import 'services/app_notification_service.dart';
 import 'services/auth/auth_service.dart';
+import 'services/session_expiry_handler.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize Indonesian locale for date formatting
   await initializeDateFormatting('id', null);
-  
+
   if (!kIsWeb) {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
@@ -25,7 +26,9 @@ void main() async {
   final authService = AuthService();
   final bool loggedIn = await authService.isLoggedIn();
   if (!kIsWeb) {
-    await AppNotificationService().initialize(registerToken: loggedIn);
+    try {
+      await AppNotificationService().initialize(registerToken: loggedIn);
+    } catch (_) {}
   }
 
   runApp(
@@ -43,6 +46,8 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: SessionExpiryHandler.navigatorKey,
+      scaffoldMessengerKey: SessionExpiryHandler.scaffoldMessengerKey,
       title: 'Wargify',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(

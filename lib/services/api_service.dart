@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import '../core/constants/api_endpoints.dart';
 import 'secure_session_storage.dart';
+import 'session_expiry_handler.dart';
 
 class ApiService {
   ApiService()
@@ -24,6 +25,15 @@ class ApiService {
             options.headers['Authorization'] = 'Bearer $token';
           }
           handler.next(options);
+        },
+        onError: (error, handler) async {
+          final statusCode = error.response?.statusCode;
+          if (statusCode == 401 || statusCode == 419) {
+            await SessionExpiryHandler.forceLogout(
+              message: 'Sesi berakhir. Silakan login kembali.',
+            );
+          }
+          handler.next(error);
         },
       ),
     );
