@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:wargify/core/constants/colors.dart';
 import 'package:wargify/screens/bendahara/qr/qr_scanner_screen.dart';
 import 'package:wargify/widgets/bendahara/payment/manual_payment_sheet.dart';
 
@@ -10,16 +9,26 @@ class ShowContributionQrScreen extends StatefulWidget {
   const ShowContributionQrScreen({super.key, this.periodData});
 
   @override
-  State<ShowContributionQrScreen> createState() => _ShowContributionQrScreenState();
+  State<ShowContributionQrScreen> createState() =>
+      _ShowContributionQrScreenState();
 }
 
 class _ShowContributionQrScreenState extends State<ShowContributionQrScreen> {
-  
   // Fungsi Helper mengubah angka bulan (1-12) menjadi Teks Bahasa Indonesia
   String _getNamaBulanIndo(int monthNumber) {
     const List<String> months = [
-      "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-      "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+      "Januari",
+      "Februari",
+      "Maret",
+      "April",
+      "Mei",
+      "Juni",
+      "Juli",
+      "Agustus",
+      "September",
+      "Oktober",
+      "November",
+      "Desember",
     ];
     if (monthNumber >= 1 && monthNumber <= 12) {
       return months[monthNumber - 1];
@@ -29,16 +38,22 @@ class _ShowContributionQrScreenState extends State<ShowContributionQrScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 🌟 SINKRONISASI DATA MANDIRI: Ekstrak angka month & year dari database
-    final int monthVal = int.tryParse(widget.periodData?['month']?.toString() ?? '') ?? 0;
-    final int yearVal = int.tryParse(widget.periodData?['year']?.toString() ?? '') ?? 0;
-    
-    // 🌟 FORMULASI TEKS DINAMIS: Jika month & year valid, rangkai teks cantik. Jika tidak, gunakan period_name mentah sebagai fallback.
+    final now = DateTime.now();
+    int monthVal =
+        int.tryParse(widget.periodData?['month']?.toString() ?? '') ?? 0;
+    int yearVal =
+        int.tryParse(widget.periodData?['year']?.toString() ?? '') ?? 0;
+
+    if (monthVal < 1 || monthVal > 12) monthVal = now.month;
+    if (yearVal <= 0) yearVal = now.year;
+
     String displayPeriod = "Iuran Bulanan";
-    if (monthVal >= 1 && monthVal <= 12 && yearVal > 0) {
-      displayPeriod = "${_getNamaBulanIndo(monthVal)} $yearVal";
+    if (widget.periodData?['period_name'] != null &&
+        widget.periodData?['month'] == null &&
+        widget.periodData?['year'] == null) {
+      displayPeriod = widget.periodData!['period_name'];
     } else {
-      displayPeriod = widget.periodData?['period_name'] ?? 'Iuran Bulanan';
+      displayPeriod = "${_getNamaBulanIndo(monthVal)} $yearVal";
     }
 
     // Mengekstrak ID Periode agar bisa dipakai oleh sheet centang manual
@@ -63,14 +78,19 @@ class _ShowContributionQrScreenState extends State<ShowContributionQrScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.account_balance_wallet_outlined, color: Colors.grey),
+            icon: const Icon(
+              Icons.account_balance_wallet_outlined,
+              color: Colors.grey,
+            ),
             onPressed: () {},
           ),
           const Padding(
             padding: EdgeInsets.only(right: 16),
             child: CircleAvatar(
               radius: 16,
-              backgroundImage: NetworkImage('https://ui-avatars.com/api/?name=Bendahara&background=00468B&color=fff'),
+              backgroundImage: NetworkImage(
+                'https://ui-avatars.com/api/?name=Bendahara&background=00468B&color=fff',
+              ),
             ),
           ),
         ],
@@ -89,7 +109,7 @@ class _ShowContributionQrScreenState extends State<ShowContributionQrScreen> {
                   border: Border.all(color: const Color(0xFFE0E6ED)),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.02),
+                      color: Colors.black.withValues(alpha: 0.02),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -111,7 +131,10 @@ class _ShowContributionQrScreenState extends State<ShowContributionQrScreen> {
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.green[50],
                             borderRadius: BorderRadius.circular(20),
@@ -129,14 +152,16 @@ class _ShowContributionQrScreenState extends State<ShowContributionQrScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    
+
                     // Rincian Periode Utama (Menggantikan Tarif Kategori Tunggal)
                     Row(
                       children: [
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF004E92).withOpacity(0.05),
+                            color: const Color(
+                              0xFF004E92,
+                            ).withValues(alpha: 0.05),
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: const Icon(
@@ -170,7 +195,7 @@ class _ShowContributionQrScreenState extends State<ShowContributionQrScreen> {
                         ),
                       ],
                     ),
-                    
+
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 16.0),
                       child: Divider(height: 1, color: Color(0xFFF0F4F8)),
@@ -208,7 +233,7 @@ class _ShowContributionQrScreenState extends State<ShowContributionQrScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              
+
               // Tombol Centang Manual terintegrasi penuh dengan ID Periode aktif
               OutlinedButton.icon(
                 onPressed: () {
@@ -216,9 +241,8 @@ class _ShowContributionQrScreenState extends State<ShowContributionQrScreen> {
                     context: context,
                     isScrollControlled: true,
                     backgroundColor: Colors.transparent,
-                    builder: (context) => ManualPaymentSheet(
-                      periodId: periodId,
-                    ),
+                    builder: (context) =>
+                        ManualPaymentSheet(periodId: periodId),
                   );
                 },
                 icon: const Icon(Icons.checklist_rtl_rounded, size: 20),
@@ -227,16 +251,24 @@ class _ShowContributionQrScreenState extends State<ShowContributionQrScreen> {
                   foregroundColor: const Color(0xFF004E92),
                   side: const BorderSide(color: Color(0xFF004E92)),
                   minimumSize: const Size(double.infinity, 56),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  textStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  textStyle: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
-              
+
               const SizedBox(height: 32),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.verified_user_outlined, size: 16, color: Colors.grey),
+                  const Icon(
+                    Icons.verified_user_outlined,
+                    size: 16,
+                    color: Colors.grey,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     'Sistem iuran aman & terenkripsi',

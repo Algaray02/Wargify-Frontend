@@ -4,7 +4,6 @@ import 'package:wargify/screens/bendahara/scan/show_contribution_qr_screen.dart'
 import '../../../../core/constants/colors.dart';
 import '../../../../models/user_model.dart';
 import '../../../../services/api_service.dart';
-import '../../../../widgets/bendahara/payment/manual_payment_sheet.dart';
 import '../contribution/add_contribution_screen.dart';
 import '../financial/add_income_screen.dart';
 import '../financial/add_expense_screen.dart';
@@ -22,17 +21,21 @@ class BendaharaHomePage extends StatefulWidget {
 class _BendaharaHomePageState extends State<BendaharaHomePage> {
   String _formatNumber(dynamic value) {
     if (value == null) return '0';
-    String cleanStr = value.toString().split('.')[0]; 
+    String cleanStr = value.toString().split('.')[0];
     int? numValue = int.tryParse(cleanStr);
     if (numValue == null) return value.toString();
-    
+
     RegExp reg = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
-    return numValue.toString().replaceAllMapped(reg, (Match match) => '${match[1]}.');
+    return numValue.toString().replaceAllMapped(
+      reg,
+      (Match match) => '${match[1]}.',
+    );
   }
-  
+
   final ApiService _apiService = ApiService();
   Map<String, dynamic>? _summaryData = {};
-  Map<String, dynamic>? _activePeriod = {}; // ⬅️ 1. TAMBAHKAN VARIABEL UNTUK MENAMPUNG PERIODE IURAN
+  Map<String, dynamic>? _activePeriod =
+      {}; // ⬅️ 1. TAMBAHKAN VARIABEL UNTUK MENAMPUNG PERIODE IURAN
   bool _isLoading = true;
   String? _errorMessage;
 
@@ -43,7 +46,7 @@ class _BendaharaHomePageState extends State<BendaharaHomePage> {
   }
 
   // 2. FUNGSI BARU: Mengambil Data Keuangan SEKALIGUS Periode Iuran Aktif
- Future<void> _fetchTreasuryAndPeriodData() async {
+  Future<void> _fetchTreasuryAndPeriodData() async {
     try {
       if (!mounted) return;
       setState(() {
@@ -52,38 +55,55 @@ class _BendaharaHomePageState extends State<BendaharaHomePage> {
       });
 
       // A. Ambil Data Summary Kas
-      final summaryData = await _apiService.getMap(ApiEndpoints.treasurySummary);
-      
+      final summaryData = await _apiService.getMap(
+        ApiEndpoints.treasurySummary,
+      );
+
       // B. Ambil Data List Periode (Pakai getList karena terbukti bisa ONLINE)
-      final periodResponse = await _apiService.getList(ApiEndpoints.iuranPeriods);
-    
+      final periodResponse = await _apiService.getList(
+        ApiEndpoints.iuranPeriods,
+      );
+
       if (!mounted) return;
 
       setState(() {
         _summaryData = summaryData;
-        
-        if (periodResponse != null && periodResponse is List && periodResponse.isNotEmpty) {
-          _activePeriod = periodResponse.first; // Ambil data iuran paling terbaru
-        } else {
-          _activePeriod = null; 
+
+        _activePeriod = null;
+        if (periodResponse.isNotEmpty) {
+          final now = DateTime.now();
+          for (final raw in periodResponse) {
+            if (raw is Map) {
+              final m = int.tryParse(raw['month']?.toString() ?? '');
+              final y = int.tryParse(raw['year']?.toString() ?? '');
+              if (m == now.month && y == now.year) {
+                _activePeriod = Map<String, dynamic>.from(raw);
+                break;
+              }
+            }
+          }
+          _activePeriod ??= Map<String, dynamic>.from(periodResponse.first);
         }
-        
+
         _isLoading = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Gagal memuat data keuangan: ${AppError.userFriendly(e)}';
+        _errorMessage =
+            'Gagal memuat data keuangan: ${AppError.userFriendly(e)}';
         _isLoading = false;
       });
     }
   }
 
-  @override 
+  @override
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+        body: Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
+        ),
       );
     }
 
@@ -115,7 +135,8 @@ class _BendaharaHomePageState extends State<BendaharaHomePage> {
     }
 
     return RefreshIndicator(
-      onRefresh: _fetchTreasuryAndPeriodData, // ⬅️ Refresh akan memperbarui kas & list iuran lunas
+      onRefresh:
+          _fetchTreasuryAndPeriodData, // ⬅️ Refresh akan memperbarui kas & list iuran lunas
       color: AppColors.primary,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -143,7 +164,7 @@ class _BendaharaHomePageState extends State<BendaharaHomePage> {
               ),
             ),
             const SizedBox(height: 24),
-            
+
             // Card Kas Utama
             Container(
               width: double.infinity,
@@ -213,7 +234,9 @@ class _BendaharaHomePageState extends State<BendaharaHomePage> {
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const AddContributionScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => const AddContributionScreen(),
+                        ),
                       ).then((_) {
                         _fetchTreasuryAndPeriodData();
                       });
@@ -225,15 +248,19 @@ class _BendaharaHomePageState extends State<BendaharaHomePage> {
                       foregroundColor: const Color(0xFF0D47A1),
                       elevation: 0,
                       minimumSize: const Size(double.infinity, 50),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      textStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      textStyle: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 24),
-            
+
             // Card Status Penagihan Warga
             Container(
               padding: const EdgeInsets.all(20),
@@ -261,13 +288,17 @@ class _BendaharaHomePageState extends State<BendaharaHomePage> {
                           ),
                           const SizedBox(height: 4),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xFFE3F2FD),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
-                              _activePeriod?['period_name'] ?? 'Tidak ada periode aktif',
+                              _activePeriod?['period_name'] ??
+                                  'Tidak ada periode aktif',
                               overflow: TextOverflow.ellipsis,
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 10,
@@ -278,20 +309,35 @@ class _BendaharaHomePageState extends State<BendaharaHomePage> {
                           ),
                         ],
                       ),
-                      const Icon(Icons.assessment_rounded, size: 20, color: Colors.grey),
+                      const Icon(
+                        Icons.assessment_rounded,
+                        size: 20,
+                        color: Colors.grey,
+                      ),
                     ],
                   ),
                   const SizedBox(height: 20),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Sistem Penagihan Aktif', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey[600])),
                       Text(
-                        _activePeriod != null && _activePeriod!.isNotEmpty ? 'Online' : 'Offline', 
+                        'Sistem Penagihan Aktif',
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14, 
-                          fontWeight: FontWeight.w800, 
-                          color: _activePeriod != null && _activePeriod!.isNotEmpty ? Colors.green : Colors.red
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      Text(
+                        _activePeriod != null && _activePeriod!.isNotEmpty
+                            ? 'Online'
+                            : 'Offline',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color:
+                              _activePeriod != null && _activePeriod!.isNotEmpty
+                              ? Colors.green
+                              : Colors.red,
                         ),
                       ),
                     ],
@@ -309,30 +355,43 @@ class _BendaharaHomePageState extends State<BendaharaHomePage> {
                   const SizedBox(height: 12),
                   Text(
                     'Gunakan menu scanner untuk melihat tunggakan per KK secara real-time',
-                    style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.grey[500]),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      color: Colors.grey[500],
+                    ),
                   ),
                   const SizedBox(height: 20),
-                  
+
                   // 3. SEKARANG DATA YANG DIOPER SUDAH REAL PERIOD DATA (ANTI-EROR)
                   OutlinedButton(
-                    onPressed: (_activePeriod == null || _activePeriod!.isEmpty) ? null : () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ShowContributionQrScreen(periodData: _activePeriod),
-                        ),
-                      );
-                    },
+                    onPressed: (_activePeriod == null || _activePeriod!.isEmpty)
+                        ? null
+                        : () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ShowContributionQrScreen(
+                                  periodData: _activePeriod,
+                                ),
+                              ),
+                            );
+                          },
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size(double.infinity, 45),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      side: BorderSide(color: AppColors.primary.withOpacity(0.5)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      side: BorderSide(
+                        color: AppColors.primary.withOpacity(0.5),
+                      ),
                     ),
                     child: Text(
                       'Tampilkan Iuran',
                       style: GoogleFonts.plusJakartaSans(
-                        fontWeight: FontWeight.bold, 
-                        color: (_activePeriod == null || _activePeriod!.isEmpty) ? Colors.grey : AppColors.primary
+                        fontWeight: FontWeight.bold,
+                        color: (_activePeriod == null || _activePeriod!.isEmpty)
+                            ? Colors.grey
+                            : AppColors.primary,
                       ),
                     ),
                   ),
@@ -340,7 +399,7 @@ class _BendaharaHomePageState extends State<BendaharaHomePage> {
               ),
             ),
             const SizedBox(height: 24),
-            
+
             // Sisa kode Keuangan & Summary ke bawah tetap sama persis milikmu...
             Text(
               'Kelola Keuangan',
@@ -358,7 +417,9 @@ class _BendaharaHomePageState extends State<BendaharaHomePage> {
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const AddIncomeScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => const AddIncomeScreen(),
+                        ),
                       );
                     },
                     child: _buildFinancialButton(
@@ -376,7 +437,9 @@ class _BendaharaHomePageState extends State<BendaharaHomePage> {
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const AddExpenseScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => const AddExpenseScreen(),
+                        ),
                       );
                     },
                     child: _buildFinancialButton(
@@ -391,7 +454,7 @@ class _BendaharaHomePageState extends State<BendaharaHomePage> {
               ],
             ),
             const SizedBox(height: 24),
-            
+
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -411,9 +474,19 @@ class _BendaharaHomePageState extends State<BendaharaHomePage> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  _buildSummaryRow('TOTAL MASUK', 'Rp ${_formatNumber(_summaryData?['total_income'] ?? '0')}', Colors.blue[800]!, Icons.show_chart_rounded),
+                  _buildSummaryRow(
+                    'TOTAL MASUK',
+                    'Rp ${_formatNumber(_summaryData?['total_income'] ?? '0')}',
+                    Colors.blue[800]!,
+                    Icons.show_chart_rounded,
+                  ),
                   const SizedBox(height: 12),
-                  _buildSummaryRow('TOTAL KELUAR', 'Rp ${_formatNumber(_summaryData?['total_expense'] ?? '0')}', Colors.red[800]!, Icons.auto_graph_rounded),
+                  _buildSummaryRow(
+                    'TOTAL KELUAR',
+                    'Rp ${_formatNumber(_summaryData?['total_expense'] ?? '0')}',
+                    Colors.red[800]!,
+                    Icons.auto_graph_rounded,
+                  ),
                 ],
               ),
             ),
@@ -443,19 +516,40 @@ class _BendaharaHomePageState extends State<BendaharaHomePage> {
         children: [
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(12),
+            ),
             child: Icon(icon, color: iconColor, size: 24),
           ),
           const SizedBox(height: 16),
-          Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF0D1B2A))),
+          Text(
+            label,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFF0D1B2A),
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(subtitle, style: GoogleFonts.plusJakartaSans(fontSize: 10, color: Colors.grey[500])),
+          Text(
+            subtitle,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 10,
+              color: Colors.grey[500],
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildSummaryRow(String label, String value, Color color, IconData icon) {
+  Widget _buildSummaryRow(
+    String label,
+    String value,
+    Color color,
+    IconData icon,
+  ) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -464,14 +558,35 @@ class _BendaharaHomePageState extends State<BendaharaHomePage> {
       ),
       child: Row(
         children: [
-          Container(width: 4, height: 24, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
+          Container(
+            width: 4,
+            height: 24,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey[600])),
-                Text(value, style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w800, color: const Color(0xFF0D1B2A))),
+                Text(
+                  label,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                Text(
+                  value,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF0D1B2A),
+                  ),
+                ),
               ],
             ),
           ),
